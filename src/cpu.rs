@@ -80,11 +80,59 @@ impl CPU {
         let imm40 = (instruction >> 7) & 0b11111;
         let imm_s = (imm115 << 5) | imm40;
         let imm_s_type = ((imm_s as i32) << 20) >> 20;
-
+        //TODO finish rest of I TYPES
+        // FINISH IMPLEMENTING R TYPES
+        // FINISH IMPLEMENTING JUMPS
         match opcode {
             0b00000000 => {
                 todo!("Invalid Memory Error!");
             }
+            // ADD SUB SHIFT ETC
+            0b0110011 => match funct3 {
+                0x0 => match funct7 {
+                    0x0 => {
+                        todo!("ADD");
+                    }
+                    0x20 => {
+                        todo!("SUB");
+                    }
+                    _ => {
+                        todo!("Invalid funct7");
+                    }
+                },
+                0x5 => match funct7 {
+                    0x0 => {
+                        todo!("SRL");
+                    }
+                    0x20 => {
+                        todo!("SRA");
+                    }
+                    _ => {
+                        todo!("Invalid funct7");
+                    }
+                },
+                0x4 => {
+                    todo!("XOR");
+                }
+                0x6 => {
+                    todo!("OR");
+                }
+                0x7 => {
+                    todo!("AND");
+                }
+                0x1 => {
+                    todo!("SLL");
+                }
+                0x2 => {
+                    todo!("SLT");
+                }
+                0x3 => {
+                    todo!("SLTU");
+                }
+                _ => {
+                    todo!("INVALID FUNCT3")
+                }
+            },
             // Load Instructions
             0b0000011 => match funct3 {
                 // I TYPE
@@ -138,15 +186,12 @@ impl CPU {
                     self.addi(rd, rs1, imm);
                 }
                 0x4 => {
-                    println!("XORI");
                     self.xori(rd, rs1, imm);
                 }
                 0x6 => {
-                    println!("ORI");
                     self.ori(rd, rs1, imm);
                 }
                 0x7 => {
-                    println!("ANDI");
                     self.andi(rd, rs1, imm);
                 }
                 _ => {
