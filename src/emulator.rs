@@ -47,6 +47,8 @@ impl Emulator {
         self.cpu.execute(self.current_instruction);
         self.cpu.pc += 0x4;
         self.cpu.sp = self.cpu.x_reg[2] as u32;
+        self.cpu.x_reg[0] = 0x0;
+        // set X0 to ZERO
     }
 
     pub fn load_elf(path: &str) {

@@ -107,11 +107,13 @@ impl CPU {
             0b0110011 => match funct3 {
                 0x0 => match funct7 {
                     0x0 => {
+                        println!("add");
                         // rd = rs1 + rs2
                         self.x_reg[rd as usize] =
                             self.x_reg[rs1 as usize].wrapping_add(self.x_reg[_rs2 as usize]);
                     }
                     0x20 => {
+                        println!("sub");
                         self.x_reg[rd as usize] =
                             self.x_reg[rs1 as usize].wrapping_sub(self.x_reg[_rs2 as usize]);
                     }
@@ -204,6 +206,7 @@ impl CPU {
             0b0010011 => match funct3 {
                 // I TYPE
                 0x0 => {
+                    println!("addi");
                     self.addi(rd, rs1, imm);
                 }
                 0x4 => {
@@ -238,7 +241,7 @@ impl CPU {
                     }
                 }
                 0x3 => {
-                    if self.x_reg[rs1 as usize] < imm as u64 {
+                    if (self.x_reg[rs1 as usize] as i64) < (imm as i64) {
                         self.x_reg[rd as usize] = 1;
                     } else {
                         self.x_reg[rd as usize] = 0;
@@ -250,31 +253,41 @@ impl CPU {
             },
             0b1100011 => match funct3 {
                 0x0 => {
+                    println!("beq");
+                    println!(
+                        "comparing rs1 {:?} and rs2 {:?} potential PC ",
+                        self.x_reg[rs1 as usize], self.x_reg[_rs2 as usize]
+                    );
                     if self.x_reg[rs1 as usize] == self.x_reg[_rs2 as usize] {
                         self.pc += imm_b_type as i64 as u64;
                     }
                 }
                 0x1 => {
+                    println!("bne");
                     if self.x_reg[rs1 as usize] != self.x_reg[_rs2 as usize] {
                         self.pc += imm_b_type as i64 as u64;
                     }
                 }
                 0x4 => {
+                    println!("blt");
                     if (self.x_reg[rs1 as usize] as i64) < (self.x_reg[_rs2 as usize] as i64) {
                         self.pc += imm_b_type as i64 as u64;
                     }
                 }
                 0x5 => {
+                    println!("bge");
                     if (self.x_reg[rs1 as usize] as i64) >= (self.x_reg[_rs2 as usize] as i64) {
                         self.pc += imm_b_type as i64 as u64;
                     }
                 }
                 0x6 => {
+                    println!("bltu");
                     if (self.x_reg[rs1 as usize] as u64) < (self.x_reg[_rs2 as usize] as u64) {
                         self.pc += imm_b_type as i64 as u64;
                     }
                 }
                 0x7 => {
+                    println!("bgeu");
                     if (self.x_reg[rs1 as usize] as u64) >= (self.x_reg[_rs2 as usize] as u64) {
                         self.pc += imm_b_type as i64 as u64;
                     }
@@ -283,11 +296,17 @@ impl CPU {
             },
             0b1101111 => {
                 // J TYPE
+                println!("JAL PC: {:#08X}", self.pc);
                 self.x_reg[rd as usize] = self.pc.wrapping_add(0x4); // return address saved in RD
-                self.pc += self.pc.wrapping_add(imm_j_type as i64 as u64);
+                println!("JAL PC: {:#08X}", self.pc);
+                println!("{:#08X} + {:#08X}", imm_j_type, self.pc);
+                self.pc = self.pc.wrapping_add(imm_j_type as i64 as u64);
+                self.pc -= 0x4;
+                println!("RET: {:#08X} PC: {:#08X}", self.x_reg[rd as usize], self.pc);
             }
             0b1100111 => {
                 // I TYPE
+                println!("JALR");
                 self.x_reg[rd as usize] = self.pc.wrapping_add(0x4); // return address saved in RD
                 self.pc = imm.wrapping_add(self.x_reg[rs1 as usize]); // PC = RS1 + IMM
             }
@@ -361,7 +380,10 @@ impl CPU {
         let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
         let index = rs2 as usize;
         let value = self.x_reg[index] as u8;
-        //println!("storing at this memory location {:?}", _memory_address);
+        println!(
+            "storing at this memory location {:?} value {:?}",
+            _memory_address, value
+        );
         self.mmu.memory_segment[_memory_address as usize] = value;
     }
     // load 32bit value
@@ -386,6 +408,10 @@ impl CPU {
     fn load_byte(self: &mut Self, rd: u32, rs1: u32, imm: u64) {
         let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
         let value = self.mmu.memory_segment[_memory_address as usize] as u8;
+        println!(
+            "loading at this memory location {:?} value {:?}",
+            _memory_address, value
+        );
         self.x_reg[rd as usize] = value as u64;
     }
     // load 16 bit value
