@@ -9,6 +9,14 @@ mod tests;
 
 fn main() {
     println!("=== CoffeePot Init!  ===");
+    println!("=== R TYPE INSTRUCTIONS COMPLETE!  ===");
+    println!("=== I TYPE LOAD INSTRUCTIONS COMPLETE!  ===");
+    println!("=== S TYPE STORE INSTRUCTIONS COMPLETE!  ===");
+    println!("=== B TYPE BRANCH INSTRUCTIONS COMPLETE!  ===");
+    println!("=== U TYPE INSTRUCTIONS COMPLETE!  ===");
+    println!("=== J TYPE INSTRUCTIONS COMPLETE!  ===");
+    println!("=== Missing rest of I TYPES ==");
+
     let mut emulator = Emulator::new();
     emulator.load_raw_instructions("./test.bin").unwrap();
     loop {

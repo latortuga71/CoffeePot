@@ -73,6 +73,8 @@ impl CPU {
         let funct3 = (instruction & 0x00007000) >> 12;
         let funct7 = (instruction & 0xfe000000) >> 25;
         let imm = ((instruction as i32 as i64) >> 20) as u64;
+        let imm_5_11_mode = (imm >> 6) & 0b111111;
+        let imm_5_11 = imm & 0b111111;
         let _funct6 = funct7 >> 1;
 
         // S TYPE IMMEDIATE VALUE
@@ -80,10 +82,23 @@ impl CPU {
         let imm40 = (instruction >> 7) & 0b11111;
         let imm_s = (imm115 << 5) | imm40;
         let imm_s_type = ((imm_s as i32) << 20) >> 20;
-        //TODO finish rest of I TYPES
-        // FINISH IMPLEMENTING R TYPES
-        // FINISH IMPLEMENTING JUMPS
-        // http://www.uninformativ.de/blog/postings/2017-04-02/0/POSTING-en.html
+        // B TYPE IMMEDIATE VALUE
+        let imm12 = (instruction >> 31) & 1;
+        let imm105 = (instruction >> 25) & 0b111111;
+        let imm41 = (instruction >> 8) & 0b1111;
+        let imm11 = (instruction >> 7) & 1;
+        let imm_b = (imm12 << 12) | (imm11 << 11) | (imm105 << 5) | (imm41 << 1);
+        let imm_b_type = ((imm_b as i32) << 19) >> 19;
+        // J TYPE IMMEDIATE VALUE
+        let imm20 = (instruction >> 31) & 1;
+        let imm101 = (instruction >> 21) & 0b1111111111;
+        let imm11 = (instruction >> 20) & 1;
+        let imm1912 = (instruction >> 12) & 0b11111111;
+        let imm_j = (imm20 << 20) | (imm1912 << 12) | (imm11 << 11) | (imm101 << 1);
+        let imm_j_type = ((imm_j as i32) << 11) >> 11;
+        // U TYPE IMMEDIATE VALUE
+        let imm_u_type = (instruction as i32 as i64 as u64) >> 12;
+
         match opcode {
             0b00000000 => {
                 todo!("Invalid Memory Error!");
@@ -200,34 +215,101 @@ impl CPU {
                 0x7 => {
                     self.andi(rd, rs1, imm);
                 }
+                0x1 => {
+                    self.x_reg[rd as usize] = self.x_reg[rs1 as usize] << imm_5_11;
+                }
+                0x5 => match imm_5_11_mode {
+                    0x0 => {
+                        self.x_reg[rd as usize] = self.x_reg[rs1 as usize] >> imm_5_11;
+                    }
+                    0x20 => {
+                        self.x_reg[rd as usize] =
+                            ((self.x_reg[rs1 as usize] as i64) >> imm_5_11) as u64;
+                    }
+                    _ => {
+                        todo!("INVALID IMMEDIATE 5-11");
+                    }
+                },
+                0x2 => {
+                    if (self.x_reg[rs1 as usize] as i64) < (imm as i64) {
+                        self.x_reg[rd as usize] = 1;
+                    } else {
+                        self.x_reg[rd as usize] = 0;
+                    }
+                }
+                0x3 => {
+                    if self.x_reg[rs1 as usize] < imm as u64 {
+                        self.x_reg[rd as usize] = 1;
+                    } else {
+                        self.x_reg[rd as usize] = 0;
+                    }
+                }
                 _ => {
                     todo!("Unimplemented funct3");
                 }
             },
             0b1100011 => match funct3 {
                 0x0 => {
-                    todo!("beq");
+                    if self.x_reg[rs1 as usize] == self.x_reg[_rs2 as usize] {
+                        self.pc += imm_b_type as i64 as u64;
+                    }
                 }
                 0x1 => {
-                    todo!("bne");
+                    if self.x_reg[rs1 as usize] != self.x_reg[_rs2 as usize] {
+                        self.pc += imm_b_type as i64 as u64;
+                    }
                 }
                 0x4 => {
-                    todo!("blt");
+                    if (self.x_reg[rs1 as usize] as i64) < (self.x_reg[_rs2 as usize] as i64) {
+                        self.pc += imm_b_type as i64 as u64;
+                    }
                 }
                 0x5 => {
-                    todo!("bge");
+                    if (self.x_reg[rs1 as usize] as i64) >= (self.x_reg[_rs2 as usize] as i64) {
+                        self.pc += imm_b_type as i64 as u64;
+                    }
                 }
                 0x6 => {
-                    todo!("bltu");
+                    if (self.x_reg[rs1 as usize] as u64) < (self.x_reg[_rs2 as usize] as u64) {
+                        self.pc += imm_b_type as i64 as u64;
+                    }
                 }
                 0x7 => {
-                    todo!("bgeu");
+                    if (self.x_reg[rs1 as usize] as u64) >= (self.x_reg[_rs2 as usize] as u64) {
+                        self.pc += imm_b_type as i64 as u64;
+                    }
                 }
                 _ => {}
             },
-            0b1110011 => {
-                self.ecall();
+            0b1101111 => {
+                // J TYPE
+                self.x_reg[rd as usize] = self.pc.wrapping_add(0x4); // return address saved in RD
+                self.pc += self.pc.wrapping_add(imm_j_type as i64 as u64);
             }
+            0b1100111 => {
+                // I TYPE
+                self.x_reg[rd as usize] = self.pc.wrapping_add(0x4); // return address saved in RD
+                self.pc = imm.wrapping_add(self.x_reg[rs1 as usize]); // PC = RS1 + IMM
+            }
+            0b0110111 => {
+                // U TYPE
+                self.x_reg[rd as usize] = imm_u_type as i64 as u64;
+            }
+            0b0010111 => {
+                // UTYPE
+                self.x_reg[rd as usize] = (imm_u_type as i64 as u64).wrapping_add(self.pc);
+            }
+            0b1110011 => match funct7 {
+                0x0 => {
+                    self.ecall();
+                }
+                0x1 => {
+                    todo!("EBREAK");
+                }
+                _ => {
+                    panic!("INVALID FUNC7 for ECALL OR EBREAK");
+                }
+            },
             _ => {
                 todo!("Unimplemented OpCode");
             }
