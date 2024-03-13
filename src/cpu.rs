@@ -83,6 +83,7 @@ impl CPU {
         //TODO finish rest of I TYPES
         // FINISH IMPLEMENTING R TYPES
         // FINISH IMPLEMENTING JUMPS
+        // http://www.uninformativ.de/blog/postings/2017-04-02/0/POSTING-en.html
         match opcode {
             0b00000000 => {
                 todo!("Invalid Memory Error!");
@@ -91,10 +92,13 @@ impl CPU {
             0b0110011 => match funct3 {
                 0x0 => match funct7 {
                     0x0 => {
-                        todo!("ADD");
+                        // rd = rs1 + rs2
+                        self.x_reg[rd as usize] =
+                            self.x_reg[rs1 as usize].wrapping_add(self.x_reg[_rs2 as usize]);
                     }
                     0x20 => {
-                        todo!("SUB");
+                        self.x_reg[rd as usize] =
+                            self.x_reg[rs1 as usize].wrapping_sub(self.x_reg[_rs2 as usize]);
                     }
                     _ => {
                         todo!("Invalid funct7");
@@ -102,32 +106,43 @@ impl CPU {
                 },
                 0x5 => match funct7 {
                     0x0 => {
-                        todo!("SRL");
+                        self.x_reg[rd as usize] =
+                            self.x_reg[rs1 as usize] >> (self.x_reg[_rs2 as usize] & 0b11111);
                     }
                     0x20 => {
-                        todo!("SRA");
+                        self.x_reg[rd as usize] = self.x_reg[rs1 as usize]
+                            >> ((self.x_reg[_rs2 as usize] & 0b11111) as i64) as u64;
                     }
                     _ => {
                         todo!("Invalid funct7");
                     }
                 },
                 0x4 => {
-                    todo!("XOR");
+                    self.x_reg[rd as usize] = self.x_reg[rs1 as usize] ^ self.x_reg[_rs2 as usize];
                 }
                 0x6 => {
-                    todo!("OR");
+                    self.x_reg[rd as usize] = self.x_reg[rs1 as usize] | self.x_reg[_rs2 as usize];
                 }
                 0x7 => {
-                    todo!("AND");
+                    self.x_reg[rd as usize] = self.x_reg[rs1 as usize] & self.x_reg[_rs2 as usize];
                 }
                 0x1 => {
-                    todo!("SLL");
+                    self.x_reg[rd as usize] =
+                        self.x_reg[rs1 as usize] << (self.x_reg[_rs2 as usize] & 0b11111);
                 }
                 0x2 => {
-                    todo!("SLT");
+                    if (self.x_reg[rs1 as usize] as i64) < (self.x_reg[_rs2 as usize] as i64) {
+                        self.x_reg[rd as usize] = 1;
+                    } else {
+                        self.x_reg[rd as usize] = 0;
+                    }
                 }
                 0x3 => {
-                    todo!("SLTU");
+                    if (self.x_reg[rs1 as usize] as u64) < (self.x_reg[_rs2 as usize] as u64) {
+                        self.x_reg[rd as usize] = 1;
+                    } else {
+                        self.x_reg[rd as usize] = 0;
+                    }
                 }
                 _ => {
                     todo!("INVALID FUNCT3")
@@ -171,15 +186,6 @@ impl CPU {
                     todo!("Invalid funct3");
                 }
             },
-            0b011011 => match funct3 {
-                // R TYPE USES RD,rs1,rs2,funct7
-                0x0 => {
-                    println!("ADD");
-                }
-                _ => {
-                    todo!("Unimplemented funct3")
-                }
-            },
             0b0010011 => match funct3 {
                 // I TYPE
                 0x0 => {
@@ -197,6 +203,27 @@ impl CPU {
                 _ => {
                     todo!("Unimplemented funct3");
                 }
+            },
+            0b1100011 => match funct3 {
+                0x0 => {
+                    todo!("beq");
+                }
+                0x1 => {
+                    todo!("bne");
+                }
+                0x4 => {
+                    todo!("blt");
+                }
+                0x5 => {
+                    todo!("bge");
+                }
+                0x6 => {
+                    todo!("bltu");
+                }
+                0x7 => {
+                    todo!("bgeu");
+                }
+                _ => {}
             },
             0b1110011 => {
                 self.ecall();

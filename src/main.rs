@@ -19,12 +19,10 @@ fn main() {
         }
         // Decode && Execute
         emulator.execute_instruction();
-        //print!("CoffeePot: \n{}\n", emulator.cpu);
-        /*
-                let stdin = std::io::stdin();
-                let mut line = String::new();
-                stdin.lock().read_line(&mut line).unwrap();
-        */
+        print!("CoffeePot: \n{}\n", emulator.cpu);
+        let stdin = std::io::stdin();
+        let mut line = String::new();
+        stdin.lock().read_line(&mut line).unwrap();
     }
     println!("=== Goodbye, CoffeePot! ===");
 }
