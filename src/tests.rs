@@ -22,13 +22,3 @@ fn andi() {
     cpu.execute(0x7d00f113);
     assert_eq!(cpu.x_reg[2], 0x3C0);
 }
-
-#[test]
-fn ori() {
-    todo!("ORI TEST")
-}
-
-#[test]
-fn xori() {
-    todo!("XORI TEST")
-}

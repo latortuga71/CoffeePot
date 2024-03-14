@@ -8,6 +8,9 @@ mod mmu;
 mod tests;
 
 fn main() {
+    todo!(
+        "Implement Debug Flag That Shows Every Instruction Like if its the assembly code itself. also move instructions into functions and  Write tests for every base instruction"
+    );
     println!("=== CoffeePot Init!  ===");
     println!("=== R TYPE INSTRUCTIONS COMPLETE!  ===");
     println!("=== I TYPE LOAD INSTRUCTIONS COMPLETE!  ===");

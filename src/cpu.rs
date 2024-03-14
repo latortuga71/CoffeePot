@@ -64,7 +64,7 @@ impl CPU {
         // u64 has wrapping add
     }
     // execute instructioon
-    pub fn execute(self: &mut Self, instruction: u32) {
+    pub fn execute(self: &mut Self, instruction: u32) -> bool {
         // I TYPE
         let opcode = instruction & 0x0000007f;
         let rd = (instruction & 0x00000f80) >> 7;
@@ -107,15 +107,17 @@ impl CPU {
             0b0110011 => match funct3 {
                 0x0 => match funct7 {
                     0x0 => {
-                        println!("add");
+                        println!("ADD");
                         // rd = rs1 + rs2
                         self.x_reg[rd as usize] =
                             self.x_reg[rs1 as usize].wrapping_add(self.x_reg[_rs2 as usize]);
+                        false
                     }
                     0x20 => {
                         println!("sub");
                         self.x_reg[rd as usize] =
                             self.x_reg[rs1 as usize].wrapping_sub(self.x_reg[_rs2 as usize]);
+                        false
                     }
                     _ => {
                         todo!("Invalid funct7");
@@ -125,10 +127,12 @@ impl CPU {
                     0x0 => {
                         self.x_reg[rd as usize] =
                             self.x_reg[rs1 as usize] >> (self.x_reg[_rs2 as usize] & 0b11111);
+                        false
                     }
                     0x20 => {
                         self.x_reg[rd as usize] = self.x_reg[rs1 as usize]
                             >> ((self.x_reg[_rs2 as usize] & 0b11111) as i64) as u64;
+                        false
                     }
                     _ => {
                         todo!("Invalid funct7");
@@ -136,16 +140,20 @@ impl CPU {
                 },
                 0x4 => {
                     self.x_reg[rd as usize] = self.x_reg[rs1 as usize] ^ self.x_reg[_rs2 as usize];
+                    false
                 }
                 0x6 => {
                     self.x_reg[rd as usize] = self.x_reg[rs1 as usize] | self.x_reg[_rs2 as usize];
+                    false
                 }
                 0x7 => {
                     self.x_reg[rd as usize] = self.x_reg[rs1 as usize] & self.x_reg[_rs2 as usize];
+                    false
                 }
                 0x1 => {
                     self.x_reg[rd as usize] =
                         self.x_reg[rs1 as usize] << (self.x_reg[_rs2 as usize] & 0b11111);
+                    false
                 }
                 0x2 => {
                     if (self.x_reg[rs1 as usize] as i64) < (self.x_reg[_rs2 as usize] as i64) {
@@ -153,6 +161,7 @@ impl CPU {
                     } else {
                         self.x_reg[rd as usize] = 0;
                     }
+                    false
                 }
                 0x3 => {
                     if (self.x_reg[rs1 as usize] as u64) < (self.x_reg[_rs2 as usize] as u64) {
@@ -160,6 +169,7 @@ impl CPU {
                     } else {
                         self.x_reg[rd as usize] = 0;
                     }
+                    false
                 }
                 _ => {
                     todo!("INVALID FUNCT3")
@@ -170,18 +180,23 @@ impl CPU {
                 // I TYPE
                 0x0 => {
                     self.load_byte(rd, rs1, imm);
+                    false
                 }
                 0x1 => {
                     self.load_half(rd, rs1, imm);
+                    false
                 }
                 0x2 => {
                     self.load_word(rd, rs1, imm);
+                    false
                 }
                 0x4 => {
                     self.load_byte_u(rd, rs1, imm);
+                    false
                 }
                 0x5 => {
                     self.load_half_u(rd, rs1, imm);
+                    false
                 }
                 _ => {
                     todo!("Invalid funct3");
@@ -192,12 +207,15 @@ impl CPU {
                 // Stores are S TYPE everything is the same except the immediate register
                 0x0 => {
                     self.store_byte(_rs2, rs1, imm_s_type);
+                    false
                 }
                 0x1 => {
                     self.store_half(_rs2, rs1, imm_s_type);
+                    false
                 }
                 0x2 => {
                     self.store_word(_rs2, rs1, imm_s_type);
+                    false
                 }
                 _ => {
                     todo!("Invalid funct3");
@@ -206,28 +224,34 @@ impl CPU {
             0b0010011 => match funct3 {
                 // I TYPE
                 0x0 => {
-                    println!("addi");
                     self.addi(rd, rs1, imm);
+                    false
                 }
                 0x4 => {
                     self.xori(rd, rs1, imm);
+                    false
                 }
                 0x6 => {
                     self.ori(rd, rs1, imm);
+                    false
                 }
                 0x7 => {
                     self.andi(rd, rs1, imm);
+                    false
                 }
                 0x1 => {
                     self.x_reg[rd as usize] = self.x_reg[rs1 as usize] << imm_5_11;
+                    false
                 }
                 0x5 => match imm_5_11_mode {
                     0x0 => {
                         self.x_reg[rd as usize] = self.x_reg[rs1 as usize] >> imm_5_11;
+                        false
                     }
                     0x20 => {
                         self.x_reg[rd as usize] =
                             ((self.x_reg[rs1 as usize] as i64) >> imm_5_11) as u64;
+                        false
                     }
                     _ => {
                         todo!("INVALID IMMEDIATE 5-11");
@@ -239,6 +263,7 @@ impl CPU {
                     } else {
                         self.x_reg[rd as usize] = 0;
                     }
+                    false
                 }
                 0x3 => {
                     if (self.x_reg[rs1 as usize] as i64) < (imm as i64) {
@@ -246,6 +271,7 @@ impl CPU {
                     } else {
                         self.x_reg[rd as usize] = 0;
                     }
+                    false
                 }
                 _ => {
                     todo!("Unimplemented funct3");
@@ -260,39 +286,53 @@ impl CPU {
                     );
                     if self.x_reg[rs1 as usize] == self.x_reg[_rs2 as usize] {
                         self.pc += imm_b_type as i64 as u64;
+                        return true;
                     }
+                    false
                 }
                 0x1 => {
                     println!("bne");
                     if self.x_reg[rs1 as usize] != self.x_reg[_rs2 as usize] {
                         self.pc += imm_b_type as i64 as u64;
+                        return true;
                     }
+                    false
                 }
                 0x4 => {
                     println!("blt");
                     if (self.x_reg[rs1 as usize] as i64) < (self.x_reg[_rs2 as usize] as i64) {
                         self.pc += imm_b_type as i64 as u64;
+                        return true;
                     }
+                    false
                 }
                 0x5 => {
                     println!("bge");
                     if (self.x_reg[rs1 as usize] as i64) >= (self.x_reg[_rs2 as usize] as i64) {
                         self.pc += imm_b_type as i64 as u64;
+                        return true;
                     }
+                    false
                 }
                 0x6 => {
                     println!("bltu");
                     if (self.x_reg[rs1 as usize] as u64) < (self.x_reg[_rs2 as usize] as u64) {
                         self.pc += imm_b_type as i64 as u64;
+                        return true;
                     }
+                    false
                 }
                 0x7 => {
                     println!("bgeu");
                     if (self.x_reg[rs1 as usize] as u64) >= (self.x_reg[_rs2 as usize] as u64) {
                         self.pc += imm_b_type as i64 as u64;
+                        return true;
                     }
+                    false
                 }
-                _ => {}
+                _ => {
+                    todo!("PANIC INVAID OPCODE");
+                }
             },
             0b1101111 => {
                 // J TYPE
@@ -301,26 +341,30 @@ impl CPU {
                 println!("JAL PC: {:#08X}", self.pc);
                 println!("{:#08X} + {:#08X}", imm_j_type, self.pc);
                 self.pc = self.pc.wrapping_add(imm_j_type as i64 as u64);
-                self.pc -= 0x4;
                 println!("RET: {:#08X} PC: {:#08X}", self.x_reg[rd as usize], self.pc);
+                true
             }
             0b1100111 => {
                 // I TYPE
                 println!("JALR");
                 self.x_reg[rd as usize] = self.pc.wrapping_add(0x4); // return address saved in RD
                 self.pc = imm.wrapping_add(self.x_reg[rs1 as usize]); // PC = RS1 + IMM
+                true
             }
             0b0110111 => {
                 // U TYPE
                 self.x_reg[rd as usize] = imm_u_type as i64 as u64;
+                false
             }
             0b0010111 => {
                 // UTYPE
                 self.x_reg[rd as usize] = (imm_u_type as i64 as u64).wrapping_add(self.pc);
+                false
             }
             0b1110011 => match funct7 {
                 0x0 => {
                     self.ecall();
+                    false
                 }
                 0x1 => {
                     todo!("EBREAK");
@@ -430,7 +474,8 @@ impl CPU {
     }
     // add immediate
     fn addi(self: &mut Self, rd: u32, rs1: u32, imm: u64) {
-        //println!("rd: {:?} rs1: {:?} imm: {:?}", rd, rs1, imm);
+        let rs1_value = self.x_reg[rs1 as usize];
+        println!("ADDI {:#08X}, {:#08X}, {:#08X}", rd, rs1_value, imm);
         self.x_reg[rd as usize] = imm.wrapping_add(self.x_reg[rs1 as usize]);
     }
     fn andi(self: &mut Self, rd: u32, rs1: u32, imm: u64) {
@@ -468,7 +513,7 @@ impl CPU {
                     if fd == 1 || fd == 2 {
                         // print bytes
                         print!("{}", utf_bytes);
-                        // set reuturn value
+                        // set return value
                         self.x_reg[10] = _a2;
                     } else {
                         todo!("Handle other file descriptors");

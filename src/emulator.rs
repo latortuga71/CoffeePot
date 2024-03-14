@@ -44,11 +44,14 @@ impl Emulator {
     }
 
     pub fn execute_instruction(self: &mut Self) {
-        self.cpu.execute(self.current_instruction);
-        self.cpu.pc += 0x4;
+        if !self.cpu.execute(self.current_instruction) {
+            // IF NO BRANCH WAS TAKEN WE INCREMENT PC
+            self.cpu.pc += 0x4;
+        }
+        // always set x0 to the SP
         self.cpu.sp = self.cpu.x_reg[2] as u32;
+        // always set x0 to zero
         self.cpu.x_reg[0] = 0x0;
-        // set X0 to ZERO
     }
 
     pub fn load_elf(path: &str) {
