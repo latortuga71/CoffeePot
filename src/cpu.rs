@@ -111,7 +111,6 @@ impl CPU {
                         false
                     }
                     0x20 => {
-                        println!("sub");
                         self.x_reg[rd as usize] =
                             self.x_reg[rs1 as usize].wrapping_sub(self.x_reg[_rs2 as usize]);
                         false
@@ -276,11 +275,14 @@ impl CPU {
             },
             0b1100011 => match funct3 {
                 0x0 => {
-                    println!("beq");
-                    println!(
-                        "comparing rs1 {:?} and rs2 {:?} potential PC ",
-                        self.x_reg[rs1 as usize], self.x_reg[_rs2 as usize]
-                    );
+                    if self.debug_flag {
+                        println!(
+                            "BEQ IF {:#08X} == {:#08X} JMP -> {:#08X}",
+                            self.x_reg[rs1 as usize],
+                            self.x_reg[_rs2 as usize],
+                            self.pc + 4
+                        );
+                    }
                     if self.x_reg[rs1 as usize] == self.x_reg[_rs2 as usize] {
                         self.pc += imm_b_type as i64 as u64;
                         return true;
@@ -333,17 +335,26 @@ impl CPU {
             },
             0b1101111 => {
                 // J TYPE
-                println!("JAL PC: {:#08X}", self.pc);
+                if self.debug_flag {
+                    println!(
+                        "JAL x{rd} <- {:#08X} PC = {:#08X}",
+                        self.pc.wrapping_add(0x4),
+                        self.pc.wrapping_add(imm_j_type as i64 as u64)
+                    );
+                }
                 self.x_reg[rd as usize] = self.pc.wrapping_add(0x4); // return address saved in RD
-                println!("JAL PC: {:#08X}", self.pc);
-                println!("{:#08X} + {:#08X}", imm_j_type, self.pc);
                 self.pc = self.pc.wrapping_add(imm_j_type as i64 as u64);
-                println!("RET: {:#08X} PC: {:#08X}", self.x_reg[rd as usize], self.pc);
                 true
             }
             0b1100111 => {
                 // I TYPE
-                println!("JALR");
+                if self.debug_flag {
+                    println!(
+                        "JALR x{rd} <- {:#08X} PC = {:#08X}",
+                        self.pc.wrapping_add(0x4),
+                        imm.wrapping_add(self.x_reg[rs1 as usize])
+                    );
+                }
                 self.x_reg[rd as usize] = self.pc.wrapping_add(0x4); // return address saved in RD
                 self.pc = imm.wrapping_add(self.x_reg[rs1 as usize]); // PC = RS1 + IMM
                 true

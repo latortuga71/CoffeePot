@@ -18,7 +18,7 @@ fn main() {
     println!("=== Missing rest of I TYPES ==");
 
     let mut emulator = Emulator::new();
-    emulator.load_raw_instructions("./strlen.bin").unwrap();
+    emulator.load_raw_instructions("./test.bin").unwrap();
     loop {
         //println!("{}", emulator.cpu);
         // Fetch
