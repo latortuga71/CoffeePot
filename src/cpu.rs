@@ -6,11 +6,14 @@ pub struct CPU {
     pub sp: u32,
     pub mmu: MMU,
     pub x_reg: [u64; 32],
+    pub debug_flag: bool,
 }
 
 // XLEN = u64 arch size
 // regs w means always produce 32bit value
 // *.w instructions
+//
+//
 
 // RV64I: base integer instructions
 //
@@ -36,6 +39,7 @@ impl CPU {
             pc: 0x00000000,
             mmu: MMU::new(),
             x_reg: xreg,
+            debug_flag: true,
         }
     }
     fn print_state(self: &Self) {
@@ -98,19 +102,12 @@ impl CPU {
         let imm_j_type = ((imm_j as i32) << 11) >> 11;
         // U TYPE IMMEDIATE VALUE
         let imm_u_type = (instruction as i32 as i64 as u64) >> 12;
-
         match opcode {
-            0b00000000 => {
-                todo!("Invalid Memory Error!");
-            }
             // ADD SUB SHIFT ETC
             0b0110011 => match funct3 {
                 0x0 => match funct7 {
                     0x0 => {
-                        println!("ADD");
-                        // rd = rs1 + rs2
-                        self.x_reg[rd as usize] =
-                            self.x_reg[rs1 as usize].wrapping_add(self.x_reg[_rs2 as usize]);
+                        self.add(rd, rs1, _rs2);
                         false
                     }
                     0x20 => {
@@ -379,38 +376,23 @@ impl CPU {
         }
         // match on opcode then match on func3?
     }
+    fn add(self: &mut Self, rd: u32, rs1: u32, rs2: u32) {
+        if self.debug_flag {
+            println!(
+                "ADD x{rd} ({:#08X}) x{rs1} ({:#08X}) x{rs2} ({:#08X})",
+                self.x_reg[rd as usize], self.x_reg[rs1 as usize], self.x_reg[rs2 as usize]
+            );
+        }
+        self.x_reg[rd as usize] = self.x_reg[rs1 as usize].wrapping_add(self.x_reg[rs2 as usize]);
+    }
+
     fn store_word(self: &mut Self, rs2: u32, rs1: u32, imm: i32) {
         let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
         let index = rs2 as usize;
         let value = self.x_reg[index] as u32;
         let value_as_bytes = value.to_le_bytes();
-        /*
-                println!("u32 value as bytes -> {:?}", value_as_bytes);
-                println!(
-                    "memory before -> {:?},
-                    memory before -> {:?},
-                    memory before -> {:?},
-                    memory before -> {:?}",
-                    self.mmu.memory_segment[_memory_address as usize],
-                    self.mmu.memory_segment[_memory_address as usize + 1],
-                    self.mmu.memory_segment[_memory_address as usize + 2],
-                    self.mmu.memory_segment[_memory_address as usize + 3],
-                );
-        */
         self.mmu.memory_segment[_memory_address as usize.._memory_address as usize + 4]
             .copy_from_slice(&value_as_bytes);
-        /*
-                println!(
-                    "memory after -> {:?},
-                    memory after -> {:?},
-                    memory after -> {:?},
-                    memory after -> {:?}",
-                    self.mmu.memory_segment[_memory_address as usize],
-                    self.mmu.memory_segment[_memory_address as usize + 1],
-                    self.mmu.memory_segment[_memory_address as usize + 2],
-                    self.mmu.memory_segment[_memory_address as usize + 3],
-                );
-        */
     }
     fn store_half(self: &mut Self, rs2: u32, rs1: u32, imm: i32) {
         let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
@@ -424,13 +406,11 @@ impl CPU {
         let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
         let index = rs2 as usize;
         let value = self.x_reg[index] as u8;
-        println!(
-            "storing at this memory location {:?} value {:?}",
-            _memory_address, value
-        );
+        if self.debug_flag {
+            println!("SB {:#08X} <- {:#08X}", _memory_address, value)
+        }
         self.mmu.memory_segment[_memory_address as usize] = value;
     }
-    // load 32bit value
     fn load_word(self: &mut Self, rd: u32, rs1: u32, imm: u64) {
         let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
         let value1 = self.mmu.memory_segment[_memory_address as usize] as u8;
@@ -452,10 +432,13 @@ impl CPU {
     fn load_byte(self: &mut Self, rd: u32, rs1: u32, imm: u64) {
         let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
         let value = self.mmu.memory_segment[_memory_address as usize] as u8;
-        println!(
-            "loading at this memory location {:?} value {:?}",
-            _memory_address, value
-        );
+        if self.debug_flag {
+            println!(
+                "LB x{rd} ({:#08X}) {:#08X} -> ({:#08X})",
+                self.x_reg[rd as usize], _memory_address, value
+            );
+        }
+
         self.x_reg[rd as usize] = value as u64;
     }
     // load 16 bit value
@@ -475,7 +458,12 @@ impl CPU {
     // add immediate
     fn addi(self: &mut Self, rd: u32, rs1: u32, imm: u64) {
         let rs1_value = self.x_reg[rs1 as usize];
-        println!("ADDI {:#08X}, {:#08X}, {:#08X}", rd, rs1_value, imm);
+        if self.debug_flag {
+            println!(
+                "ADDI x{rd} ({:#08X}) x{rs1} ({:#08X}) imm ({:#08X})",
+                self.x_reg[rd as usize], self.x_reg[rs1 as usize], imm
+            );
+        }
         self.x_reg[rd as usize] = imm.wrapping_add(self.x_reg[rs1 as usize]);
     }
     fn andi(self: &mut Self, rd: u32, rs1: u32, imm: u64) {
