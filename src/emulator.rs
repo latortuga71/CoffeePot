@@ -1,4 +1,4 @@
-use crate::cpu::CPU;
+use crate::{cpu::CPU, loader::ElfInformation, mmu::Segment};
 
 pub struct Emulator {
     pub cpu: CPU,
@@ -54,8 +54,24 @@ impl Emulator {
         self.cpu.x_reg[0] = 0x0;
     }
 
-    pub fn load_elf(path: &str) {
-        todo!("Load Elf");
+    pub fn load_elf_segments(self: &mut Self, elf: &ElfInformation) {
+        let mut c = 0;
+        if self.cpu.mmu.virtual_memory.len() < elf.virtual_memory_minimum_size as usize {
+            println!("RESIZED");
+            self.cpu
+                .mmu
+                .virtual_memory
+                .resize(elf.virtual_memory_minimum_size as usize, 0);
+        }
+        for e in &elf.segments {
+            c += 1;
+            // from offset to end
+            let offset = e.virtual_address as usize;
+            let offset_end = e.raw_data.len() + offset;
+            // copy raw_data into virtual memory
+            self.cpu.mmu.virtual_memory[offset..offset_end].copy_from_slice(&e.raw_data);
+        }
+        println!("copied {c} segments");
     }
 
     pub fn load_raw_instructions(self: &mut Self, path: &str) -> Result<(), std::io::Error> {

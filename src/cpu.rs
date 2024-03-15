@@ -70,7 +70,8 @@ impl CPU {
     // execute instructioon
     pub fn execute(self: &mut Self, instruction: u32) -> bool {
         // I TYPE
-        let opcode = instruction & 0x0000007f;
+        //let opcode = instruction & 0x0000007f;
+        let opcode = instruction & 0b1111111;
         let rd = (instruction & 0x00000f80) >> 7;
         let rs1 = (instruction & 0x000f8000) >> 15;
         let _rs2 = (instruction & 0x01f00000) >> 20;
@@ -366,6 +367,7 @@ impl CPU {
             }
             0b0010111 => {
                 // UTYPE
+                println!("AUIPC");
                 self.x_reg[rd as usize] = (imm_u_type as i64 as u64).wrapping_add(self.pc);
                 false
             }
@@ -382,7 +384,7 @@ impl CPU {
                 }
             },
             _ => {
-                todo!("Unimplemented OpCode");
+                todo!("PC: {:#08X} Unimplemented OpCode {:#013b}",self.pc,opcode);
             }
         }
         // match on opcode then match on func3?
