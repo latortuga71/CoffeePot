@@ -1,22 +1,18 @@
-use std::io::BufRead;
+use std::{io::BufRead, process::exit};
 
 use crate::emulator::Emulator;
 
 mod cpu;
 mod emulator;
+mod loader;
 mod mmu;
 mod tests;
 
 fn main() {
+    loader::load_elf("test.elf");
+    exit(0);
+    // https://notes.eatonphil.com/emulating-amd64-starting-with-elf.html
     println!("=== CoffeePot Init!  ===");
-    println!("=== R TYPE INSTRUCTIONS COMPLETE!  ===");
-    println!("=== I TYPE LOAD INSTRUCTIONS COMPLETE!  ===");
-    println!("=== S TYPE STORE INSTRUCTIONS COMPLETE!  ===");
-    println!("=== B TYPE BRANCH INSTRUCTIONS COMPLETE!  ===");
-    println!("=== U TYPE INSTRUCTIONS COMPLETE!  ===");
-    println!("=== J TYPE INSTRUCTIONS COMPLETE!  ===");
-    println!("=== Missing rest of I TYPES ==");
-
     let mut emulator = Emulator::new();
     emulator.load_raw_instructions("./test.bin").unwrap();
     loop {

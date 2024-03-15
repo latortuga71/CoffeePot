@@ -7,7 +7,7 @@ pub struct MMU {
 impl MMU {
     pub fn new() -> Self {
         MMU {
-            text_segment: vec![0; 1024],
+            text_segment: vec![0; 1024], // where our
             memory_segment: vec![0; 0xFFFF],
         }
     }
