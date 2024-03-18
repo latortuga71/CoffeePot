@@ -195,6 +195,10 @@ impl CPU {
                     self.load_half_u(rd, rs1, imm);
                     false
                 }
+                0x3 => {
+                    self.load_double_word(rd, rs1, imm);
+                    false
+                }
                 _ => {
                     todo!("Invalid funct3");
                 }
@@ -214,8 +218,12 @@ impl CPU {
                     self.store_word(_rs2, rs1, imm_s_type);
                     false
                 }
+                0x3 => {
+                    self.store_double_word(_rs2, rs1, imm_s_type);
+                    false
+                }
                 _ => {
-                    todo!("Invalid funct3");
+                    todo!("Invalid funct3 {:#08X}", funct3);
                 }
             },
             0b0010011 => match funct3 {
@@ -384,7 +392,7 @@ impl CPU {
                 }
             },
             _ => {
-                todo!("PC: {:#08X} Unimplemented OpCode {:#013b}",self.pc,opcode);
+                todo!("PC: {:#08X} Unimplemented OpCode {:#013b}", self.pc, opcode);
             }
         }
         // match on opcode then match on func3?
@@ -399,8 +407,18 @@ impl CPU {
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize].wrapping_add(self.x_reg[rs2 as usize]);
     }
 
+    fn store_double_word(self: &mut Self, rs2: u32, rs1: u32, imm: i32) {
+        println!("SD RS1 = {:#08X}", self.x_reg[rs1 as usize]);
+        let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm as u64);
+        let index = rs2 as usize;
+        let value = self.x_reg[index] as u64;
+        let value_as_bytes = value.to_le_bytes();
+        self.mmu.memory_segment[_memory_address as usize.._memory_address as usize + 8]
+            .copy_from_slice(&value_as_bytes);
+    }
     fn store_word(self: &mut Self, rs2: u32, rs1: u32, imm: i32) {
-        let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
+        println!("SW");
+        let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm as u64);
         let index = rs2 as usize;
         let value = self.x_reg[index] as u32;
         let value_as_bytes = value.to_le_bytes();
@@ -423,6 +441,22 @@ impl CPU {
             println!("SB {:#08X} <- {:#08X}", _memory_address, value)
         }
         self.mmu.memory_segment[_memory_address as usize] = value;
+    }
+    fn load_double_word(self: &mut Self, rd: u32, rs1: u32, imm: u64) {
+        println!("LD");
+        let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm as u64);
+        let value0 = self.mmu.memory_segment[_memory_address as usize] as u8;
+        let value1 = self.mmu.memory_segment[_memory_address as usize + 1] as u8;
+        let value2 = self.mmu.memory_segment[_memory_address as usize + 2] as u8;
+        let value3 = self.mmu.memory_segment[_memory_address as usize + 3] as u8;
+        let value4 = self.mmu.memory_segment[_memory_address as usize + 4] as u8;
+        let value5 = self.mmu.memory_segment[_memory_address as usize + 5] as u8;
+        let value6 = self.mmu.memory_segment[_memory_address as usize + 6] as u8;
+        let value7 = self.mmu.memory_segment[_memory_address as usize + 7] as u8;
+        let result = u64::from_le_bytes([
+            value0, value1, value2, value3, value4, value5, value6, value7,
+        ]) as i64 as u64;
+        self.x_reg[rd as usize] = result as u64;
     }
     fn load_word(self: &mut Self, rd: u32, rs1: u32, imm: u64) {
         let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
