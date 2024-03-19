@@ -1,3 +1,5 @@
+use core::panicking::panic;
+
 use crate::mmu::MMU;
 
 #[derive(Debug)]
@@ -70,7 +72,6 @@ impl CPU {
     // execute instructioon
     pub fn execute(self: &mut Self, instruction: u32) -> bool {
         // I TYPE
-        //let opcode = instruction & 0x0000007f;
         let opcode = instruction & 0b1111111;
         let rd = (instruction & 0x00000f80) >> 7;
         let rs1 = (instruction & 0x000f8000) >> 15;
@@ -80,6 +81,7 @@ impl CPU {
         let imm = ((instruction as i32 as i64) >> 20) as u64;
         let imm_5_11_mode = (imm >> 6) & 0b111111;
         let imm_5_11 = imm & 0b111111;
+        let shamt = imm & 0b111111;
         let _funct6 = funct7 >> 1;
 
         // S TYPE IMMEDIATE VALUE
@@ -108,6 +110,7 @@ impl CPU {
             0b0110011 => match funct3 {
                 0x0 => match funct7 {
                     0x0 => {
+                        println!("ADD");
                         self.add(rd, rs1, _rs2);
                         false
                     }
@@ -199,6 +202,10 @@ impl CPU {
                     self.load_double_word(rd, rs1, imm);
                     false
                 }
+                0x6 => {
+                    self.load_word_unsigned(rd, rs1, imm);
+                    false
+                }
                 _ => {
                     todo!("Invalid funct3");
                 }
@@ -245,17 +252,20 @@ impl CPU {
                     false
                 }
                 0x1 => {
-                    self.x_reg[rd as usize] = self.x_reg[rs1 as usize] << imm_5_11;
+                    println!("SLLI");
+                    self.x_reg[rd as usize] = self.x_reg[rs1 as usize] << shamt;
                     false
                 }
                 0x5 => match imm_5_11_mode {
                     0x0 => {
-                        self.x_reg[rd as usize] = self.x_reg[rs1 as usize] >> imm_5_11;
+                        println!("SRLI");
+                        self.x_reg[rd as usize] = self.x_reg[rs1 as usize] >> shamt;
                         false
                     }
                     0x20 => {
+                        println!("SRAI");
                         self.x_reg[rd as usize] =
-                            ((self.x_reg[rs1 as usize] as i64) >> imm_5_11) as u64;
+                            ((self.x_reg[rs1 as usize] as i64) >> shamt) as u64;
                         false
                     }
                     _ => {
@@ -263,6 +273,7 @@ impl CPU {
                     }
                 },
                 0x2 => {
+                    println!("SRLTI");
                     if (self.x_reg[rs1 as usize] as i64) < (imm as i64) {
                         self.x_reg[rd as usize] = 1;
                     } else {
@@ -271,6 +282,7 @@ impl CPU {
                     false
                 }
                 0x3 => {
+                    println!("SRLTIU");
                     if (self.x_reg[rs1 as usize] as i64) < (imm as i64) {
                         self.x_reg[rd as usize] = 1;
                     } else {
@@ -379,6 +391,95 @@ impl CPU {
                 self.x_reg[rd as usize] = (imm_u_type as i64 as u64).wrapping_add(self.pc);
                 false
             }
+            0b0011011 => match funct3 {
+                0x0 => {
+                    // ONLY I TYPE 31-27 imm[11:0]
+                    println!("ADDIW confirm works");
+                    let rs1__ = self.x_reg[rs1 as usize];
+                    self.x_reg[rd as usize] = rs1__.wrapping_add(imm) as i64 as u64;
+                    false
+                }
+                0x01 => {
+                    println!("SLLIW");
+                    let left = self.x_reg[rs1 as usize] as u32;
+                    let right = shamt as u32;
+                    self.x_reg[rd as usize] = (left >> right) as u32 as i64 as u64;
+                    false
+                }
+
+                0x3 => match funct7 {
+                    0x0 => {
+                        println!("SRLIW");
+                        let left = self.x_reg[rs1 as usize] as u32;
+                        let right = shamt as u32;
+                        self.x_reg[rd as usize] = (left << right) as u32 as i64 as u64;
+                        false
+                    }
+                    0x20 => {
+                        println!("SRAIW");
+                        let left = self.x_reg[rs1 as usize] as u32;
+                        let right = shamt as i32;
+                        self.x_reg[rd as usize] = (left >> right) as u32 as i64 as u64;
+                        false
+                    }
+                    _ => {
+                        todo!("doesnt exist")
+                    }
+                },
+                _ => {
+                    todo!("invalid funct");
+                }
+            },
+            0b0111011 => match funct3 {
+                0x0 => match funct7 {
+                    0x0 => {
+                        println!("ADDW");
+                        self.x_reg[rd as usize] = (self.x_reg[rs1 as usize] as u32)
+                            .wrapping_add(self.x_reg[_rs2 as usize] as u32)
+                            as i64 as u64;
+                        false
+                    }
+                    0x20 => {
+                        println!("SUBW");
+                        self.x_reg[rd as usize] = (self.x_reg[rs1 as usize] as u32)
+                            .wrapping_sub(self.x_reg[_rs2 as usize] as u32)
+                            as i64 as u64;
+                        false
+                    }
+                    _ => {
+                        todo!("invalid funct7");
+                    }
+                },
+                0x1 => {
+                    println!("SLLW");
+                    let left = self.x_reg[rs1 as usize] as u32;
+                    let right = self.x_reg[_rs2 as usize] as u32 & 0b11111;
+                    self.x_reg[rd as usize] = (left << right) as u32 as u64;
+                    false
+                }
+                0x5 => match funct7 {
+                    0x0 => {
+                        println!("SRLW");
+                        let left = self.x_reg[rs1 as usize] as u32;
+                        let right = self.x_reg[_rs2 as usize] as u32 & 0b11111;
+                        self.x_reg[rd as usize] = (left >> right) as u32 as u64;
+                        false
+                    }
+                    0x20 => {
+                        println!("SRAW");
+                        let left = self.x_reg[rs1 as usize] as u32;
+                        let right = self.x_reg[_rs2 as usize] as u32 & 0b11111;
+                        self.x_reg[rd as usize] = (left >> right) as u32 as i64 as u64;
+                        false
+                    }
+                    _ => {
+                        todo!("invalid funct7");
+                    }
+                },
+                _ => {
+                    todo!("unknown funct3");
+                }
+            },
             0b1110011 => match funct7 {
                 0x0 => {
                     self.ecall();
@@ -441,6 +542,16 @@ impl CPU {
             println!("SB {:#08X} <- {:#08X}", _memory_address, value)
         }
         self.mmu.memory_segment[_memory_address as usize] = value;
+    }
+    fn load_word_unsigned(self: &mut Self, rd: u32, rs1: u32, imm: u64) {
+        println!("LWU");
+        let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
+        let value1 = self.mmu.memory_segment[_memory_address as usize] as u8;
+        let value2 = self.mmu.memory_segment[_memory_address as usize + 1] as u8;
+        let value3 = self.mmu.memory_segment[_memory_address as usize + 2] as u8;
+        let value4 = self.mmu.memory_segment[_memory_address as usize + 3] as u8;
+        let result = u32::from_le_bytes([value1, value2, value3, value4]) as u64;
+        self.x_reg[rd as usize] = result as u64;
     }
     fn load_double_word(self: &mut Self, rd: u32, rs1: u32, imm: u64) {
         println!("LD");
