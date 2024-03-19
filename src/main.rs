@@ -9,6 +9,7 @@ mod mmu;
 mod tests;
 
 fn main() {
+    todo!("move all current instructions into seperate function\n and println instruction name for debugging\n add all extensions that G encompasses m,a,f,d,c,ziscr");
     let mut emulator = Emulator::new();
     /*
         let elf_segments = loader::load_elf("basic.bin");
