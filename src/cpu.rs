@@ -106,6 +106,88 @@ impl CPU {
         // U TYPE IMMEDIATE VALUE
         let imm_u_type = (instruction as i32 as i64 as u64) >> 12;
         match opcode {
+            0b0110011 => match funct3 {
+                // R TYPE
+                0x0 => {
+                    println!("MUL");
+                    self.x_reg[rd as usize] =
+                        self.x_reg[rs1 as usize].wrapping_mul(self.x_reg[_rs2 as usize]);
+                    false
+                }
+                0x1 => {
+                    println!("MULH");
+                    let left = self.x_reg[rs1 as usize] as i64 as u128;
+                    let right = self.x_reg[_rs2 as usize] as i64 as u128;
+                    let result = (left.wrapping_mul(right) >> 64) as u64;
+                    self.x_reg[rd as usize] = result;
+                    false
+                }
+                0x2 => {
+                    println!("MULHSU");
+                    let left = self.x_reg[rs1 as usize] as i64 as u128;
+                    let right = self.x_reg[_rs2 as usize] as u64 as u128;
+                    let result = (left.wrapping_mul(right) >> 64) as u64;
+                    self.x_reg[rd as usize] = result;
+                    false
+                }
+                0x3 => {
+                    println!("MULU");
+                    let left = self.x_reg[rs1 as usize] as u64 as u128;
+                    let right = self.x_reg[_rs2 as usize] as u64 as u128;
+                    let result = (left.wrapping_mul(right) >> 64) as u64;
+                    self.x_reg[rd as usize] = result;
+                    false
+                }
+                0x4 => {
+                    println!("DIV");
+                    let left = self.x_reg[rs1 as usize] as i64;
+                    let right = self.x_reg[_rs2 as usize] as i64;
+                    let result = if right == 0 {
+                        -1
+                    } else {
+                        left.wrapping_div(right)
+                    };
+                    self.x_reg[rd as usize] = result as u64;
+                    false
+                }
+                0x5 => {
+                    println!("DIVU");
+                    let left = self.x_reg[rs1 as usize];
+                    let right = self.x_reg[_rs2 as usize];
+                    let result = if right == 0 {
+                        core::u64::MAX
+                    } else {
+                        left.wrapping_div(right)
+                    };
+                    self.x_reg[rd as usize] = result;
+                    false
+                }
+                0x6 => {
+                    println!("REM");
+                    let left = self.x_reg[rs1 as usize] as i64;
+                    let right = self.x_reg[_rs2 as usize] as i64;
+                    let result = if right == 0 {
+                        left
+                    } else {
+                        left.wrapping_rem(right)
+                    };
+                    self.x_reg[rd as usize] = result as u64;
+                    false
+                }
+                0x7 => {
+                    println!("REMU");
+                    let left = self.x_reg[rs1 as usize];
+                    let right = self.x_reg[_rs2 as usize];
+                    let result = if right == 0 {
+                        left
+                    } else {
+                        left.wrapping_rem(right)
+                    };
+                    self.x_reg[rd as usize] = result as u64;
+                    false
+                }
+                _ => todo!("Unimplemented funct3"),
+            },
             // ADD SUB SHIFT ETC
             0b0110011 => match funct3 {
                 0x0 => match funct7 {
@@ -431,6 +513,48 @@ impl CPU {
                 }
             },
             0b0111011 => match funct3 {
+                0x7 => match funct7 {
+                    0x1 => {
+                        println!("REMUW");
+                        let left = self.x_reg[rs1 as usize] as u32;
+                        let right = self.x_reg[_rs2 as usize] as u32;
+                        let result = if _rs2 == 0 {
+                            left
+                        } else {
+                            left.wrapping_rem(right)
+                        };
+                        self.x_reg[rd as usize] = result as i32 as u64;
+                        false
+                    }
+                },
+                0x6 => match funct7 {
+                    0x1 => {
+                        println!("REMW");
+                        let left = self.x_reg[rs1 as usize] as i32;
+                        let right = self.x_reg[_rs2 as usize] as i32;
+                        let result = if _rs2 == 0 {
+                            left
+                        } else {
+                            left.wrapping_rem(right)
+                        };
+                        self.x_reg[rd as usize] = result as i32 as u64;
+                        false
+                    }
+                },
+                0x4 => match funct7 {
+                    0x1 => {
+                        println!("DIVW");
+                        let left = self.x_reg[rs1 as usize] as i32;
+                        let right = self.x_reg[_rs2 as usize] as i32;
+                        let result = if _rs2 == 0 {
+                            -1
+                        } else {
+                            left.wrapping_div(right)
+                        };
+                        self.x_reg[rd as usize] = result as i32 as u64;
+                        false
+                    }
+                },
                 0x0 => match funct7 {
                     0x0 => {
                         println!("ADDW");
@@ -446,6 +570,14 @@ impl CPU {
                             as i64 as u64;
                         false
                     }
+                    0x1 => {
+                        println!("MULW");
+                        let left = self.x_reg[rs1 as usize] as u32;
+                        let right = self.x_reg[_rs2 as usize] as u32;
+                        let result = left.wrapping_mul(right);
+                        self.x_reg[rd as usize] = result as i32 as u64;
+                        false
+                    }
                     _ => {
                         todo!("invalid funct7");
                     }
@@ -458,6 +590,18 @@ impl CPU {
                     false
                 }
                 0x5 => match funct7 {
+                    0x1 => {
+                        println!("DIVUW");
+                        let left = self.x_reg[rs1 as usize] as u32;
+                        let right = self.x_reg[_rs2 as usize] as u32;
+                        let result = if _rs2 == 0 {
+                            core::u32::MAX
+                        } else {
+                            left.wrapping_div(right)
+                        };
+                        self.x_reg[rd as usize] = result as i32 as u64;
+                        false
+                    }
                     0x0 => {
                         println!("SRLW");
                         let left = self.x_reg[rs1 as usize] as u32;
