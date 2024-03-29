@@ -1,5 +1,3 @@
-use core::panicking::panic;
-
 use crate::mmu::MMU;
 
 #[derive(Debug)]
@@ -108,260 +106,81 @@ impl CPU {
         match opcode {
             0b0110011 => match funct3 {
                 // R TYPE
-                0x0 => {
-                    self.mul(rd, rs1, _rs2);
-                    false
-                }
-                0x1 => {
-                    self.mulh(rd, rs1, _rs2);
-                    false
-                }
-                0x2 => {
-                    self.mulhsu(rd, rs1, _rs2);
-                    false
-                }
-                0x3 => {
-                    self.mulu(rd, rs1, _rs2);
-                    false
-                }
-                0x4 => {
-                    self.div(rd, rs1, _rs2);
-                    false
-                }
-                0x5 => {
-                    self.div(rd, rs1, _rs2);
-                    false
-                }
-                0x6 => {
-                    self.rem(rd, rs1, _rs2);
-                    false
-                }
-                0x7 => {
-                    self.remu(rd, rs1, _rs2);
-                    false
-                }
+                0x0 => self.mul(rd, rs1, _rs2),
+                0x1 => self.mulh(rd, rs1, _rs2),
+                0x2 => self.mulhsu(rd, rs1, _rs2),
+                0x3 => self.mulu(rd, rs1, _rs2),
+                0x4 => self.div(rd, rs1, _rs2),
+                0x5 => self.div(rd, rs1, _rs2),
+                0x6 => self.rem(rd, rs1, _rs2),
+                0x7 => self.remu(rd, rs1, _rs2),
                 _ => todo!("Unimplemented funct3"),
             },
             // ADD SUB SHIFT ETC
             0b0110011 => match funct3 {
                 0x0 => match funct7 {
-                    0x0 => {
-                        self.add(rd, rs1, _rs2);
-                        false
-                    }
-                    0x20 => {
-                        self.sub(rd, rs1, _rs2);
-                        false
-                    }
-                    _ => {
-                        todo!("Invalid funct7");
-                    }
+                    0x0 => self.add(rd, rs1, _rs2),
+                    0x20 => self.sub(rd, rs1, _rs2),
+                    _ => todo!("Invalid funct7"),
                 },
                 0x5 => match funct7 {
-                    0x0 => {
-                        self.srl(rd, rs1, _rs2);
-                        false
-                    }
-                    0x20 => {
-                        self.sra(rd, rs1, _rs2);
-                        false
-                    }
-                    _ => {
-                        todo!("Invalid funct7");
-                    }
+                    0x0 => self.srl(rd, rs1, _rs2),
+                    0x20 => self.sra(rd, rs1, _rs2),
+                    _ => todo!("Invalid funct7"),
                 },
-                0x4 => {
-                    self.xor(rd, rs1, _rs2);
-                    false
-                }
-                0x6 => {
-                    self.or(rd, rs1, _rs2);
-                    false
-                }
-                0x7 => {
-                    self.and(rd, rs1, _rs2);
-                    false
-                }
-                0x1 => {
-                    self.sll(rd, rs1, _rs2);
-                    false
-                }
-                0x2 => {
-                    self.slt(rd, rs1, _rs2);
-                    false
-                }
-                0x3 => {
-                    self.sltu(rd, rs1, _rs2);
-                    false
-                }
-                _ => {
-                    todo!("INVALID FUNCT3")
-                }
+                0x4 => self.xor(rd, rs1, _rs2),
+                0x6 => self.or(rd, rs1, _rs2),
+                0x7 => self.and(rd, rs1, _rs2),
+                0x1 => self.sll(rd, rs1, _rs2),
+                0x2 => self.slt(rd, rs1, _rs2),
+                0x3 => self.sltu(rd, rs1, _rs2),
+                _ => todo!("INVALID FUNCT3"),
             },
             // Load Instructions
             0b0000011 => match funct3 {
                 // I TYPE
-                0x0 => {
-                    self.load_byte(rd, rs1, imm);
-                    false
-                }
-                0x1 => {
-                    self.load_half(rd, rs1, imm);
-                    false
-                }
-                0x2 => {
-                    self.load_word(rd, rs1, imm);
-                    false
-                }
-                0x4 => {
-                    self.load_byte_u(rd, rs1, imm);
-                    false
-                }
-                0x5 => {
-                    self.load_half_u(rd, rs1, imm);
-                    false
-                }
-                0x3 => {
-                    self.load_double_word(rd, rs1, imm);
-                    false
-                }
-                0x6 => {
-                    self.load_word_unsigned(rd, rs1, imm);
-                    false
-                }
-                _ => {
-                    todo!("Invalid funct3");
-                }
+                0x0 => self.load_byte(rd, rs1, imm),
+                0x1 => self.load_half(rd, rs1, imm),
+                0x2 => self.load_word(rd, rs1, imm),
+                0x4 => self.load_byte_u(rd, rs1, imm),
+                0x5 => self.load_half_u(rd, rs1, imm),
+                0x3 => self.load_double_word(rd, rs1, imm),
+                0x6 => self.load_word_unsigned(rd, rs1, imm),
+                _ => todo!("Invalid funct3"),
             },
             // Store Instructions
             0b0100011 => match funct3 {
                 // Stores are S TYPE everything is the same except the immediate register
-                0x0 => {
-                    self.store_byte(_rs2, rs1, imm_s_type);
-                    false
-                }
-                0x1 => {
-                    self.store_half(_rs2, rs1, imm_s_type);
-                    false
-                }
-                0x2 => {
-                    self.store_word(_rs2, rs1, imm_s_type);
-                    false
-                }
-                0x3 => {
-                    self.store_double_word(_rs2, rs1, imm_s_type);
-                    false
-                }
-                _ => {
-                    todo!("Invalid funct3 {:#08X}", funct3);
-                }
+                0x0 => self.store_byte(_rs2, rs1, imm_s_type),
+                0x1 => self.store_half(_rs2, rs1, imm_s_type),
+                0x2 => self.store_word(_rs2, rs1, imm_s_type),
+                0x3 => self.store_double_word(_rs2, rs1, imm_s_type),
+                _ => todo!("Invalid funct3 {:#08X}", funct3),
             },
             0b0010011 => match funct3 {
                 // I TYPE
-                0x0 => {
-                    self.addi(rd, rs1, imm);
-                    false
-                }
-                0x4 => {
-                    self.xori(rd, rs1, imm);
-                    false
-                }
-                0x6 => {
-                    self.ori(rd, rs1, imm);
-                    false
-                }
-                0x7 => {
-                    self.andi(rd, rs1, imm);
-                    false
-                }
-                0x1 => {
-                    self.slli(rd, rs1, shamt);
-                    false
-                }
+                0x0 => self.addi(rd, rs1, imm),
+                0x4 => self.xori(rd, rs1, imm),
+                0x6 => self.ori(rd, rs1, imm),
+                0x7 => self.andi(rd, rs1, imm),
+                0x1 => self.slli(rd, rs1, shamt),
                 0x5 => match imm_5_11_mode {
-                    0x0 => {
-                        self.srli(rd, rs1, shamt);
-                        false
-                    }
-                    0x20 => {
-                        self.srai(rd, rs1, shamt);
-                        false
-                    }
-                    _ => {
-                        todo!("INVALID IMMEDIATE 5-11");
-                    }
+                    0x0 => self.srli(rd, rs1, shamt),
+                    0x20 => self.srai(rd, rs1, shamt),
+                    _ => todo!("INVALID IMMEDIATE 5-11"),
                 },
-                0x2 => {
-                    self.slti(rd, rs1, imm);
-                    false
-                }
-                0x3 => {
-                    self.sltiu(rd, rs1, imm);
-                    false
-                }
-                _ => {
-                    todo!("Unimplemented funct3");
-                }
+                0x2 => self.slti(rd, rs1, imm),
+                0x3 => self.sltiu(rd, rs1, imm),
+                _ => todo!("Unimplemented funct3"),
             },
             0b1100011 => match funct3 {
-                0x0 => {
-                    if self.debug_flag {
-                        println!(
-                            "BEQ IF {:#08X} == {:#08X} JMP -> {:#08X}",
-                            self.x_reg[rs1 as usize],
-                            self.x_reg[_rs2 as usize],
-                            self.pc + 4
-                        );
-                    }
-                    if self.x_reg[rs1 as usize] == self.x_reg[_rs2 as usize] {
-                        self.pc += imm_b_type as i64 as u64;
-                        return true;
-                    }
-                    false
-                }
-                0x1 => {
-                    println!("bne");
-                    if self.x_reg[rs1 as usize] != self.x_reg[_rs2 as usize] {
-                        self.pc += imm_b_type as i64 as u64;
-                        return true;
-                    }
-                    false
-                }
-                0x4 => {
-                    println!("blt");
-                    if (self.x_reg[rs1 as usize] as i64) < (self.x_reg[_rs2 as usize] as i64) {
-                        self.pc += imm_b_type as i64 as u64;
-                        return true;
-                    }
-                    false
-                }
-                0x5 => {
-                    println!("bge");
-                    if (self.x_reg[rs1 as usize] as i64) >= (self.x_reg[_rs2 as usize] as i64) {
-                        self.pc += imm_b_type as i64 as u64;
-                        return true;
-                    }
-                    false
-                }
-                0x6 => {
-                    println!("bltu");
-                    if (self.x_reg[rs1 as usize] as u64) < (self.x_reg[_rs2 as usize] as u64) {
-                        self.pc += imm_b_type as i64 as u64;
-                        return true;
-                    }
-                    false
-                }
-                0x7 => {
-                    println!("bgeu");
-                    if (self.x_reg[rs1 as usize] as u64) >= (self.x_reg[_rs2 as usize] as u64) {
-                        self.pc += imm_b_type as i64 as u64;
-                        return true;
-                    }
-                    false
-                }
-                _ => {
-                    todo!("PANIC INVAID OPCODE");
-                }
+                0x0 => self.beq(rs1, _rs2, imm_b_type),
+                0x1 => self.bne(rs1, _rs2, imm_b_type),
+                0x4 => self.blt(rs1, _rs2, imm_b_type),
+                0x5 => self.bge(rs1, _rs2, imm_b_type),
+                0x6 => self.bltu(rs1, _rs2, imm_b_type),
+                0x7 => self.bgeu(rs1, _rs2, imm_b_type),
+                _ => todo!("PANIC INVAID OPCODE"),
             },
             0b1101111 => {
                 // J TYPE
@@ -453,6 +272,7 @@ impl CPU {
                         self.x_reg[rd as usize] = result as i32 as u64;
                         false
                     }
+                    _ => todo!(""),
                 },
                 0x6 => match funct7 {
                     0x1 => {
@@ -467,6 +287,7 @@ impl CPU {
                         self.x_reg[rd as usize] = result as i32 as u64;
                         false
                     }
+                    _ => todo!(""),
                 },
                 0x4 => match funct7 {
                     0x1 => {
@@ -481,6 +302,7 @@ impl CPU {
                         self.x_reg[rd as usize] = result as i32 as u64;
                         false
                     }
+                    _ => todo!(""),
                 },
                 0x0 => match funct7 {
                     0x0 => {
@@ -570,7 +392,7 @@ impl CPU {
         // match on opcode then match on func3?
     }
 
-    fn remu(&mut self, rd: u32, rs1: u32, rs2: u32) {
+    fn remu(&mut self, rd: u32, rs1: u32, rs2: u32) -> bool {
         println!("REMU");
         let left = self.x_reg[rs1 as usize];
         let right = self.x_reg[rs2 as usize];
@@ -580,9 +402,10 @@ impl CPU {
             left.wrapping_rem(right)
         };
         self.x_reg[rd as usize] = result as u64;
+        false
     }
 
-    fn rem(&mut self, rd: u32, rs1: u32, rs2: u32) {
+    fn rem(&mut self, rd: u32, rs1: u32, rs2: u32) -> bool {
         println!("REM");
         let left = self.x_reg[rs1 as usize] as i64;
         let right = self.x_reg[rs2 as usize] as i64;
@@ -592,9 +415,10 @@ impl CPU {
             left.wrapping_rem(right)
         };
         self.x_reg[rd as usize] = result as u64;
+        false
     }
 
-    fn divu(&mut self, rd: u32, rs1: u32, rs2: u32) {
+    fn divu(&mut self, rd: u32, rs1: u32, rs2: u32) -> bool {
         println!("DIVU");
         let left = self.x_reg[rs1 as usize];
         let right = self.x_reg[rs2 as usize];
@@ -604,9 +428,10 @@ impl CPU {
             left.wrapping_div(right)
         };
         self.x_reg[rd as usize] = result;
+        false
     }
 
-    fn div(&mut self, rd: u32, rs1: u32, rs2: u32) {
+    fn div(&mut self, rd: u32, rs1: u32, rs2: u32) -> bool {
         println!("DIV");
         let left = self.x_reg[rs1 as usize] as i64;
         let right = self.x_reg[rs2 as usize] as i64;
@@ -616,110 +441,126 @@ impl CPU {
             left.wrapping_div(right)
         };
         self.x_reg[rd as usize] = result as u64;
+        false
     }
 
-    fn mulu(&mut self, rd: u32, rs1: u32, rs2: u32) {
+    fn mulu(&mut self, rd: u32, rs1: u32, rs2: u32) -> bool {
         println!("MULU");
         let left = self.x_reg[rs1 as usize] as u64 as u128;
         let right = self.x_reg[rs2 as usize] as u64 as u128;
         let result = (left.wrapping_mul(right) >> 64) as u64;
         self.x_reg[rd as usize] = result;
+        false
     }
 
-    fn sll(&mut self, rd: u32, rs1: u32, rs2: u32) {
+    fn sll(&mut self, rd: u32, rs1: u32, rs2: u32) -> bool {
         println!("SLL");
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize] << (self.x_reg[rs2 as usize] & 0b11111);
+        false
     }
 
-    fn slt(&mut self, rd: u32, rs1: u32, rs2: u32) {
+    fn slt(&mut self, rd: u32, rs1: u32, rs2: u32) -> bool {
         println!("SLT");
         if (self.x_reg[rs1 as usize] as i64) < (self.x_reg[rs2 as usize] as i64) {
             self.x_reg[rd as usize] = 1;
         } else {
             self.x_reg[rd as usize] = 0;
         }
+        false
     }
 
-    fn slli(&mut self, rd: u32, rs1: u32, shamt: u64) {
+    fn slli(&mut self, rd: u32, rs1: u32, shamt: u64) -> bool {
         println!("SLLI");
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize] << shamt;
+        false
     }
 
-    fn srli(&mut self, rd: u32, rs1: u32, shamt: u64) {
+    fn srli(&mut self, rd: u32, rs1: u32, shamt: u64) -> bool {
         println!("SRLI");
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize] >> shamt;
+        false
     }
 
-    fn srai(&mut self, rd: u32, rs1: u32, shamt: u64) {
+    fn srai(&mut self, rd: u32, rs1: u32, shamt: u64) -> bool {
         println!("SRAI");
         self.x_reg[rd as usize] = ((self.x_reg[rs1 as usize] as i64) >> shamt) as u64;
+        false
     }
 
-    fn slti(&mut self, rd: u32, rs1: u32, imm: u64) {
+    fn slti(&mut self, rd: u32, rs1: u32, imm: u64) -> bool {
         println!("SRLTI");
         if (self.x_reg[rs1 as usize] as i64) < (imm as i64) {
             self.x_reg[rd as usize] = 1;
         } else {
             self.x_reg[rd as usize] = 0;
         }
+        false
     }
 
-    fn sltiu(&mut self, rd: u32, rs1: u32, imm: u64) {
+    fn sltiu(&mut self, rd: u32, rs1: u32, imm: u64) -> bool {
         println!("SLTIU");
         if (self.x_reg[rs1 as usize] as u64) < imm {
             self.x_reg[rd as usize] = 1;
         } else {
             self.x_reg[rd as usize] = 0;
         }
+        false
     }
 
-    fn sltu(&mut self, rd: u32, rs1: u32, rs2: u32) {
+    fn sltu(&mut self, rd: u32, rs1: u32, rs2: u32) -> bool {
         println!("SLTU");
         if (self.x_reg[rs1 as usize] as u64) < (self.x_reg[rs2 as usize] as u64) {
             self.x_reg[rd as usize] = 1;
         } else {
             self.x_reg[rd as usize] = 0;
         }
+        false
     }
 
-    fn mulhsu(&mut self, rd: u32, rs1: u32, rs2: u32) {
+    fn mulhsu(&mut self, rd: u32, rs1: u32, rs2: u32) -> bool {
         println!("MULHSU");
         let left = self.x_reg[rs1 as usize] as i64 as u128;
         let right = self.x_reg[rs2 as usize] as u64 as u128;
         let result = (left.wrapping_mul(right) >> 64) as u64;
         self.x_reg[rd as usize] = result;
+        false
     }
 
-    fn srl(&mut self, rd: u32, rs1: u32, rs2: u32) {
+    fn srl(&mut self, rd: u32, rs1: u32, rs2: u32) -> bool {
         println!("SRL");
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize] >> (self.x_reg[rs2 as usize] & 0b11111);
+        false
     }
 
-    fn sra(&mut self, rd: u32, rs1: u32, rs2: u32) {
+    fn sra(&mut self, rd: u32, rs1: u32, rs2: u32) -> bool {
         println!("SRA");
         self.x_reg[rd as usize] =
             self.x_reg[rs1 as usize] >> ((self.x_reg[rs2 as usize] & 0b11111) as i64) as u64;
+        false
     }
 
-    fn mulh(&mut self, rd: u32, rs1: u32, rs2: u32) {
+    fn mulh(&mut self, rd: u32, rs1: u32, rs2: u32) -> bool {
         println!("MULH");
         let left = self.x_reg[rs1 as usize] as i64 as u128;
         let right = self.x_reg[rs2 as usize] as i64 as u128;
         let result = (left.wrapping_mul(right) >> 64) as u64;
         self.x_reg[rd as usize] = result;
+        false
     }
 
-    fn mul(&mut self, rd: u32, rs1: u32, rs2: u32) {
+    fn mul(&mut self, rd: u32, rs1: u32, rs2: u32) -> bool {
         println!("MUL");
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize].wrapping_mul(self.x_reg[rs2 as usize]);
+        false
     }
 
-    fn sub(self: &mut Self, rd: u32, rs1: u32, rs2: u32) {
+    fn sub(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
         println!("SUB");
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize].wrapping_sub(self.x_reg[rs2 as usize]);
+        false
     }
 
-    fn add(self: &mut Self, rd: u32, rs1: u32, rs2: u32) {
+    fn add(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
         if self.debug_flag {
             println!(
                 "ADD x{rd} ({:#08X}) x{rs1} ({:#08X}) x{rs2} ({:#08X})",
@@ -727,8 +568,9 @@ impl CPU {
             );
         }
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize].wrapping_add(self.x_reg[rs2 as usize]);
+        false
     }
-    fn store_double_word(self: &mut Self, rs2: u32, rs1: u32, imm: i32) {
+    fn store_double_word(self: &mut Self, rs2: u32, rs1: u32, imm: i32) -> bool {
         println!("SD RS1 = {:#08X}", self.x_reg[rs1 as usize]);
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm as u64);
         let index = rs2 as usize;
@@ -736,8 +578,9 @@ impl CPU {
         let value_as_bytes = value.to_le_bytes();
         self.mmu.memory_segment[_memory_address as usize.._memory_address as usize + 8]
             .copy_from_slice(&value_as_bytes);
+        false
     }
-    fn store_word(self: &mut Self, rs2: u32, rs1: u32, imm: i32) {
+    fn store_word(self: &mut Self, rs2: u32, rs1: u32, imm: i32) -> bool {
         println!("SW");
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm as u64);
         let index = rs2 as usize;
@@ -745,16 +588,18 @@ impl CPU {
         let value_as_bytes = value.to_le_bytes();
         self.mmu.memory_segment[_memory_address as usize.._memory_address as usize + 4]
             .copy_from_slice(&value_as_bytes);
+        false
     }
-    fn store_half(self: &mut Self, rs2: u32, rs1: u32, imm: i32) {
+    fn store_half(self: &mut Self, rs2: u32, rs1: u32, imm: i32) -> bool {
         let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
         let index = rs2 as usize;
         let value = self.x_reg[index] as u16;
         let value_as_bytes = value.to_le_bytes();
         self.mmu.memory_segment[_memory_address as usize.._memory_address as usize + 2]
             .copy_from_slice(&value_as_bytes);
+        false
     }
-    fn store_byte(self: &mut Self, rs2: u32, rs1: u32, imm: i32) {
+    fn store_byte(self: &mut Self, rs2: u32, rs1: u32, imm: i32) -> bool {
         let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
         let index = rs2 as usize;
         let value = self.x_reg[index] as u8;
@@ -762,8 +607,9 @@ impl CPU {
             println!("SB {:#08X} <- {:#08X}", _memory_address, value)
         }
         self.mmu.memory_segment[_memory_address as usize] = value;
+        false
     }
-    fn load_word_unsigned(self: &mut Self, rd: u32, rs1: u32, imm: u64) {
+    fn load_word_unsigned(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
         println!("LWU");
         let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
         let value1 = self.mmu.memory_segment[_memory_address as usize] as u8;
@@ -772,8 +618,9 @@ impl CPU {
         let value4 = self.mmu.memory_segment[_memory_address as usize + 3] as u8;
         let result = u32::from_le_bytes([value1, value2, value3, value4]) as u64;
         self.x_reg[rd as usize] = result as u64;
+        false
     }
-    fn load_double_word(self: &mut Self, rd: u32, rs1: u32, imm: u64) {
+    fn load_double_word(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
         println!("LD");
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm as u64);
         let value0 = self.mmu.memory_segment[_memory_address as usize] as u8;
@@ -788,8 +635,9 @@ impl CPU {
             value0, value1, value2, value3, value4, value5, value6, value7,
         ]) as i64 as u64;
         self.x_reg[rd as usize] = result as u64;
+        false
     }
-    fn load_word(self: &mut Self, rd: u32, rs1: u32, imm: u64) {
+    fn load_word(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
         let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
         let value1 = self.mmu.memory_segment[_memory_address as usize] as u8;
         let value2 = self.mmu.memory_segment[_memory_address as usize + 1] as u8;
@@ -797,17 +645,19 @@ impl CPU {
         let value4 = self.mmu.memory_segment[_memory_address as usize + 3] as u8;
         let result = u32::from_le_bytes([value1, value2, value3, value4]) as i64 as u64;
         self.x_reg[rd as usize] = result as u64;
+        false
     }
     // load 16 bit value
-    fn load_half(self: &mut Self, rd: u32, rs1: u32, imm: u64) {
+    fn load_half(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
         let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
         let value1 = self.mmu.memory_segment[_memory_address as usize] as u8;
         let value2 = self.mmu.memory_segment[_memory_address as usize + 1] as u8;
         let result = u16::from_le_bytes([value1, value2]) as i64 as u64;
         self.x_reg[rd as usize] = result as u64;
+        false
     }
     // load 8 bit value
-    fn load_byte(self: &mut Self, rd: u32, rs1: u32, imm: u64) {
+    fn load_byte(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
         let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
         let value = self.mmu.memory_segment[_memory_address as usize] as u8;
         if self.debug_flag {
@@ -818,23 +668,26 @@ impl CPU {
         }
 
         self.x_reg[rd as usize] = value as u64;
+        false
     }
     // load 16 bit value
-    fn load_half_u(self: &mut Self, rd: u32, rs1: u32, imm: u64) {
+    fn load_half_u(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
         let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
         let value1 = self.mmu.memory_segment[_memory_address as usize] as u8;
         let value2 = self.mmu.memory_segment[_memory_address as usize + 1] as u8;
         let result = u16::from_le_bytes([value1, value2]) as u64;
         self.x_reg[rd as usize] = result as u64;
+        false
     }
     // load 8 bit value
-    fn load_byte_u(self: &mut Self, rd: u32, rs1: u32, imm: u64) {
+    fn load_byte_u(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
         let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
         let value = self.mmu.memory_segment[_memory_address as usize] as u8;
         self.x_reg[rd as usize] = value as u64;
+        false
     }
     // add immediate
-    fn addi(self: &mut Self, rd: u32, rs1: u32, imm: u64) {
+    fn addi(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
         let rs1_value = self.x_reg[rs1 as usize];
         if self.debug_flag {
             println!(
@@ -843,30 +696,93 @@ impl CPU {
             );
         }
         self.x_reg[rd as usize] = imm.wrapping_add(self.x_reg[rs1 as usize]);
+        false
     }
-    fn andi(self: &mut Self, rd: u32, rs1: u32, imm: u64) {
+    fn andi(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
+        println!("ANDI");
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize] & imm;
+        false
     }
-    fn ori(self: &mut Self, rd: u32, rs1: u32, imm: u64) {
+    fn ori(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
+        println!("ORI");
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize] | imm;
+        false
     }
-    fn xori(self: &mut Self, rd: u32, rs1: u32, imm: u64) {
+    fn xori(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
+        println!("XORI");
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize] ^ imm;
+        false
     }
-
-    fn and(self: &mut Self, rd: u32, rs1: u32, rs2: u32) {
+    fn and(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
         println!("AND");
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize] & self.x_reg[rs2 as usize];
+        false
     }
-    fn or(self: &mut Self, rd: u32, rs1: u32, rs2: u32) {
+    fn or(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
         println!("OR");
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize] | self.x_reg[rs2 as usize];
+        false
     }
-    fn xor(self: &mut Self, rd: u32, rs1: u32, rs2: u32) {
+    fn xor(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
         println!("XOR");
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize] ^ self.x_reg[rs2 as usize];
+        false
     }
-    fn ecall(self: &mut Self) {
+
+    fn bgeu(self: &mut Self, rs1: u32, rs2: u32, imm_b_type: i32) -> bool {
+        println!("BGEU");
+        if (self.x_reg[rs1 as usize] as u64) >= (self.x_reg[rs2 as usize] as u64) {
+            self.pc += imm_b_type as i64 as u64;
+            return true;
+        }
+        false
+    }
+
+    fn bltu(self: &mut Self, rs1: u32, rs2: u32, imm_b_type: i32) -> bool {
+        println!("bltu");
+        if (self.x_reg[rs1 as usize] as u64) < (self.x_reg[rs2 as usize] as u64) {
+            self.pc += imm_b_type as i64 as u64;
+            return true;
+        }
+        false
+    }
+
+    fn bge(self: &mut Self, rs1: u32, rs2: u32, imm_b_type: i32) -> bool {
+        println!("bge");
+        if (self.x_reg[rs1 as usize] as i64) >= (self.x_reg[rs2 as usize] as i64) {
+            self.pc += imm_b_type as i64 as u64;
+            return true;
+        }
+        false
+    }
+
+    fn blt(self: &mut Self, rs1: u32, rs2: u32, imm_b_type: i32) -> bool {
+        println!("blt");
+        if (self.x_reg[rs1 as usize] as i64) < (self.x_reg[rs2 as usize] as i64) {
+            self.pc += imm_b_type as i64 as u64;
+            return true;
+        }
+        false
+    }
+
+    fn bne(self: &mut Self, rs1: u32, rs2: u32, imm_b_type: i32) -> bool {
+        println!("bne");
+        if self.x_reg[rs1 as usize] != self.x_reg[rs2 as usize] {
+            self.pc += imm_b_type as i64 as u64;
+            return true;
+        }
+        false
+    }
+    fn beq(self: &mut Self, rs1: u32, rs2: u32, imm_b_type: i32) -> bool {
+        println!("beq");
+        if self.x_reg[rs1 as usize] == self.x_reg[rs2 as usize] {
+            self.pc += imm_b_type as i64 as u64;
+            return true;
+        }
+        false
+    }
+
+    fn ecall(self: &mut Self) -> bool {
         // Emulate a syscall
         // x0 == 0
         // a0 == x10 -> contains return value
@@ -907,5 +823,6 @@ impl CPU {
                 todo!("Unimplemented syscall");
             }
         }
+        false
     }
 }
