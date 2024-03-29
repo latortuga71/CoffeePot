@@ -9,27 +9,13 @@ mod mmu;
 mod tests;
 
 fn main() {
-    todo!("move all current instructions into seperate function\n and println instruction name for debugging\n add all extensions that G encompasses m,a,f,d,c,ziscr");
     let mut emulator = Emulator::new();
-    /*
-        let elf_segments = loader::load_elf("basic.bin");
-        emulator.load_elf_segments(&elf_segments);
-        let i = elf_segments.entry_point as usize;
-        let iend = elf_segments.entry_point as usize + 4;
-        println!("Entry Point! {:#08X}", elf_segments.entry_point);
-        println!(
-            "Entry Point Data ! {:?}",
-            &emulator.cpu.mmu.virtual_memory[i..iend]
-        );
-        emulator.cpu.pc = elf_segments.entry_point;
-        emulator.cpu.mmu.text_segment = emulator.cpu.mmu.virtual_memory.clone();
-        println!("TODO this is hilarously long after clone");
-        // for now we just clone for testing
-        // https://notes.eatonphil.com/emulating-amd64-starting-with-elf.html
-    // */
-    emulator.load_raw_instructions("./basic.bin").unwrap();
+    let elf_segments = loader::load_elf("test.elf");
+    emulator.load_elf_segments(&elf_segments);
+    emulator.cpu.pc = elf_segments.entry_point;
     emulator.cpu.mmu.text_segment = emulator.cpu.mmu.virtual_memory.clone();
-    print!("{:?}", emulator.cpu.mmu.text_segment);
+    //emulator.load_raw_instructions("./add.bin").unwrap();
+    //print!("{:?}", emulator.cpu.mmu.text_segment);
     println!("=== CoffeePot Init!  ===");
     loop {
         //println!("{}", emulator.cpu);

@@ -33,7 +33,7 @@ impl Emulator {
         let end = self.cpu.pc + 0x4;
         let text_section_size = self.cpu.mmu.text_segment.len();
         if end > text_section_size as u64 {
-            panic!("END OF TEXT SECTION EXITING");
+            todo!("TODO HANDLE END OF TEXT SECTION EXITING");
         }
         let instruction_bytes = &self.cpu.mmu.text_segment[start as usize..end as usize];
         let mut sliced: [u8; 4] = [0, 0, 0, 0];

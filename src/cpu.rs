@@ -10,13 +10,8 @@ pub struct CPU {
 }
 
 // XLEN = u64 arch size
-// regs w means always produce 32bit value
-// *.w instructions
-//
-//
 
 // RV64I: base integer instructions
-//
 impl std::fmt::Display for CPU {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let mut display_string = format!("PC: {:#08X}\nSP: {:#08X}\nREGISTERS:", self.pc, self.sp);
@@ -29,6 +24,7 @@ impl std::fmt::Display for CPU {
         write!(f, "{}", display_string)
     }
 }
+
 impl CPU {
     pub fn new() -> Self {
         let mut xreg: [u64; 32] = [0; 32];
@@ -42,31 +38,6 @@ impl CPU {
             debug_flag: true,
         }
     }
-    fn print_state(self: &Self) {
-        // Print the current cpu state registers etc.
-    }
-
-    pub fn decode(self: &mut Self, instruction: u32) {
-        let opcode = instruction & 0x0000007f;
-        let rd = (instruction & 0x00000f80) >> 7;
-        let rs1 = (instruction & 0x000f8000) >> 15;
-        let rs2 = (instruction & 0x01f00000) >> 20;
-        let _funct3 = (instruction & 0x00007000) >> 12;
-        let funct7 = (instruction & 0xfe000000) >> 25;
-        let imm = ((instruction as i32 as i64) >> 20) as u64;
-        let _funct6 = funct7 >> 1;
-        //let rs2 =  ((instruction >> 12))
-        println!("opcode -> {:#08x}", opcode);
-        println!("rd (dest)-> {:#08x}", rd);
-        println!("rs1 (src1) -> {:#08x}", rs1);
-        println!("rs2 (src2) -> {:#08x}", rs2);
-        println!("immediate (immediate) -> {:#08x}", imm);
-        self.x_reg[rd as usize] = imm.wrapping_add(rs1 as u64);
-        println!("-> {:?}", self.x_reg);
-        // opcode needs to be then matched with a funct3 after
-        // https://inst.eecs.berkeley.edu/~cs61c/fa18/img/riscvcard.pdf
-        // u64 has wrapping add
-    }
     // execute instructioon
     pub fn execute(self: &mut Self, instruction: u32) -> bool {
         // I TYPE
@@ -78,7 +49,7 @@ impl CPU {
         let funct7 = (instruction & 0xfe000000) >> 25;
         let imm = ((instruction as i32 as i64) >> 20) as u64;
         let imm_5_11_mode = (imm >> 6) & 0b111111;
-        let imm_5_11 = imm & 0b111111;
+        let _imm_5_11 = imm & 0b111111;
         let shamt = imm & 0b111111;
         let _funct6 = funct7 >> 1;
 
@@ -105,36 +76,49 @@ impl CPU {
         let imm_u_type = (instruction as i32 as i64 as u64) >> 12;
         match opcode {
             0b0110011 => match funct3 {
-                // R TYPE
-                0x0 => self.mul(rd, rs1, _rs2),
-                0x1 => self.mulh(rd, rs1, _rs2),
-                0x2 => self.mulhsu(rd, rs1, _rs2),
-                0x3 => self.mulu(rd, rs1, _rs2),
-                0x4 => self.div(rd, rs1, _rs2),
-                0x5 => self.div(rd, rs1, _rs2),
-                0x6 => self.rem(rd, rs1, _rs2),
-                0x7 => self.remu(rd, rs1, _rs2),
-                _ => todo!("Unimplemented funct3"),
-            },
-            // ADD SUB SHIFT ETC
-            0b0110011 => match funct3 {
                 0x0 => match funct7 {
                     0x0 => self.add(rd, rs1, _rs2),
+                    0x1 => self.mul(rd, rs1, _rs2),
                     0x20 => self.sub(rd, rs1, _rs2),
-                    _ => todo!("Invalid funct7"),
+                    _ => panic!("Invalid funct7"),
                 },
                 0x5 => match funct7 {
                     0x0 => self.srl(rd, rs1, _rs2),
+                    0x1 => self.divu(rd, rs1, _rs2),
                     0x20 => self.sra(rd, rs1, _rs2),
-                    _ => todo!("Invalid funct7"),
+                    _ => panic!("Invalid funct7"),
                 },
-                0x4 => self.xor(rd, rs1, _rs2),
-                0x6 => self.or(rd, rs1, _rs2),
-                0x7 => self.and(rd, rs1, _rs2),
-                0x1 => self.sll(rd, rs1, _rs2),
-                0x2 => self.slt(rd, rs1, _rs2),
-                0x3 => self.sltu(rd, rs1, _rs2),
-                _ => todo!("INVALID FUNCT3"),
+                0x4 => match funct7 {
+                    0x0 => self.xor(rd, rs1, _rs2),
+                    0x1 => self.div(rd, rs1, _rs2),
+                    _ => panic!("INVALID FUNCT7"),
+                },
+                0x6 => match funct7 {
+                    0x0 => self.or(rd, rs1, _rs2),
+                    0x1 => self.rem(rd, rs1, _rs2),
+                    _ => panic!("INVALID FUNCT7"),
+                },
+                0x7 => match funct7 {
+                    0x0 => self.and(rd, rs1, _rs2),
+                    0x1 => self.remu(rd, rs1, _rs2),
+                    _ => panic!("INVALID FUNCT7"),
+                },
+                0x1 => match funct7 {
+                    0x0 => self.sll(rd, rs1, _rs2),
+                    0x1 => self.mulh(rd, rs1, _rs2),
+                    _ => panic!("INVALID FUNCT7"),
+                },
+                0x2 => match funct7 {
+                    0x0 => self.slt(rd, rs1, _rs2),
+                    0x1 => self.mulhsu(rd, rs1, _rs2),
+                    _ => panic!("invalid funct 7"),
+                },
+                0x3 => match funct7 {
+                    0x0 => self.sltu(rd, rs1, _rs2),
+                    0x1 => self.mulu(rd, rs1, _rs2),
+                    _ => panic!("invalidu func7"),
+                },
+                _ => panic!("INVALID FUNCT3"),
             },
             // Load Instructions
             0b0000011 => match funct3 {
@@ -146,7 +130,7 @@ impl CPU {
                 0x5 => self.load_half_u(rd, rs1, imm),
                 0x3 => self.load_double_word(rd, rs1, imm),
                 0x6 => self.load_word_unsigned(rd, rs1, imm),
-                _ => todo!("Invalid funct3"),
+                _ => panic!("Invalid funct3"),
             },
             // Store Instructions
             0b0100011 => match funct3 {
@@ -155,7 +139,7 @@ impl CPU {
                 0x1 => self.store_half(_rs2, rs1, imm_s_type),
                 0x2 => self.store_word(_rs2, rs1, imm_s_type),
                 0x3 => self.store_double_word(_rs2, rs1, imm_s_type),
-                _ => todo!("Invalid funct3 {:#08X}", funct3),
+                _ => panic!("Invalid funct3 {:#08X}", funct3),
             },
             0b0010011 => match funct3 {
                 // I TYPE
@@ -167,11 +151,11 @@ impl CPU {
                 0x5 => match imm_5_11_mode {
                     0x0 => self.srli(rd, rs1, shamt),
                     0x20 => self.srai(rd, rs1, shamt),
-                    _ => todo!("INVALID IMMEDIATE 5-11"),
+                    _ => panic!("INVALID IMMEDIATE 5-11"),
                 },
                 0x2 => self.slti(rd, rs1, imm),
                 0x3 => self.sltiu(rd, rs1, imm),
-                _ => todo!("Unimplemented funct3"),
+                _ => panic!("Unimplemented funct3"),
             },
             0b1100011 => match funct3 {
                 0x0 => self.beq(rs1, _rs2, imm_b_type),
@@ -180,7 +164,7 @@ impl CPU {
                 0x5 => self.bge(rs1, _rs2, imm_b_type),
                 0x6 => self.bltu(rs1, _rs2, imm_b_type),
                 0x7 => self.bgeu(rs1, _rs2, imm_b_type),
-                _ => todo!("PANIC INVAID OPCODE"),
+                _ => panic!("PANIC INVAID OPCODE"),
             },
             0b1101111 => self.jal(rd, imm_j_type),
             0b1100111 => self.jalr(rd, rs1, imm),
@@ -192,44 +176,44 @@ impl CPU {
                 0x3 => match funct7 {
                     0x0 => self.srliw(rd, rs1, shamt),
                     0x20 => self.sraiw(rd, rs1, shamt),
-                    _ => todo!("doesnt exist"),
+                    _ => panic!("invalid funct7"),
                 },
-                _ => todo!("invalid funct"),
+                _ => panic!("invalid funct"),
             },
             0b0111011 => match funct3 {
                 0x7 => match funct7 {
                     0x1 => self.remuw(rd, rs1, _rs2),
-                    _ => todo!(""),
+                    _ => panic!(""),
                 },
                 0x6 => match funct7 {
                     0x1 => self.remw(rd, rs1, _rs2),
-                    _ => todo!(""),
+                    _ => panic!(""),
                 },
                 0x4 => match funct7 {
                     0x1 => self.divw(rd, rs1, _rs2),
-                    _ => todo!(""),
+                    _ => panic!(""),
                 },
                 0x0 => match funct7 {
                     0x0 => self.addw(rd, rs1, _rs2),
                     0x20 => self.subw(rd, rs1, _rs2),
                     0x1 => self.mulw(rd, rs1, _rs2),
-                    _ => todo!("invalid funct7"),
+                    _ => panic!("invalid funct7"),
                 },
                 0x1 => self.sllw(rd, rs1, _rs2),
                 0x5 => match funct7 {
                     0x1 => self.divuw(rd, rs1, _rs2),
                     0x0 => self.srlw(rd, rs1, _rs2),
                     0x20 => self.sraw(rd, rs1, _rs2),
-                    _ => todo!("invalid funct7"),
+                    _ => panic!("invalid funct7"),
                 },
-                _ => todo!("unknown funct3"),
+                _ => panic!("unknown funct3"),
             },
             0b1110011 => match funct7 {
                 0x0 => self.ecall(),
                 0x1 => todo!("EBREAK"),
                 _ => panic!("INVALID FUNC7 for ECALL OR EBREAK"),
             },
-            _ => todo!("PC: {:#08X} Unimplemented OpCode {:#013b}", self.pc, opcode),
+            _ => panic!("PC: {:#08X} Unimplemented OpCode {:#013b}", self.pc, opcode),
         }
         // match on opcode then match on func3?
     }
@@ -530,7 +514,6 @@ impl CPU {
     }
     // add immediate
     fn addi(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
-        let rs1_value = self.x_reg[rs1 as usize];
         if self.debug_flag {
             println!(
                 "ADDI x{rd} ({:#08X}) x{rs1} ({:#08X}) imm ({:#08X})",
@@ -800,16 +783,16 @@ impl CPU {
                         // set return value
                         self.x_reg[10] = _a2;
                     } else {
-                        todo!("Handle other file descriptors");
+                        panic!("Handle other file descriptors");
                     }
                 }
             }
             0x5D => {
-                println!("\n=== CoffeePot Exit! ===");
+                println!("\n=== CoffeePot ExitSycall! ===");
                 std::process::exit(_a0 as i32);
             }
             _ => {
-                todo!("Unimplemented syscall");
+                panic!("Unimplemented syscall");
             }
         }
         false
