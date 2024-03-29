@@ -182,212 +182,54 @@ impl CPU {
                 0x7 => self.bgeu(rs1, _rs2, imm_b_type),
                 _ => todo!("PANIC INVAID OPCODE"),
             },
-            0b1101111 => {
-                // J TYPE
-                if self.debug_flag {
-                    println!(
-                        "JAL x{rd} <- {:#08X} PC = {:#08X}",
-                        self.pc.wrapping_add(0x4),
-                        self.pc.wrapping_add(imm_j_type as i64 as u64)
-                    );
-                }
-                self.x_reg[rd as usize] = self.pc.wrapping_add(0x4); // return address saved in RD
-                self.pc = self.pc.wrapping_add(imm_j_type as i64 as u64);
-                true
-            }
-            0b1100111 => {
-                // I TYPE
-                if self.debug_flag {
-                    println!(
-                        "JALR x{rd} <- {:#08X} PC = {:#08X}",
-                        self.pc.wrapping_add(0x4),
-                        imm.wrapping_add(self.x_reg[rs1 as usize])
-                    );
-                }
-                self.x_reg[rd as usize] = self.pc.wrapping_add(0x4); // return address saved in RD
-                self.pc = imm.wrapping_add(self.x_reg[rs1 as usize]); // PC = RS1 + IMM
-                true
-            }
-            0b0110111 => {
-                // U TYPE
-                self.x_reg[rd as usize] = imm_u_type as i64 as u64;
-                false
-            }
-            0b0010111 => {
-                // UTYPE
-                println!("AUIPC");
-                self.x_reg[rd as usize] = (imm_u_type as i64 as u64).wrapping_add(self.pc);
-                false
-            }
+            0b1101111 => self.jal(rd, imm_j_type),
+            0b1100111 => self.jalr(rd, rs1, imm),
+            0b0110111 => self.lui(rd, imm_u_type),
+            0b0010111 => self.auipc(rd, imm_u_type),
             0b0011011 => match funct3 {
-                0x0 => {
-                    // ONLY I TYPE 31-27 imm[11:0]
-                    println!("ADDIW confirm works");
-                    let rs1__ = self.x_reg[rs1 as usize];
-                    self.x_reg[rd as usize] = rs1__.wrapping_add(imm) as i64 as u64;
-                    false
-                }
-                0x01 => {
-                    println!("SLLIW");
-                    let left = self.x_reg[rs1 as usize] as u32;
-                    let right = shamt as u32;
-                    self.x_reg[rd as usize] = (left >> right) as u32 as i64 as u64;
-                    false
-                }
-
+                0x0 => self.addiw(rd, rs1, imm),
+                0x1 => self.slliw(rd, rs1, shamt),
                 0x3 => match funct7 {
-                    0x0 => {
-                        println!("SRLIW");
-                        let left = self.x_reg[rs1 as usize] as u32;
-                        let right = shamt as u32;
-                        self.x_reg[rd as usize] = (left << right) as u32 as i64 as u64;
-                        false
-                    }
-                    0x20 => {
-                        println!("SRAIW");
-                        let left = self.x_reg[rs1 as usize] as u32;
-                        let right = shamt as i32;
-                        self.x_reg[rd as usize] = (left >> right) as u32 as i64 as u64;
-                        false
-                    }
-                    _ => {
-                        todo!("doesnt exist")
-                    }
+                    0x0 => self.srliw(rd, rs1, shamt),
+                    0x20 => self.sraiw(rd, rs1, shamt),
+                    _ => todo!("doesnt exist"),
                 },
-                _ => {
-                    todo!("invalid funct");
-                }
+                _ => todo!("invalid funct"),
             },
             0b0111011 => match funct3 {
                 0x7 => match funct7 {
-                    0x1 => {
-                        println!("REMUW");
-                        let left = self.x_reg[rs1 as usize] as u32;
-                        let right = self.x_reg[_rs2 as usize] as u32;
-                        let result = if _rs2 == 0 {
-                            left
-                        } else {
-                            left.wrapping_rem(right)
-                        };
-                        self.x_reg[rd as usize] = result as i32 as u64;
-                        false
-                    }
+                    0x1 => self.remuw(rd, rs1, _rs2),
                     _ => todo!(""),
                 },
                 0x6 => match funct7 {
-                    0x1 => {
-                        println!("REMW");
-                        let left = self.x_reg[rs1 as usize] as i32;
-                        let right = self.x_reg[_rs2 as usize] as i32;
-                        let result = if _rs2 == 0 {
-                            left
-                        } else {
-                            left.wrapping_rem(right)
-                        };
-                        self.x_reg[rd as usize] = result as i32 as u64;
-                        false
-                    }
+                    0x1 => self.remw(rd, rs1, _rs2),
                     _ => todo!(""),
                 },
                 0x4 => match funct7 {
-                    0x1 => {
-                        println!("DIVW");
-                        let left = self.x_reg[rs1 as usize] as i32;
-                        let right = self.x_reg[_rs2 as usize] as i32;
-                        let result = if _rs2 == 0 {
-                            -1
-                        } else {
-                            left.wrapping_div(right)
-                        };
-                        self.x_reg[rd as usize] = result as i32 as u64;
-                        false
-                    }
+                    0x1 => self.divw(rd, rs1, _rs2),
                     _ => todo!(""),
                 },
                 0x0 => match funct7 {
-                    0x0 => {
-                        println!("ADDW");
-                        self.x_reg[rd as usize] = (self.x_reg[rs1 as usize] as u32)
-                            .wrapping_add(self.x_reg[_rs2 as usize] as u32)
-                            as i64 as u64;
-                        false
-                    }
-                    0x20 => {
-                        println!("SUBW");
-                        self.x_reg[rd as usize] = (self.x_reg[rs1 as usize] as u32)
-                            .wrapping_sub(self.x_reg[_rs2 as usize] as u32)
-                            as i64 as u64;
-                        false
-                    }
-                    0x1 => {
-                        println!("MULW");
-                        let left = self.x_reg[rs1 as usize] as u32;
-                        let right = self.x_reg[_rs2 as usize] as u32;
-                        let result = left.wrapping_mul(right);
-                        self.x_reg[rd as usize] = result as i32 as u64;
-                        false
-                    }
-                    _ => {
-                        todo!("invalid funct7");
-                    }
+                    0x0 => self.addw(rd, rs1, _rs2),
+                    0x20 => self.subw(rd, rs1, _rs2),
+                    0x1 => self.mulw(rd, rs1, _rs2),
+                    _ => todo!("invalid funct7"),
                 },
-                0x1 => {
-                    println!("SLLW");
-                    let left = self.x_reg[rs1 as usize] as u32;
-                    let right = self.x_reg[_rs2 as usize] as u32 & 0b11111;
-                    self.x_reg[rd as usize] = (left << right) as u32 as u64;
-                    false
-                }
+                0x1 => self.sllw(rd, rs1, _rs2),
                 0x5 => match funct7 {
-                    0x1 => {
-                        println!("DIVUW");
-                        let left = self.x_reg[rs1 as usize] as u32;
-                        let right = self.x_reg[_rs2 as usize] as u32;
-                        let result = if _rs2 == 0 {
-                            core::u32::MAX
-                        } else {
-                            left.wrapping_div(right)
-                        };
-                        self.x_reg[rd as usize] = result as i32 as u64;
-                        false
-                    }
-                    0x0 => {
-                        println!("SRLW");
-                        let left = self.x_reg[rs1 as usize] as u32;
-                        let right = self.x_reg[_rs2 as usize] as u32 & 0b11111;
-                        self.x_reg[rd as usize] = (left >> right) as u32 as u64;
-                        false
-                    }
-                    0x20 => {
-                        println!("SRAW");
-                        let left = self.x_reg[rs1 as usize] as u32;
-                        let right = self.x_reg[_rs2 as usize] as u32 & 0b11111;
-                        self.x_reg[rd as usize] = (left >> right) as u32 as i64 as u64;
-                        false
-                    }
-                    _ => {
-                        todo!("invalid funct7");
-                    }
+                    0x1 => self.divuw(rd, rs1, _rs2),
+                    0x0 => self.srlw(rd, rs1, _rs2),
+                    0x20 => self.sraw(rd, rs1, _rs2),
+                    _ => todo!("invalid funct7"),
                 },
-                _ => {
-                    todo!("unknown funct3");
-                }
+                _ => todo!("unknown funct3"),
             },
             0b1110011 => match funct7 {
-                0x0 => {
-                    self.ecall();
-                    false
-                }
-                0x1 => {
-                    todo!("EBREAK");
-                }
-                _ => {
-                    panic!("INVALID FUNC7 for ECALL OR EBREAK");
-                }
+                0x0 => self.ecall(),
+                0x1 => todo!("EBREAK"),
+                _ => panic!("INVALID FUNC7 for ECALL OR EBREAK"),
             },
-            _ => {
-                todo!("PC: {:#08X} Unimplemented OpCode {:#013b}", self.pc, opcode);
-            }
+            _ => todo!("PC: {:#08X} Unimplemented OpCode {:#013b}", self.pc, opcode),
         }
         // match on opcode then match on func3?
     }
@@ -779,6 +621,153 @@ impl CPU {
             self.pc += imm_b_type as i64 as u64;
             return true;
         }
+        false
+    }
+    fn jal(self: &mut Self, rd: u32, imm_j_type: i32) -> bool {
+        println!("JAL");
+        self.x_reg[rd as usize] = self.pc.wrapping_add(0x4); // return address saved in RD
+        self.pc = self.pc.wrapping_add(imm_j_type as i64 as u64);
+        true
+    }
+    fn jalr(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
+        println!("JALR");
+        self.x_reg[rd as usize] = self.pc.wrapping_add(0x4); // return address saved in RD
+        self.pc = imm.wrapping_add(self.x_reg[rs1 as usize]); // PC = RS1 + IMM
+        true
+    }
+    fn lui(self: &mut Self, rd: u32, imm_u_type: u64) -> bool {
+        println!("LUI");
+        self.x_reg[rd as usize] = imm_u_type as i64 as u64;
+        false
+    }
+    fn auipc(self: &mut Self, rd: u32, imm_u_type: u64) -> bool {
+        println!("AUIPC");
+        self.x_reg[rd as usize] = (imm_u_type as i64 as u64).wrapping_add(self.pc);
+        false
+    }
+
+    fn addiw(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
+        println!("ADDIW confirm works");
+        let rs1__ = self.x_reg[rs1 as usize];
+        self.x_reg[rd as usize] = rs1__.wrapping_add(imm) as i64 as u64;
+        false
+    }
+
+    fn slliw(self: &mut Self, rd: u32, rs1: u32, shamt: u64) -> bool {
+        println!("SLLIW");
+        let left = self.x_reg[rs1 as usize] as u32;
+        let right = shamt as u32;
+        self.x_reg[rd as usize] = (left >> right) as u32 as i64 as u64;
+        false
+    }
+
+    fn srliw(self: &mut Self, rd: u32, rs1: u32, shamt: u64) -> bool {
+        println!("SRLIW");
+        let left = self.x_reg[rs1 as usize] as u32;
+        let right = shamt as u32;
+        self.x_reg[rd as usize] = (left << right) as u32 as i64 as u64;
+        false
+    }
+
+    fn sraw(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+        println!("SRAW");
+        let left = self.x_reg[rs1 as usize] as u32;
+        let right = self.x_reg[rs2 as usize] as u32 & 0b11111;
+        self.x_reg[rd as usize] = (left >> right) as u32 as i64 as u64;
+        false
+    }
+    fn sraiw(self: &mut Self, rd: u32, rs1: u32, shamt: u64) -> bool {
+        println!("SRAIW");
+        let left = self.x_reg[rs1 as usize] as u32;
+        let right = shamt as i32;
+        self.x_reg[rd as usize] = (left >> right) as u32 as i64 as u64;
+        false
+    }
+    fn srlw(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+        println!("SRLW");
+        let left = self.x_reg[rs1 as usize] as u32;
+        let right = self.x_reg[rs2 as usize] as u32 & 0b11111;
+        self.x_reg[rd as usize] = (left >> right) as u32 as u64;
+        false
+    }
+    fn sllw(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+        println!("SLLW");
+        let left = self.x_reg[rs1 as usize] as u32;
+        let right = self.x_reg[rs2 as usize] as u32 & 0b11111;
+        self.x_reg[rd as usize] = (left << right) as u32 as u64;
+        false
+    }
+
+    fn divuw(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+        println!("DIVUW");
+        let left = self.x_reg[rs1 as usize] as u32;
+        let right = self.x_reg[rs2 as usize] as u32;
+        let result = if rs2 == 0 {
+            core::u32::MAX
+        } else {
+            left.wrapping_div(right)
+        };
+        self.x_reg[rd as usize] = result as i32 as u64;
+        false
+    }
+
+    fn mulw(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+        println!("MULW");
+        let left = self.x_reg[rs1 as usize] as u32;
+        let right = self.x_reg[rs2 as usize] as u32;
+        let result = left.wrapping_mul(right);
+        self.x_reg[rd as usize] = result as i32 as u64;
+        false
+    }
+    fn subw(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+        println!("SUBW");
+        self.x_reg[rd as usize] = (self.x_reg[rs1 as usize] as u32)
+            .wrapping_sub(self.x_reg[rs2 as usize] as u32) as i64
+            as u64;
+        false
+    }
+    fn addw(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+        println!("ADDW");
+        self.x_reg[rd as usize] = (self.x_reg[rs1 as usize] as u32)
+            .wrapping_add(self.x_reg[rs2 as usize] as u32) as i64
+            as u64;
+        false
+    }
+
+    fn divw(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+        println!("DIVW");
+        let left = self.x_reg[rs1 as usize] as i32;
+        let right = self.x_reg[rs2 as usize] as i32;
+        let result = if rs2 == 0 {
+            -1
+        } else {
+            left.wrapping_div(right)
+        };
+        self.x_reg[rd as usize] = result as i32 as u64;
+        false
+    }
+    fn remw(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+        println!("REMW");
+        let left = self.x_reg[rs1 as usize] as i32;
+        let right = self.x_reg[rs2 as usize] as i32;
+        let result = if rs2 == 0 {
+            left
+        } else {
+            left.wrapping_rem(right)
+        };
+        self.x_reg[rd as usize] = result as i32 as u64;
+        false
+    }
+    fn remuw(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+        println!("REMUW");
+        let left = self.x_reg[rs1 as usize] as u32;
+        let right = self.x_reg[rs2 as usize] as u32;
+        let result = if rs2 == 0 {
+            left
+        } else {
+            left.wrapping_rem(right)
+        };
+        self.x_reg[rd as usize] = result as i32 as u64;
         false
     }
 
