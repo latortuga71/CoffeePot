@@ -109,81 +109,35 @@ impl CPU {
             0b0110011 => match funct3 {
                 // R TYPE
                 0x0 => {
-                    println!("MUL");
-                    self.x_reg[rd as usize] =
-                        self.x_reg[rs1 as usize].wrapping_mul(self.x_reg[_rs2 as usize]);
+                    self.mul(rd, rs1, _rs2);
                     false
                 }
                 0x1 => {
-                    println!("MULH");
-                    let left = self.x_reg[rs1 as usize] as i64 as u128;
-                    let right = self.x_reg[_rs2 as usize] as i64 as u128;
-                    let result = (left.wrapping_mul(right) >> 64) as u64;
-                    self.x_reg[rd as usize] = result;
+                    self.mulh(rd, rs1, _rs2);
                     false
                 }
                 0x2 => {
-                    println!("MULHSU");
-                    let left = self.x_reg[rs1 as usize] as i64 as u128;
-                    let right = self.x_reg[_rs2 as usize] as u64 as u128;
-                    let result = (left.wrapping_mul(right) >> 64) as u64;
-                    self.x_reg[rd as usize] = result;
+                    self.mulhsu(rd, rs1, _rs2);
                     false
                 }
                 0x3 => {
-                    println!("MULU");
-                    let left = self.x_reg[rs1 as usize] as u64 as u128;
-                    let right = self.x_reg[_rs2 as usize] as u64 as u128;
-                    let result = (left.wrapping_mul(right) >> 64) as u64;
-                    self.x_reg[rd as usize] = result;
+                    self.mulu(rd, rs1, _rs2);
                     false
                 }
                 0x4 => {
-                    println!("DIV");
-                    let left = self.x_reg[rs1 as usize] as i64;
-                    let right = self.x_reg[_rs2 as usize] as i64;
-                    let result = if right == 0 {
-                        -1
-                    } else {
-                        left.wrapping_div(right)
-                    };
-                    self.x_reg[rd as usize] = result as u64;
+                    self.div(rd, rs1, _rs2);
                     false
                 }
                 0x5 => {
-                    println!("DIVU");
-                    let left = self.x_reg[rs1 as usize];
-                    let right = self.x_reg[_rs2 as usize];
-                    let result = if right == 0 {
-                        core::u64::MAX
-                    } else {
-                        left.wrapping_div(right)
-                    };
-                    self.x_reg[rd as usize] = result;
+                    self.div(rd, rs1, _rs2);
                     false
                 }
                 0x6 => {
-                    println!("REM");
-                    let left = self.x_reg[rs1 as usize] as i64;
-                    let right = self.x_reg[_rs2 as usize] as i64;
-                    let result = if right == 0 {
-                        left
-                    } else {
-                        left.wrapping_rem(right)
-                    };
-                    self.x_reg[rd as usize] = result as u64;
+                    self.rem(rd, rs1, _rs2);
                     false
                 }
                 0x7 => {
-                    println!("REMU");
-                    let left = self.x_reg[rs1 as usize];
-                    let right = self.x_reg[_rs2 as usize];
-                    let result = if right == 0 {
-                        left
-                    } else {
-                        left.wrapping_rem(right)
-                    };
-                    self.x_reg[rd as usize] = result as u64;
+                    self.remu(rd, rs1, _rs2);
                     false
                 }
                 _ => todo!("Unimplemented funct3"),
@@ -192,13 +146,11 @@ impl CPU {
             0b0110011 => match funct3 {
                 0x0 => match funct7 {
                     0x0 => {
-                        println!("ADD");
                         self.add(rd, rs1, _rs2);
                         false
                     }
                     0x20 => {
-                        self.x_reg[rd as usize] =
-                            self.x_reg[rs1 as usize].wrapping_sub(self.x_reg[_rs2 as usize]);
+                        self.sub(rd, rs1, _rs2);
                         false
                     }
                     _ => {
@@ -207,13 +159,11 @@ impl CPU {
                 },
                 0x5 => match funct7 {
                     0x0 => {
-                        self.x_reg[rd as usize] =
-                            self.x_reg[rs1 as usize] >> (self.x_reg[_rs2 as usize] & 0b11111);
+                        self.srl(rd, rs1, _rs2);
                         false
                     }
                     0x20 => {
-                        self.x_reg[rd as usize] = self.x_reg[rs1 as usize]
-                            >> ((self.x_reg[_rs2 as usize] & 0b11111) as i64) as u64;
+                        self.sra(rd, rs1, _rs2);
                         false
                     }
                     _ => {
@@ -221,36 +171,27 @@ impl CPU {
                     }
                 },
                 0x4 => {
-                    self.x_reg[rd as usize] = self.x_reg[rs1 as usize] ^ self.x_reg[_rs2 as usize];
+                    self.xor(rd, rs1, _rs2);
                     false
                 }
                 0x6 => {
-                    self.x_reg[rd as usize] = self.x_reg[rs1 as usize] | self.x_reg[_rs2 as usize];
+                    self.or(rd, rs1, _rs2);
                     false
                 }
                 0x7 => {
-                    self.x_reg[rd as usize] = self.x_reg[rs1 as usize] & self.x_reg[_rs2 as usize];
+                    self.and(rd, rs1, _rs2);
                     false
                 }
                 0x1 => {
-                    self.x_reg[rd as usize] =
-                        self.x_reg[rs1 as usize] << (self.x_reg[_rs2 as usize] & 0b11111);
+                    self.sll(rd, rs1, _rs2);
                     false
                 }
                 0x2 => {
-                    if (self.x_reg[rs1 as usize] as i64) < (self.x_reg[_rs2 as usize] as i64) {
-                        self.x_reg[rd as usize] = 1;
-                    } else {
-                        self.x_reg[rd as usize] = 0;
-                    }
+                    self.slt(rd, rs1, _rs2);
                     false
                 }
                 0x3 => {
-                    if (self.x_reg[rs1 as usize] as u64) < (self.x_reg[_rs2 as usize] as u64) {
-                        self.x_reg[rd as usize] = 1;
-                    } else {
-                        self.x_reg[rd as usize] = 0;
-                    }
+                    self.sltu(rd, rs1, _rs2);
                     false
                 }
                 _ => {
@@ -334,20 +275,16 @@ impl CPU {
                     false
                 }
                 0x1 => {
-                    println!("SLLI");
-                    self.x_reg[rd as usize] = self.x_reg[rs1 as usize] << shamt;
+                    self.slli(rd, rs1, shamt);
                     false
                 }
                 0x5 => match imm_5_11_mode {
                     0x0 => {
-                        println!("SRLI");
-                        self.x_reg[rd as usize] = self.x_reg[rs1 as usize] >> shamt;
+                        self.srli(rd, rs1, shamt);
                         false
                     }
                     0x20 => {
-                        println!("SRAI");
-                        self.x_reg[rd as usize] =
-                            ((self.x_reg[rs1 as usize] as i64) >> shamt) as u64;
+                        self.srai(rd, rs1, shamt);
                         false
                     }
                     _ => {
@@ -355,21 +292,11 @@ impl CPU {
                     }
                 },
                 0x2 => {
-                    println!("SRLTI");
-                    if (self.x_reg[rs1 as usize] as i64) < (imm as i64) {
-                        self.x_reg[rd as usize] = 1;
-                    } else {
-                        self.x_reg[rd as usize] = 0;
-                    }
+                    self.slti(rd, rs1, imm);
                     false
                 }
                 0x3 => {
-                    println!("SRLTIU");
-                    if (self.x_reg[rs1 as usize] as i64) < (imm as i64) {
-                        self.x_reg[rd as usize] = 1;
-                    } else {
-                        self.x_reg[rd as usize] = 0;
-                    }
+                    self.sltiu(rd, rs1, imm);
                     false
                 }
                 _ => {
@@ -642,6 +569,156 @@ impl CPU {
         }
         // match on opcode then match on func3?
     }
+
+    fn remu(&mut self, rd: u32, rs1: u32, rs2: u32) {
+        println!("REMU");
+        let left = self.x_reg[rs1 as usize];
+        let right = self.x_reg[rs2 as usize];
+        let result = if right == 0 {
+            left
+        } else {
+            left.wrapping_rem(right)
+        };
+        self.x_reg[rd as usize] = result as u64;
+    }
+
+    fn rem(&mut self, rd: u32, rs1: u32, rs2: u32) {
+        println!("REM");
+        let left = self.x_reg[rs1 as usize] as i64;
+        let right = self.x_reg[rs2 as usize] as i64;
+        let result = if right == 0 {
+            left
+        } else {
+            left.wrapping_rem(right)
+        };
+        self.x_reg[rd as usize] = result as u64;
+    }
+
+    fn divu(&mut self, rd: u32, rs1: u32, rs2: u32) {
+        println!("DIVU");
+        let left = self.x_reg[rs1 as usize];
+        let right = self.x_reg[rs2 as usize];
+        let result = if right == 0 {
+            core::u64::MAX
+        } else {
+            left.wrapping_div(right)
+        };
+        self.x_reg[rd as usize] = result;
+    }
+
+    fn div(&mut self, rd: u32, rs1: u32, rs2: u32) {
+        println!("DIV");
+        let left = self.x_reg[rs1 as usize] as i64;
+        let right = self.x_reg[rs2 as usize] as i64;
+        let result = if right == 0 {
+            -1
+        } else {
+            left.wrapping_div(right)
+        };
+        self.x_reg[rd as usize] = result as u64;
+    }
+
+    fn mulu(&mut self, rd: u32, rs1: u32, rs2: u32) {
+        println!("MULU");
+        let left = self.x_reg[rs1 as usize] as u64 as u128;
+        let right = self.x_reg[rs2 as usize] as u64 as u128;
+        let result = (left.wrapping_mul(right) >> 64) as u64;
+        self.x_reg[rd as usize] = result;
+    }
+
+    fn sll(&mut self, rd: u32, rs1: u32, rs2: u32) {
+        println!("SLL");
+        self.x_reg[rd as usize] = self.x_reg[rs1 as usize] << (self.x_reg[rs2 as usize] & 0b11111);
+    }
+
+    fn slt(&mut self, rd: u32, rs1: u32, rs2: u32) {
+        println!("SLT");
+        if (self.x_reg[rs1 as usize] as i64) < (self.x_reg[rs2 as usize] as i64) {
+            self.x_reg[rd as usize] = 1;
+        } else {
+            self.x_reg[rd as usize] = 0;
+        }
+    }
+
+    fn slli(&mut self, rd: u32, rs1: u32, shamt: u64) {
+        println!("SLLI");
+        self.x_reg[rd as usize] = self.x_reg[rs1 as usize] << shamt;
+    }
+
+    fn srli(&mut self, rd: u32, rs1: u32, shamt: u64) {
+        println!("SRLI");
+        self.x_reg[rd as usize] = self.x_reg[rs1 as usize] >> shamt;
+    }
+
+    fn srai(&mut self, rd: u32, rs1: u32, shamt: u64) {
+        println!("SRAI");
+        self.x_reg[rd as usize] = ((self.x_reg[rs1 as usize] as i64) >> shamt) as u64;
+    }
+
+    fn slti(&mut self, rd: u32, rs1: u32, imm: u64) {
+        println!("SRLTI");
+        if (self.x_reg[rs1 as usize] as i64) < (imm as i64) {
+            self.x_reg[rd as usize] = 1;
+        } else {
+            self.x_reg[rd as usize] = 0;
+        }
+    }
+
+    fn sltiu(&mut self, rd: u32, rs1: u32, imm: u64) {
+        println!("SLTIU");
+        if (self.x_reg[rs1 as usize] as u64) < imm {
+            self.x_reg[rd as usize] = 1;
+        } else {
+            self.x_reg[rd as usize] = 0;
+        }
+    }
+
+    fn sltu(&mut self, rd: u32, rs1: u32, rs2: u32) {
+        println!("SLTU");
+        if (self.x_reg[rs1 as usize] as u64) < (self.x_reg[rs2 as usize] as u64) {
+            self.x_reg[rd as usize] = 1;
+        } else {
+            self.x_reg[rd as usize] = 0;
+        }
+    }
+
+    fn mulhsu(&mut self, rd: u32, rs1: u32, rs2: u32) {
+        println!("MULHSU");
+        let left = self.x_reg[rs1 as usize] as i64 as u128;
+        let right = self.x_reg[rs2 as usize] as u64 as u128;
+        let result = (left.wrapping_mul(right) >> 64) as u64;
+        self.x_reg[rd as usize] = result;
+    }
+
+    fn srl(&mut self, rd: u32, rs1: u32, rs2: u32) {
+        println!("SRL");
+        self.x_reg[rd as usize] = self.x_reg[rs1 as usize] >> (self.x_reg[rs2 as usize] & 0b11111);
+    }
+
+    fn sra(&mut self, rd: u32, rs1: u32, rs2: u32) {
+        println!("SRA");
+        self.x_reg[rd as usize] =
+            self.x_reg[rs1 as usize] >> ((self.x_reg[rs2 as usize] & 0b11111) as i64) as u64;
+    }
+
+    fn mulh(&mut self, rd: u32, rs1: u32, rs2: u32) {
+        println!("MULH");
+        let left = self.x_reg[rs1 as usize] as i64 as u128;
+        let right = self.x_reg[rs2 as usize] as i64 as u128;
+        let result = (left.wrapping_mul(right) >> 64) as u64;
+        self.x_reg[rd as usize] = result;
+    }
+
+    fn mul(&mut self, rd: u32, rs1: u32, rs2: u32) {
+        println!("MUL");
+        self.x_reg[rd as usize] = self.x_reg[rs1 as usize].wrapping_mul(self.x_reg[rs2 as usize]);
+    }
+
+    fn sub(self: &mut Self, rd: u32, rs1: u32, rs2: u32) {
+        println!("SUB");
+        self.x_reg[rd as usize] = self.x_reg[rs1 as usize].wrapping_sub(self.x_reg[rs2 as usize]);
+    }
+
     fn add(self: &mut Self, rd: u32, rs1: u32, rs2: u32) {
         if self.debug_flag {
             println!(
@@ -651,7 +728,6 @@ impl CPU {
         }
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize].wrapping_add(self.x_reg[rs2 as usize]);
     }
-
     fn store_double_word(self: &mut Self, rs2: u32, rs1: u32, imm: i32) {
         println!("SD RS1 = {:#08X}", self.x_reg[rs1 as usize]);
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm as u64);
@@ -776,6 +852,19 @@ impl CPU {
     }
     fn xori(self: &mut Self, rd: u32, rs1: u32, imm: u64) {
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize] ^ imm;
+    }
+
+    fn and(self: &mut Self, rd: u32, rs1: u32, rs2: u32) {
+        println!("AND");
+        self.x_reg[rd as usize] = self.x_reg[rs1 as usize] & self.x_reg[rs2 as usize];
+    }
+    fn or(self: &mut Self, rd: u32, rs1: u32, rs2: u32) {
+        println!("OR");
+        self.x_reg[rd as usize] = self.x_reg[rs1 as usize] | self.x_reg[rs2 as usize];
+    }
+    fn xor(self: &mut Self, rd: u32, rs1: u32, rs2: u32) {
+        println!("XOR");
+        self.x_reg[rd as usize] = self.x_reg[rs1 as usize] ^ self.x_reg[rs2 as usize];
     }
     fn ecall(self: &mut Self) {
         // Emulate a syscall
