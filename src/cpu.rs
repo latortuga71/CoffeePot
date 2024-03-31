@@ -8,6 +8,7 @@ pub struct CPU {
     pub sp: u32,
     pub mmu: MMU,
     pub x_reg: [u64; 32],
+    pub csr_reg: [u64; 4096],
     pub debug_flag: bool,
 }
 
@@ -37,6 +38,7 @@ impl CPU {
             pc: 0x00000000,
             mmu: MMU::new(),
             x_reg: xreg,
+            csr_reg: [0; 4096],
             debug_flag: true,
         }
     }
@@ -46,6 +48,7 @@ impl CPU {
         let opcode = instruction & 0b1111111;
         let rd = (instruction & 0x00000f80) >> 7;
         let rs1 = (instruction & 0x000f8000) >> 15;
+        let csr = (instruction) & (((1 << 12) - 1) << 20);
         let _rs2 = (instruction & 0x01f00000) >> 20;
         let funct3 = (instruction & 0x00007000) >> 12;
         let funct7 = (instruction & 0xfe000000) >> 25;
@@ -78,6 +81,22 @@ impl CPU {
         // U TYPE IMMEDIATE VALUE
         let imm_u_type = (instruction as i32 as i64 as u64) >> 12;
         match opcode {
+            0b1110011 => match funct3 {
+                0x0 => match funct7 {
+                    0x0 => self.ecall(),
+                    0x1 => self.ebreak(),
+                    // .. other instructions uret, wfi sret
+                    _ => panic!("invalid funct7"),
+                },
+                // CSR INSTRUCTIONS
+                0x1 => self.csrrw(csr, rs1, rd),
+                0x2 => self.csrrs(csr, rs1, rd),
+                0x3 => self.csrrc(csr, rs1, rd),
+                0x5 => self.csrrwi(csr, rs1 as u64, rd),
+                0x6 => self.csrrsi(csr, rs1 as u64, rd),
+                0x7 => self.csrrci(csr, rs1 as u64, rd),
+                _ => panic!("Invalid funct3"),
+            },
             0b0101111 => match funct3 {
                 0x3 => match funct5 {
                     0x2 => self.load_double_word_atomic(rd, rs1),
@@ -241,11 +260,6 @@ impl CPU {
                     _ => panic!("invalid funct7"),
                 },
                 _ => panic!("unknown funct3"),
-            },
-            0b1110011 => match funct7 {
-                0x0 => self.ecall(),
-                0x1 => todo!("EBREAK"),
-                _ => panic!("INVALID FUNC7 for ECALL OR EBREAK"),
             },
             _ => panic!("PC: {:#08X} Unimplemented OpCode {:#013b}", self.pc, opcode),
         }
@@ -1220,6 +1234,68 @@ impl CPU {
             left.wrapping_rem(right)
         };
         self.x_reg[rd as usize] = result as i32 as u64;
+        false
+    }
+
+    fn csrrw(&mut self, csr: u32, rs1: u32, rd: u32) -> bool {
+        println!("CSRRW");
+        if rd == 0 {
+            return false;
+        }
+        let oldcsr = self.csr_reg[csr as usize] as u64;
+        let oldrs1 = self.csr_reg[rs1 as usize] as u64;
+        self.x_reg[rd as usize] = oldcsr;
+        self.csr_reg[csr as usize] = oldrs1;
+        false
+    }
+
+    fn csrrwi(&mut self, csr: u32, imm: u64, rd: u32) -> bool {
+        println!("CSRRWI");
+        let oldcsr = self.csr_reg[csr as usize] as u64;
+        self.x_reg[rd as usize] = oldcsr;
+        self.csr_reg[csr as usize] = imm as u64;
+        false
+    }
+
+    fn csrrs(&mut self, csr: u32, rs1: u32, rd: u32) -> bool {
+        println!("CSRRS");
+        let oldcsr = self.csr_reg[csr as usize] as u64;
+        let mask = self.csr_reg[rs1 as usize] as u64;
+        self.x_reg[rd as usize] = oldcsr;
+        self.csr_reg[csr as usize] = self.csr_reg[csr as usize] | mask;
+        false
+    }
+
+    fn csrrc(&mut self, csr: u32, rs1: u32, rd: u32) -> bool {
+        println!("CSRRC");
+        let oldcsr = self.csr_reg[csr as usize] as u64;
+        let mask = self.csr_reg[rs1 as usize] as u64;
+        self.x_reg[rd as usize] = oldcsr;
+        self.csr_reg[csr as usize] = self.csr_reg[csr as usize] & !mask;
+        false
+    }
+
+    fn csrrsi(&mut self, csr: u32, imm: u64, rd: u32) -> bool {
+        println!("CSRRSI");
+        let oldcsr = self.csr_reg[csr as usize] as u64;
+        self.x_reg[rd as usize] = oldcsr;
+        self.csr_reg[csr as usize] = self.csr_reg[csr as usize] | imm as u64;
+        false
+    }
+
+    fn csrrci(&mut self, csr: u32, imm: u64, rd: u32) -> bool {
+        println!("CSRRCI");
+        let oldcsr = self.csr_reg[csr as usize] as u64;
+        self.x_reg[rd as usize] = oldcsr;
+        self.csr_reg[csr as usize] = self.csr_reg[csr as usize] & !imm as u64;
+        false
+    }
+
+    fn ebreak(&self) -> bool {
+        loop {
+            println!("DEBUG BREAK");
+            break;
+        }
         false
     }
 
