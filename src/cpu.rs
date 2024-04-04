@@ -5,10 +5,13 @@ use crate::mmu::MMU;
 #[derive(Debug)]
 pub struct CPU {
     pub pc: u64,
-    pub sp: u32,
+    pub sp: u64,
     pub mmu: MMU,
     pub x_reg: [u64; 32],
+    pub f_reg: [u64; 32],
     pub csr_reg: [u64; 4096],
+    pub current_compressed: bool,
+    pub was_last_compressed: bool,
     pub debug_flag: bool,
 }
 
@@ -34,13 +37,77 @@ impl CPU {
         let sp_start = 0xFFFF;
         xreg[2] = sp_start;
         CPU {
-            sp: sp_start as u32,
+            sp: sp_start as u64,
             pc: 0x00000000,
             mmu: MMU::new(),
             x_reg: xreg,
+            f_reg: [0; 32],
             csr_reg: [0; 4096],
+            current_compressed: false,
+            was_last_compressed: false,
             debug_flag: true,
         }
+    }
+    pub fn execute_compressed(self: &mut Self, instruction: u16) -> bool {
+        let opcode = instruction & 0b11;
+        // CI Format
+        //let funct3 = (instruction & 0xFFFF) >> 15;
+        let _imm_ci = instruction & ((1 << 4) - 1) << 2;
+        let _rd = instruction & ((1 << 4) - 1) << 7; // extract 4 bits starting at 7th bit
+        let _imm12_ci = instruction & ((1 << 1) - 1) << 12; // extract 1 bit starting at 12th bit
+        let funct3 = instruction & ((1 << 2) - 1) << 13;
+        // CSS format
+        let _imm_css = instruction & ((1 << 5) - 1) << 7;
+        let _rs2 = instruction & ((1 << 4) - 1) << 2;
+        // CL FORMAT
+        let _rd_cl = instruction & ((1 << 2) - 1) << 2;
+        let _imm_cl_1 = instruction & ((1 << 1) - 1) << 5;
+        let _imm_cl_rs1 = instruction & ((1 << 2) - 1) << 7;
+        let _imm_cl_imm3 = instruction & ((1 << 2) - 1) << 10;
+        // CS Format same as CL but rs2 is rd
+        let _r2_cs = instruction & ((1 << 2) - 1) << 2;
+        // CJ Format
+        let _imme_cj = instruction & ((1 << 10) - 1) << 2;
+        // CR FORMAT
+        let _funct4 = instruction & ((1 << 3) - 1) << 12;
+        let _rs1 = instruction & ((1 << 4) - 1) << 7;
+        // CB FORMAT
+        let _imm_cb_imm3 = instruction & ((1 << 2) - 1) << 10;
+        let _imm_cb_rs1 = instruction & ((1 << 2) - 1) << 7;
+        let _imm_cb = instruction & ((1 << 4) - 1) << 2;
+        println!("funct3 {:#08b} opcode {:#08b}", opcode, funct3);
+        match opcode {
+            0b01 => match funct3 {
+                0b101 => println!("c.j"),
+                0b001 => println!("c.jal"),
+                0b110 => println!("c.beqz"),
+                0b111 => println!("c.bnez"),
+                0b010 => println!("c.li"),
+                0b011 => println!("c.lui"),
+                0b000 => println!("c.addi"),
+                0b1000111 => println!("c.and"),
+
+                _ => todo!("unknwon funct 3"),
+            },
+            0b00 => match funct3 {
+                0b010 => println!("c.LW"),
+                0b110 => println!("c.SW"),
+                0b000 => println!("c.addi4spn"),
+                _ => todo!("unknwon funct 3"),
+            },
+            0b10 => match funct3 {
+                0b111 => println!("c.SDSP"),
+                0b010 => println!("c.LWSP"),
+                0b110 => println!("c.SWSP"),
+                0b100 => println!("c.jr"),
+                0b1001 => println!("c.jalr"),
+                0b000 => println!("c.slli"),
+                _ => todo!("unknwon funct 3"),
+            },
+            _ => todo!("Unknown Compressed Opcode"),
+        }
+        println!("{}", instruction);
+        false
     }
     // execute instructioon
     pub fn execute(self: &mut Self, instruction: u32) -> bool {

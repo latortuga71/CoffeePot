@@ -27,7 +27,7 @@ impl Emulator {
             + ((array[3] as u32) << 24)
     }
 
-    // copies instruction from memory into our current instruction u32
+    // copies u32 bit instruction from memory into our current instruction
     pub fn fetch_instruction(self: &mut Self) -> bool {
         let start = self.cpu.pc;
         let end = self.cpu.pc + 0x4;
@@ -44,12 +44,24 @@ impl Emulator {
     }
 
     pub fn execute_instruction(self: &mut Self) {
-        if !self.cpu.execute(self.current_instruction) {
-            // IF NO BRANCH WAS TAKEN WE INCREMENT PC
-            self.cpu.pc += 0x4;
+        // Here we can check if its a compressed instruction
+        if (0x3 & self.current_instruction) != 0x3 {
+            // compressed instruction
+            println!("COMPRESSED!");
+            if !self.cpu.execute_compressed(self.current_instruction as u16) {
+                self.cpu.pc += 0x2; // no branch increment PC
+            }
+            self.cpu.was_last_compressed = true;
+        } else {
+            // not compressed
+            if !self.cpu.execute(self.current_instruction) {
+                self.cpu.pc += 0x4; // no branch increment PC
+            }
+            self.cpu.was_last_compressed = false;
         }
-        // always set x0 to the SP
-        self.cpu.sp = self.cpu.x_reg[2] as u32;
+
+        // always set x2 to the SP
+        self.cpu.sp = self.cpu.x_reg[2];
         // always set x0 to zero
         self.cpu.x_reg[0] = 0x0;
     }

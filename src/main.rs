@@ -1,4 +1,4 @@
-use std::{io::BufRead, process::exit};
+use std::io::BufRead;
 
 use crate::emulator::Emulator;
 
