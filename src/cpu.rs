@@ -48,67 +48,69 @@ impl CPU {
             debug_flag: true,
         }
     }
-    pub fn execute_compressed(self: &mut Self, instruction: u16) -> bool {
-        let opcode = instruction & 0b11;
-        // CI Format
-        //let funct3 = (instruction & 0xFFFF) >> 15;
-        let _imm_ci = instruction & ((1 << 4) - 1) << 2;
-        let _rd = instruction & ((1 << 4) - 1) << 7; // extract 4 bits starting at 7th bit
-        let _imm12_ci = instruction & ((1 << 1) - 1) << 12; // extract 1 bit starting at 12th bit
-        let funct3 = instruction & ((1 << 2) - 1) << 13;
-        // CSS format
-        let _imm_css = instruction & ((1 << 5) - 1) << 7;
-        let _rs2 = instruction & ((1 << 4) - 1) << 2;
-        // CL FORMAT
-        let _rd_cl = instruction & ((1 << 2) - 1) << 2;
-        let _imm_cl_1 = instruction & ((1 << 1) - 1) << 5;
-        let _imm_cl_rs1 = instruction & ((1 << 2) - 1) << 7;
-        let _imm_cl_imm3 = instruction & ((1 << 2) - 1) << 10;
-        // CS Format same as CL but rs2 is rd
-        let _r2_cs = instruction & ((1 << 2) - 1) << 2;
-        // CJ Format
-        let _imme_cj = instruction & ((1 << 10) - 1) << 2;
-        // CR FORMAT
-        let _funct4 = instruction & ((1 << 3) - 1) << 12;
-        let _rs1 = instruction & ((1 << 4) - 1) << 7;
-        // CB FORMAT
-        let _imm_cb_imm3 = instruction & ((1 << 2) - 1) << 10;
-        let _imm_cb_rs1 = instruction & ((1 << 2) - 1) << 7;
-        let _imm_cb = instruction & ((1 << 4) - 1) << 2;
-        println!("funct3 {:#08b} opcode {:#08b}", opcode, funct3);
-        match opcode {
-            0b01 => match funct3 {
-                0b101 => println!("c.j"),
-                0b001 => println!("c.jal"),
-                0b110 => println!("c.beqz"),
-                0b111 => println!("c.bnez"),
-                0b010 => println!("c.li"),
-                0b011 => println!("c.lui"),
-                0b000 => println!("c.addi"),
-                0b1000111 => println!("c.and"),
 
-                _ => todo!("unknwon funct 3"),
-            },
-            0b00 => match funct3 {
-                0b010 => println!("c.LW"),
-                0b110 => println!("c.SW"),
-                0b000 => println!("c.addi4spn"),
-                _ => todo!("unknwon funct 3"),
-            },
-            0b10 => match funct3 {
-                0b111 => println!("c.SDSP"),
-                0b010 => println!("c.LWSP"),
-                0b110 => println!("c.SWSP"),
-                0b100 => println!("c.jr"),
-                0b1001 => println!("c.jalr"),
-                0b000 => println!("c.slli"),
-                _ => todo!("unknwon funct 3"),
-            },
-            _ => todo!("Unknown Compressed Opcode"),
-        }
-        println!("{}", instruction);
+    fn handle_15to13_011(
+        self: &mut Self,
+        bit12to10: u16,
+        bit9to7: u16,
+        bit6to5: u16,
+        bit4to2: u16,
+    ) -> bool {
         false
     }
+    fn handle_15to13_100(self: &mut Self, bit12: u16, bit11to7: u16, bit6to2: u16) -> bool {
+        println!("{} {} {}", bit12, bit11to7, bit6to2);
+        match bit12 {
+            0 => match bit6to2 {
+                0 => self.c_jr(bit11to7),
+                _ => self.c_mv(bit11to7, bit6to2),
+            },
+            1 => {
+                println!("c.jalr");
+                println!("c.ebreak");
+                println!("c.add");
+                false
+            }
+            _ => {
+                // handle imm[5] bit five here ??
+                println!("c.srli");
+                println!("c.srai");
+                println!("c.andi");
+                false
+            }
+        }
+    }
+    // https://github.com/d0iasm/rvemu/blob/main/src/cpu.rs <- guide because its confusing
+    pub fn execute_compressed(self: &mut Self, instruction: u16) -> bool {
+        let opcode = instruction & 0b11;
+        let bit11to7 = (instruction & 0x00000f80) >> 7; // this is the only thing that actually works
+        let bit15to13 = (instruction & 0xFFFF) >> 13; // this is the only thing that actually works
+                                                      //let bit12 = (instruction & 0xfff) >> 12;
+        let bit12 = (instruction >> 12) & 1;
+        let bit6to2 = (instruction >> 2) & 0x1f;
+
+        let bit4to2 = (instruction >> 2) & 0x7;
+        let bit6to5 = (instruction << 1) & 0xc0;
+        let bit9to7 = (instruction >> 7) & 0x7;
+        let bit12to10 = (instruction >> 7) & 0x38;
+
+        //let bit6to2 = instruction & (((1 << 3) - 1) << 2);
+        //let bit6to2 = (instruction & 0x7000) >> 12;
+        //
+        // opcodes are quadrants
+        match opcode {
+            0b00 => match bit15to13 {
+                0b011 => self.handle_15to13_011(1, 1, 1, 1),
+                _ => todo!("invalid bit15to134"),
+            },
+            0b10 => match bit15to13 {
+                0b100 => self.handle_15to13_100(bit12, bit11to7, bit6to2),
+                _ => todo!("invalid bit 15to13"),
+            },
+            _ => todo!("invalid opcdoe"),
+        }
+    }
+    // EOF
     // execute instructioon
     pub fn execute(self: &mut Self, instruction: u32) -> bool {
         // I TYPE
@@ -1160,6 +1162,23 @@ impl CPU {
         println!("JAL");
         self.x_reg[rd as usize] = self.pc.wrapping_add(0x4); // return address saved in RD
         self.pc = self.pc.wrapping_add(imm_j_type as i64 as u64);
+        true
+    }
+    fn c_mv(self: &mut Self, rd: u16, rs2: u16) -> bool {
+        println!("c.mv");
+        self.x_reg[rd as usize] = self.x_reg[rs2 as usize];
+        false
+    }
+    fn c_jr(self: &mut Self, rs1: u16) -> bool {
+        println!("c.JR");
+        self.pc = self.x_reg[rs1 as usize];
+        true
+    }
+    fn c_jalr(self: &mut Self, rs1: u16, imm: u16) -> bool {
+        println!("c.JALR");
+        let t = self.pc + 2;
+        self.pc = self.x_reg[rs1 as usize];
+        self.x_reg[1] = t; // set x0 to ret
         true
     }
     fn jalr(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
