@@ -48,12 +48,15 @@ impl Emulator {
         if (0x3 & self.current_instruction) != 0x3 {
             // compressed instruction
             println!("COMPRESSED!");
-            if !self.cpu.execute_compressed(self.current_instruction as u16) {
+            println!("{:#08X}", self.current_instruction as u16);
+            if !self.cpu.execute_compressed(self.current_instruction as u64) {
                 self.cpu.pc += 0x2; // no branch increment PC
             }
             self.cpu.was_last_compressed = true;
         } else {
             // not compressed
+            println!("NOT COMPRESSED!");
+            println!("{:#08X}", self.current_instruction);
             if !self.cpu.execute(self.current_instruction) {
                 self.cpu.pc += 0x4; // no branch increment PC
             }

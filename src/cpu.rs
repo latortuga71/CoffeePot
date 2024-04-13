@@ -1,5 +1,3 @@
-use std::panic;
-
 use crate::mmu::MMU;
 
 #[derive(Debug)]
@@ -49,15 +47,6 @@ impl CPU {
         }
     }
 
-    fn handle_15to13_011(
-        self: &mut Self,
-        bit12to10: u16,
-        bit9to7: u16,
-        bit6to5: u16,
-        bit4to2: u16,
-    ) -> bool {
-        false
-    }
     fn handle_15to13_100(self: &mut Self, bit12: u16, bit11to7: u16, bit6to2: u16) -> bool {
         println!("{} {} {}", bit12, bit11to7, bit6to2);
         match bit12 {
@@ -81,31 +70,314 @@ impl CPU {
         }
     }
     // https://github.com/d0iasm/rvemu/blob/main/src/cpu.rs <- guide because its confusing
-    pub fn execute_compressed(self: &mut Self, instruction: u16) -> bool {
+    pub fn execute_compressed(self: &mut Self, instruction: u64) -> bool {
         let opcode = instruction & 0b11;
-        let bit11to7 = (instruction & 0x00000f80) >> 7; // this is the only thing that actually works
-        let bit15to13 = (instruction & 0xFFFF) >> 13; // this is the only thing that actually works
-                                                      //let bit12 = (instruction & 0xfff) >> 12;
-        let bit12 = (instruction >> 12) & 1;
-        let bit6to2 = (instruction >> 2) & 0x1f;
-
-        let bit4to2 = (instruction >> 2) & 0x7;
-        let bit6to5 = (instruction << 1) & 0xc0;
-        let bit9to7 = (instruction >> 7) & 0x7;
-        let bit12to10 = (instruction >> 7) & 0x38;
-
-        //let bit6to2 = instruction & (((1 << 3) - 1) << 2);
-        //let bit6to2 = (instruction & 0x7000) >> 12;
-        //
+        let funct3 = (instruction >> 13) & 0x7;
         // opcodes are quadrants
         match opcode {
-            0b00 => match bit15to13 {
-                0b011 => self.handle_15to13_011(1, 1, 1, 1),
-                _ => todo!("invalid bit15to134"),
+            // quadrant 0
+            0b00 => match funct3 {
+                0x0 => {
+                    let rd = ((instruction >> 2) & 0x7) + 8;
+                    let nzuimm = ((instruction >> 1) & 0x3c0) // znuimm[9:6]
+                            | ((instruction >> 7) & 0x30) // znuimm[5:4]
+                            | ((instruction >> 2) & 0x8) // znuimm[3]
+                            | ((instruction >> 4) & 0x4); // znuimm[2]
+                    if nzuimm == 0 {
+                        panic!("illegal instruction");
+                    }
+                    self.c_add4spn(rd as u16, nzuimm as u16)
+                }
+                0x1 => {
+                    let rd = ((instruction >> 2) & 0x7) + 8;
+                    let rs1 = ((instruction >> 7) & 0x7) + 8;
+                    let offset = ((instruction << 1) & 0xc0) // imm[7:6]
+                            | ((instruction >> 7) & 0x38); // imm[5:3]{
+                    self.c_fld(rd as u16, rs1 as u16, offset as u16)
+                }
+                0x2 => {
+                    let rd = ((instruction >> 2) & 0x7) + 8;
+                    let rs1 = ((instruction >> 7) & 0x7) + 8;
+                    // offset[5:3|2|6] = isnt[12:10|6|5]
+                    let offset = ((instruction << 1) & 0x40) // imm[6]
+                            | ((instruction >> 7) & 0x38) // imm[5:3]
+                            | ((instruction >> 4) & 0x4); // imm[2]
+                    self.c_lw(rd as u16, rs1 as u16, offset as u16)
+                }
+                0x3 => {
+                    let rd = ((instruction >> 2) & 0x7) + 8;
+                    let rs1 = ((instruction >> 7) & 0x7) + 8;
+                    let offset = ((instruction << 1) & 0xc0) | ((instruction >> 7) & 0x38);
+                    self.c_ld(rd as u16, rs1 as u16, offset as u16)
+                }
+                0x4 => panic!("reserved"),
+                0x5 => {
+                    let rs2 = ((instruction >> 2) & 0x7) + 8;
+                    let rs1 = ((instruction >> 7) & 0x7) + 8;
+                    let offset = ((instruction << 1) & 0xc0) // imm[7:6]
+                            | ((instruction >> 7) & 0x38); // imm[5:3]
+                    self.c_fsd(rs1 as u16, rs2 as u16, offset as u16)
+                }
+                0x6 => {
+                    let rs2 = ((instruction >> 2) & 0x7) + 8;
+                    let rs1 = ((instruction >> 7) & 0x7) + 8;
+                    let offset = ((instruction << 1) & 0x40) // imm[6]
+                            | ((instruction >> 7) & 0x38) // imm[5:3]
+                            | ((instruction >> 4) & 0x4); // imm[2]
+                    self.c_sw(rs2 as u16, rs1 as u16, offset as u16)
+                }
+                0x7 => {
+                    let rs2 = ((instruction >> 2) & 0x7) + 8;
+                    let rs1 = ((instruction >> 7) & 0x7) + 8;
+                    // offset[5:3|7:6] = isnt[12:10|6:5]
+                    let offset = ((instruction << 1) & 0xc0) // imm[7:6]
+                                | ((instruction >> 7) & 0x38); // imm[5:3]
+                    self.c_sd(rs2 as u16, rs1 as u16, offset as u16)
+                }
+                _ => todo!("quadrant 0 invalid funct3"),
             },
-            0b10 => match bit15to13 {
-                0b100 => self.handle_15to13_100(bit12, bit11to7, bit6to2),
-                _ => todo!("invalid bit 15to13"),
+            // quadrant 1
+            0b01 => match funct3 {
+                0x0 => {
+                    let rd = (instruction >> 7) & 0x1f;
+                    let mut nzimm = ((instruction >> 7) & 0x20) | ((instruction >> 2) & 0x1f);
+                    nzimm = match (nzimm & 0x20) == 0 {
+                        true => nzimm,
+                        false => (0xc0 | nzimm) as i8 as i64 as u64,
+                    };
+                    self.c_addi(rd as u16, nzimm as u16)
+                }
+                0x1 => {
+                    let rd = (instruction >> 7) & 0x1f;
+                    let mut nzimm = ((instruction >> 7) & 0x20) | ((instruction >> 2) & 0x1f);
+                    nzimm = match (nzimm & 0x20) == 0 {
+                        true => nzimm,
+                        false => (0xc0 | nzimm) as i8 as i64 as u64,
+                    };
+                    self.c_addiw(rd as u16, nzimm as u16)
+                }
+                0x2 => {
+                    let rd = (instruction >> 7) & 0x1f;
+                    let mut nzimm = ((instruction >> 7) & 0x20) | ((instruction >> 2) & 0x1f);
+                    nzimm = match (nzimm & 0x20) == 0 {
+                        true => nzimm,
+                        false => (0xc0 | nzimm) as i8 as i64 as u64,
+                    };
+                    self.c_li(rd as u16, nzimm as u16)
+                }
+                0x3 => {
+                    let rd = (instruction >> 7) & 0x1f;
+                    match rd {
+                        0 => false,
+                        2 => {
+                            let mut nzimm = ((instruction >> 3) & 0x200) // nzimm[9]
+                                    | ((instruction >> 2) & 0x10) // nzimm[4]
+                                    | ((instruction << 1) & 0x40) // nzimm[6]
+                                    | ((instruction << 4) & 0x180) // nzimm[8:7]
+                                    | ((instruction << 3) & 0x20); // nzimm[5]
+                            nzimm = match (nzimm & 0x200) == 0 {
+                                true => nzimm,
+                                false => (0xfc00 | nzimm) as i16 as i32 as i64 as u64,
+                            };
+                            self.c_add16sp(rd as u16, nzimm as u16)
+                        }
+                        _ => {
+                            let mut nzimm =
+                                ((instruction << 5) & 0x20000) | ((instruction << 10) & 0x1f000);
+                            // Sign-extended.
+                            nzimm = match (nzimm & 0x20000) == 0 {
+                                true => nzimm as u64,
+                                false => (0xfffc0000 | nzimm) as i32 as i64 as u64,
+                            };
+                            self.c_lui(rd as u16, nzimm as u16)
+                        }
+                    }
+                }
+                0x4 => {
+                    let funct2 = (instruction >> 10) & 0x3;
+                    match funct2 {
+                        0x0 => {
+                            let rd = ((instruction >> 7) & 0b111) + 8;
+                            let shamt = ((instruction >> 7) & 0x20) | ((instruction >> 2) & 0x1f);
+                            self.c_srli(rd as u16, shamt as u16)
+                        }
+                        0x1 => {
+                            let rd = ((instruction >> 7) & 0b111) + 8;
+                            let shamt = ((instruction >> 7) & 0x20) | ((instruction >> 2) & 0x1f);
+                            self.c_srai(rd as u16, shamt as u16)
+                        }
+                        0x2 => {
+                            let rd = ((instruction >> 7) & 0b111) + 8;
+                            let mut imm = ((instruction >> 7) & 0x20) | ((instruction >> 2) & 0x1f);
+                            imm = match (imm & 0x20) == 0 {
+                                true => imm,
+                                false => (0xc0 | imm) as i8 as i64 as u64,
+                            };
+                            self.c_andi(rd as u16, imm as u16)
+                        }
+                        0x3 => match ((instruction >> 12) & 0b1, (instruction >> 5) & 0b11) {
+                            (0x0, 0x0) => {
+                                let rd = ((instruction >> 7) & 0b111) + 8;
+                                let rs2 = ((instruction >> 2) & 0b111) + 8;
+                                self.c_sub(rd as u16, rs2 as u16)
+                            }
+                            (0x0, 0x1) => {
+                                let rd = ((instruction >> 7) & 0b111) + 8;
+                                let rs2 = ((instruction >> 2) & 0b111) + 8;
+                                self.c_xor(rd as u16, rs2 as u16)
+                            }
+                            (0x0, 0x2) => {
+                                let rd = ((instruction >> 7) & 0b111) + 8;
+                                let rs2 = ((instruction >> 2) & 0b111) + 8;
+                                self.c_or(rd as u16, rs2 as u16)
+                            }
+                            (0x0, 0x3) => {
+                                let rd = ((instruction >> 7) & 0b111) + 8;
+                                let rs2 = ((instruction >> 2) & 0b111) + 8;
+                                self.c_and(rd as u16, rs2 as u16)
+                            }
+                            (0x1, 0x0) => {
+                                let rd = ((instruction >> 7) & 0b111) + 8;
+                                let rs2 = ((instruction >> 2) & 0b111) + 8;
+                                self.c_subw(rd as u16, rs2 as u16)
+                            }
+                            (0x1, 0x1) => {
+                                let rd = ((instruction >> 7) & 0b111) + 8;
+                                let rs2 = ((instruction >> 2) & 0b111) + 8;
+                                self.c_addw(rd as u16, rs2 as u16)
+                            }
+                            (_, _) => panic!("invalid quadrant 2 funct2"),
+                        },
+                        _ => todo!(""),
+                    }
+                }
+                0x5 => {
+                    let mut offset = ((instruction >> 1) & 0x800) // offset[11]
+                            | ((instruction << 2) & 0x400) // offset[10]
+                            | ((instruction >> 1) & 0x300) // offset[9:8]
+                            | ((instruction << 1) & 0x80) // offset[7]
+                            | ((instruction >> 1) & 0x40) // offset[6]
+                            | ((instruction << 3) & 0x20) // offset[5]
+                            | ((instruction >> 7) & 0x10) // offset[4]
+                            | ((instruction >> 2) & 0xe); // offset[3:1]
+
+                    // Sign-extended.
+                    offset = match (offset & 0x800) == 0 {
+                        true => offset,
+                        false => (0xf000 | offset) as i16 as i64 as u64,
+                    };
+                    todo!("c.j");
+                }
+                0x6 => {
+                    let rs1 = ((instruction >> 7) & 0b111) + 8;
+                    // offset[8|4:3|7:6|2:1|5] = inst[12|11:10|6:5|4:3|2]
+                    let mut offset = ((instruction >> 4) & 0x100) // offset[8]
+                            | ((instruction << 1) & 0xc0) // offset[7:6]
+                            | ((instruction << 3) & 0x20) // offset[5]
+                            | ((instruction >> 7) & 0x18) // offset[4:3]
+                            | ((instruction >> 2) & 0x6); // offset[2:1]
+                                                          // Sign-extended.
+                    offset = match (offset & 0x100) == 0 {
+                        true => offset,
+                        false => (0xfe00 | offset) as i16 as i64 as u64,
+                    };
+                    self.c_beqz(rs1 as u16, offset as u16)
+                }
+                0x7 => {
+                    let rs1 = ((instruction >> 7) & 0b111) + 8;
+                    // offset[8|4:3|7:6|2:1|5] = inst[12|11:10|6:5|4:3|2]
+                    let mut offset = ((instruction >> 4) & 0x100) // offset[8]
+                            | ((instruction << 1) & 0xc0) // offset[7:6]
+                            | ((instruction << 3) & 0x20) // offset[5]
+                            | ((instruction >> 7) & 0x18) // offset[4:3]
+                            | ((instruction >> 2) & 0x6); // offset[2:1]
+                    offset = match (offset & 0x100) == 0 {
+                        true => offset,
+                        false => (0xfe00 | offset) as i16 as i64 as u64,
+                    };
+                    self.c_bnez(rs1 as u16, offset as u16)
+                }
+                _ => todo!("quadrant 1 invalid funct3"),
+            },
+            // quadrant 2
+            0b10 => match funct3 {
+                0x0 => {
+                    let rd = (instruction >> 7) & 0x1f;
+                    let shamt = ((instruction >> 7) & 0x20) | ((instruction >> 2) & 0x1f);
+                    self.c_slli(rd as u16, shamt as u16)
+                }
+                0x1 => {
+                    let rd = (instruction >> 7) & 0x1f;
+                    // offset[5|4:3|8:6] = inst[12|6:5|4:2]
+                    let offset = ((instruction << 4) & 0x1c0) // offset[8:6]
+                            | ((instruction >> 7) & 0x20) // offset[5]
+                            | ((instruction >> 2) & 0x18); // offset[4:3]
+
+                    self.c_fldsp(rd as u16, offset as u16)
+                }
+                0x2 => {
+                    let rd = (instruction >> 7) & 0x1f;
+                    let offset = ((instruction << 4) & 0xc0) // offset[7:6]
+                            | ((instruction >> 7) & 0x20) // offset[5]
+                            | ((instruction >> 2) & 0x1c); // offset[4:2]
+                    self.c_lwsp(rd as u16, offset as u16)
+                }
+                0x3 => {
+                    let rd = (instruction >> 7) & 0x1f;
+                    // offset[5|4:3|8:6] = inst[12|6:5|4:2]
+                    let offset = ((instruction << 4) & 0x1c0) // offset[8:6]
+                            | ((instruction >> 7) & 0x20) // offset[5]
+                            | ((instruction >> 2) & 0x18); // offset[4:3]
+                    self.c_ldsp(rd as u16, offset as u16)
+                }
+                0x4 => match ((instruction >> 12) & 0x1, (instruction >> 2) & 0x1f) {
+                    (0, 0) => {
+                        let rs1 = (instruction >> 7) & 0x1f;
+                        self.c_jr(rs1 as u16)
+                    }
+                    (0, _) => {
+                        let rd = (instruction >> 7) & 0x1f;
+                        let rs2 = (instruction >> 2) & 0x1f;
+                        self.c_mv(rd as u16, rs2 as u16)
+                    }
+                    (1, 0) => {
+                        let rd = (instruction >> 7) & 0x1F;
+                        if rd == 0 {
+                            todo!("c.ebreak");
+                        }
+                        let rs1 = (instruction >> 7) & 0x1f;
+                        self.c_jalr(rs1 as u16)
+                    }
+                    (1, _) => {
+                        let rd = (instruction >> 7) & 0x1f;
+                        let rs2 = (instruction >> 2) & 0x1f;
+                        self.c_add(rd as u16, rs2 as u16)
+                    }
+                    (_, _) => {
+                        panic!("invalid quadrant 2 ")
+                    }
+                },
+                0x5 => {
+                    let rs2 = (instruction >> 2) & 0x1f;
+                    // offset[5:3|8:6] = isnt[12:10|9:7]
+                    let offset = ((instruction >> 1) & 0x1c0) // offset[8:6]
+                            | ((instruction >> 7) & 0x38); // offset[5:3]
+                    todo!("c.fsdsp")
+                }
+                0x6 => {
+                    let rs2 = (instruction >> 2) & 0x1f;
+                    // offset[5:2|7:6] = inst[12:9|8:7]
+                    let offset = ((instruction >> 1) & 0xc0) // offset[7:6]
+                            | ((instruction >> 7) & 0x3c); // offset[5:2]
+                    self.c_swsp(rs2 as u16, offset as u16)
+                }
+                0x7 => {
+                    let rs2 = (instruction >> 2) & 0x1f;
+                    let offset = ((instruction >> 1) & 0x1c0) // offset[8:6]
+                            | ((instruction >> 7) & 0x38); // offset[5:3]
+                    self.c_sdsp(rs2 as u16, offset as u16)
+                }
+                _ => todo!("quadrant 2 invalid funct3"),
             },
             _ => todo!("invalid opcdoe"),
         }
@@ -386,6 +658,179 @@ impl CPU {
         self.x_reg[rd as usize] = result as u64;
         false
     }
+    fn c_slli(&mut self, rd: u16, shamt: u16) -> bool {
+        self.x_reg[rd as usize] = self.x_reg[rd as usize] << shamt;
+        false
+    }
+    fn c_fldsp(&mut self, rd: u16, offset: u16) -> bool {
+        todo!("floatingpoint");
+        false
+    }
+    fn c_sdsp(&mut self, rs2: u16, offset: u16) -> bool {
+        let _memory_address = self.x_reg[2].wrapping_add(offset as u64);
+        let index = rs2 as usize;
+        let value = self.x_reg[index] as u64;
+        let value_as_bytes = value.to_le_bytes();
+        self.mmu.memory_segment[_memory_address as usize.._memory_address as usize + 8]
+            .copy_from_slice(&value_as_bytes);
+        false
+    }
+    fn c_swsp(&mut self, rs2: u16, offset: u16) -> bool {
+        let _memory_address = self.x_reg[2].wrapping_add(offset as u64);
+        let index = rs2 as usize;
+        let value = self.x_reg[index] as u64;
+        let value_as_bytes = value.to_le_bytes();
+        self.mmu.memory_segment[_memory_address as usize.._memory_address as usize + 4]
+            .copy_from_slice(&value_as_bytes);
+        false
+    }
+    fn c_lwsp(&mut self, rd: u16, offset: u16) -> bool {
+        let value = self.x_reg[2].wrapping_add(offset as u64) as i32 as i64 as u64;
+        self.x_reg[rd as usize] = value;
+        false
+    }
+    fn c_ldsp(&mut self, rd: u16, offset: u16) -> bool {
+        let value = self.x_reg[2].wrapping_add(offset as u64);
+        self.x_reg[rd as usize] = value;
+        false
+    }
+
+    fn c_add4spn(&mut self, rd: u16, nzuimm: u16) -> bool {
+        print!("c.add4spn");
+        let temp = self.x_reg[2].wrapping_add(nzuimm as u64);
+        self.x_reg[rd as usize] = temp;
+        false
+    }
+    fn c_fld(&mut self, rd: u16, rs1: u16, offset: u16) -> bool {
+        todo!("FLOATING POINT REGISTERS");
+        false
+    }
+    fn c_lw(&mut self, rd: u16, rs1: u16, offset: u16) -> bool {
+        let _memory_address = self.x_reg[rs1 as usize].wrapping_add(offset as u64);
+        let value1 = self.mmu.memory_segment[_memory_address as usize] as u8;
+        let value2 = self.mmu.memory_segment[_memory_address as usize + 1] as u8;
+        let value3 = self.mmu.memory_segment[_memory_address as usize + 2] as u8;
+        let value4 = self.mmu.memory_segment[_memory_address as usize + 3] as u8;
+        let result = u32::from_le_bytes([value1, value2, value3, value4]) as i64 as u64;
+        self.x_reg[rd as usize] = result as i32 as i64 as u64;
+        false
+    }
+    fn c_ld(&mut self, rd: u16, rs1: u16, offset: u16) -> bool {
+        let _memory_address = self.x_reg[rs1 as usize].wrapping_add(offset as u64);
+        let value0 = self.mmu.memory_segment[_memory_address as usize] as u8;
+        let value1 = self.mmu.memory_segment[_memory_address as usize + 1] as u8;
+        let value2 = self.mmu.memory_segment[_memory_address as usize + 2] as u8;
+        let value3 = self.mmu.memory_segment[_memory_address as usize + 3] as u8;
+        let value4 = self.mmu.memory_segment[_memory_address as usize + 4] as u8;
+        let value5 = self.mmu.memory_segment[_memory_address as usize + 5] as u8;
+        let value6 = self.mmu.memory_segment[_memory_address as usize + 6] as u8;
+        let value7 = self.mmu.memory_segment[_memory_address as usize + 7] as u8;
+        let result = u64::from_le_bytes([
+            value0, value1, value2, value3, value4, value5, value6, value7,
+        ]) as i64 as u64;
+        self.x_reg[rd as usize] = result as i32 as i64 as u64;
+        false
+    }
+    fn c_fsd(&mut self, rd: u16, rs1: u16, offset: u16) -> bool {
+        todo!("floating point");
+        false
+    }
+
+    fn c_sw(&mut self, rs2: u16, rs1: u16, offset: u16) -> bool {
+        println!("c_sw");
+        let _memory_address = self.x_reg[rs1 as usize].wrapping_add(offset as u64);
+        let index = rs2 as usize;
+        let value = self.x_reg[index] as u32;
+        let value_as_bytes = value.to_le_bytes();
+        self.mmu.memory_segment[_memory_address as usize.._memory_address as usize + 4]
+            .copy_from_slice(&value_as_bytes);
+        false
+    }
+    fn c_sd(&mut self, rs2: u16, rs1: u16, offset: u16) -> bool {
+        println!("c_sd");
+        let _memory_address = self.x_reg[rs1 as usize].wrapping_add(offset as u64);
+        let index = rs2 as usize;
+        let value = self.x_reg[index] as u64;
+        let value_as_bytes = value.to_le_bytes();
+        self.mmu.memory_segment[_memory_address as usize.._memory_address as usize + 8]
+            .copy_from_slice(&value_as_bytes);
+        false
+    }
+
+    fn c_addi(&mut self, rd: u16, nzimm: u16) -> bool {
+        if rd != 0 {
+            self.x_reg[rd as usize] = self.x_reg[rd as usize].wrapping_add(nzimm as u64);
+        }
+        false
+    }
+    fn c_addiw(&mut self, rd: u16, nzimm: u16) -> bool {
+        if rd != 0 {
+            self.x_reg[rd as usize] = self.x_reg[rd as usize].wrapping_add(nzimm as u64);
+        }
+        false
+    }
+
+    fn c_lui(&mut self, rd: u16, nzimm: u16) -> bool {
+        self.x_reg[rd as usize] = nzimm as u64;
+        false
+    }
+
+    fn c_li(&mut self, rd: u16, imm: u16) -> bool {
+        self.x_reg[rd as usize] = imm as u64;
+        false
+    }
+
+    fn c_add16sp(&mut self, rd: u16, nzimm: u16) -> bool {
+        self.x_reg[2] = self.x_reg[2].wrapping_add(nzimm as u64);
+        false
+    }
+    fn c_srli(&mut self, rd: u16, shamt: u16) -> bool {
+        self.x_reg[rd as usize] = self.x_reg[rd as usize] >> shamt;
+        false
+    }
+    fn c_srai(&mut self, rd: u16, shamt: u16) -> bool {
+        self.x_reg[rd as usize] = ((self.x_reg[rd as usize] as i64) >> shamt) as u64;
+        false
+    }
+
+    fn c_andi(&mut self, rd: u16, imm: u16) -> bool {
+        self.x_reg[rd as usize] = self.x_reg[rd as usize] & imm as u64;
+        false
+    }
+
+    fn c_sub(&mut self, rd: u16, rs2: u16) -> bool {
+        self.x_reg[rd as usize] = self.x_reg[rd as usize].wrapping_sub(self.x_reg[rs2 as usize]);
+        false
+    }
+
+    fn c_xor(&mut self, rd: u16, rs2: u16) -> bool {
+        self.x_reg[rd as usize] = self.x_reg[rd as usize] ^ self.x_reg[rs2 as usize];
+        false
+    }
+    fn c_or(&mut self, rd: u16, rs2: u16) -> bool {
+        self.x_reg[rd as usize] = self.x_reg[rd as usize] ^ self.x_reg[rs2 as usize];
+        false
+    }
+    fn c_and(&mut self, rd: u16, rs2: u16) -> bool {
+        self.x_reg[rd as usize] = self.x_reg[rd as usize] & self.x_reg[rs2 as usize];
+        false
+    }
+
+    fn c_subw(&mut self, rd: u16, rs2: u16) -> bool {
+        self.x_reg[rd as usize] =
+            self.x_reg[rd as usize].wrapping_sub(self.x_reg[rs2 as usize]) as i32 as i64 as u64;
+        false
+    }
+    fn c_add(&mut self, rd: u16, rs2: u16) -> bool {
+        self.x_reg[rd as usize] = self.x_reg[rd as usize].wrapping_add(self.x_reg[rs2 as usize]);
+        false
+    }
+
+    fn c_addw(&mut self, rd: u16, rs2: u16) -> bool {
+        self.x_reg[rd as usize] =
+            self.x_reg[rd as usize].wrapping_add(self.x_reg[rs2 as usize]) as i32 as i64 as u64;
+        false
+    }
 
     fn mulu(&mut self, rd: u32, rs1: u32, rs2: u32) -> bool {
         println!("MULU");
@@ -566,6 +1011,7 @@ impl CPU {
     fn load_double_word(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
         println!("LD");
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm as u64);
+        println!("{:#08X}", _memory_address);
         let value0 = self.mmu.memory_segment[_memory_address as usize] as u8;
         let value1 = self.mmu.memory_segment[_memory_address as usize + 1] as u8;
         let value2 = self.mmu.memory_segment[_memory_address as usize + 2] as u8;
@@ -1114,7 +1560,6 @@ impl CPU {
         }
         false
     }
-
     fn bltu(self: &mut Self, rs1: u32, rs2: u32, imm_b_type: i32) -> bool {
         println!("bltu");
         if (self.x_reg[rs1 as usize] as u64) < (self.x_reg[rs2 as usize] as u64) {
@@ -1164,6 +1609,19 @@ impl CPU {
         self.pc = self.pc.wrapping_add(imm_j_type as i64 as u64);
         true
     }
+    fn c_beqz(self: &mut Self, rs1: u16, offset: u16) -> bool {
+        if self.x_reg[rs1 as usize] == 0 {
+            self.pc = self.pc.wrapping_add(offset as u64);
+        }
+        true
+    }
+    fn c_bnez(self: &mut Self, rs1: u16, offset: u16) -> bool {
+        if self.x_reg[rs1 as usize] != 0 {
+            self.pc = self.pc.wrapping_add(offset as u64);
+        }
+        true
+    }
+
     fn c_mv(self: &mut Self, rd: u16, rs2: u16) -> bool {
         println!("c.mv");
         self.x_reg[rd as usize] = self.x_reg[rs2 as usize];
@@ -1174,7 +1632,7 @@ impl CPU {
         self.pc = self.x_reg[rs1 as usize];
         true
     }
-    fn c_jalr(self: &mut Self, rs1: u16, imm: u16) -> bool {
+    fn c_jalr(self: &mut Self, rs1: u16) -> bool {
         println!("c.JALR");
         let t = self.pc + 2;
         self.pc = self.x_reg[rs1 as usize];
