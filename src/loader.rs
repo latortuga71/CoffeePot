@@ -1,5 +1,5 @@
 use crate::mmu::Segment;
-use std::process::exit;
+use std::process::{self, exit};
 
 #[derive(Debug)]
 pub struct ElfInformation {
@@ -48,6 +48,8 @@ pub struct Elf64ProgramHeader {
 }
 //https://docs.rs/elf/latest/elf/file/struct.FileHeader.html
 pub fn load_elf(path: &str) -> ElfInformation {
+    let mut segments: Vec<Segment> = Vec::new();
+    let mut virtual_memory_minimum_size = 0;
     let file_data = std::fs::read(path).unwrap_or_else(|e| {
         eprint!("ERROR: Failed to read {path}: {e}");
         exit(1);
@@ -58,11 +60,6 @@ pub fn load_elf(path: &str) -> ElfInformation {
     println!("{:?}", file_header.e_ident);
     println!("{:#08x}", entry_point);
     println!("{:?}", program_header_offset);
-    let program_header_size = file_header.e_phentsize * file_header.e_phnum;
-    let segment_data_offset = file_header.e_phoff as u64 + program_header_size as u64;
-    let mut segments: Vec<Segment> = Vec::new();
-    let mut virtual_memory_minimum_size = 0;
-    // Program Header Parse
     for i in 0..file_header.e_phnum {
         let offset_start = program_header_offset + (file_header.e_phentsize * i) as u64;
         let offset_end = offset_start + file_header.e_phentsize as u64;
@@ -71,21 +68,6 @@ pub fn load_elf(path: &str) -> ElfInformation {
                 file_data[offset_start as usize..offset_end as usize].as_ptr() as *const _,
             )
         };
-        /*
-        println!("start {:#08X} end {:#08X}", offset_start, offset_end);
-        println!("TYPE {:#08X}", program_header.p_type);
-        println!(
-            "type: {:#08X} file offset: {:#08X} virt addr:{:#08X} memsize {:#08X} align: {:#08X} Readable:{:?} Writable:{:?} Executable: {:?} \n",
-            program_header.p_type,
-            program_header.p_offset,
-            program_header.p_vaddr,
-            program_header.p_memsz,
-            program_header.p_align,
-            program_header.p_flags & 0x4,
-            program_header.p_flags & 0x2,
-            program_header.p_flags & 0x1
-        );
-        */
         let segment_start = (program_header.p_offset) as usize;
         let segment_end = segment_start as usize + program_header.p_filesz as usize;
         virtual_memory_minimum_size += program_header.p_memsz;
@@ -100,6 +82,11 @@ pub fn load_elf(path: &str) -> ElfInformation {
                 virtual_address: program_header.p_vaddr,
             };
             segments.push(segment);
+            println!("Segment type {:#08X}", program_header.p_type);
+            println!("Segment align {:#08X}", program_header.p_align);
+            println!("Segment virtual addr {:#08X}", program_header.p_vaddr);
+            println!("Segment vm size {:#08X}", program_header.p_memsz);
+            println!("Segment raw size {:#08X}", program_header.p_filesz);
         }
     }
     ElfInformation {

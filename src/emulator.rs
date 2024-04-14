@@ -31,11 +31,7 @@ impl Emulator {
     pub fn fetch_instruction(self: &mut Self) -> bool {
         let start = self.cpu.pc;
         let end = self.cpu.pc + 0x4;
-        let text_section_size = self.cpu.mmu.text_segment.len();
-        if end > text_section_size as u64 {
-            todo!("TODO HANDLE END OF TEXT SECTION EXITING");
-        }
-        let instruction_bytes = &self.cpu.mmu.text_segment[start as usize..end as usize];
+        let instruction_bytes = &self.cpu.mmu.virtual_memory[start as usize..end as usize];
         let mut sliced: [u8; 4] = [0, 0, 0, 0];
         sliced.copy_from_slice(instruction_bytes);
         self.current_instruction = Emulator::as_u32_le(&sliced);
@@ -71,13 +67,6 @@ impl Emulator {
 
     pub fn load_elf_segments(self: &mut Self, elf: &ElfInformation) {
         let mut c = 0;
-        if self.cpu.mmu.virtual_memory.len() < elf.virtual_memory_minimum_size as usize {
-            println!("RESIZED");
-            self.cpu
-                .mmu
-                .virtual_memory
-                .resize(elf.virtual_memory_minimum_size as usize, 0);
-        }
         for e in &elf.segments {
             c += 1;
             // from offset to end

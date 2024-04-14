@@ -13,9 +13,9 @@ fn main() {
     let elf_segments = loader::load_elf("test.elf");
     emulator.load_elf_segments(&elf_segments);
     emulator.cpu.pc = elf_segments.entry_point;
-    emulator.cpu.mmu.text_segment = emulator.cpu.mmu.virtual_memory.clone();
     //emulator.load_raw_instructions("./add.bin").unwrap();
     //print!("{:?}", emulator.cpu.mmu.text_segment);
+    let mut counter = 0;
     println!("=== CoffeePot Init!  ===");
     loop {
         //println!("{}", emulator.cpu);
@@ -26,10 +26,22 @@ fn main() {
         // Decode && Execute
         emulator.execute_instruction();
         //print!("CoffeePot: \n{}\n", emulator.cpu);
+        /*
+        let stdin = std::io::stdin();
+        let mut line = String::new();
+        stdin.lock().read_line(&mut line).unwrap();
+        print!("coffeepot registers: \n{}\n", emulator.cpu);
+        //
+        */
+        //print!("CoffeePot Registers: \n{}\n", emulator.cpu);
         let stdin = std::io::stdin();
         let mut line = String::new();
         stdin.lock().read_line(&mut line).unwrap();
         print!("CoffeePot Registers: \n{}\n", emulator.cpu);
+        print!("PC: {:#08X}\n", emulator.cpu.pc);
+        print!("SP: {:#08X}\n", emulator.cpu.sp);
+        print!("Instructions Executed: {}\n", counter);
+        counter += 1;
         /*
                 print!(
                     "CoffeePot Memory: \n{:?}\n",

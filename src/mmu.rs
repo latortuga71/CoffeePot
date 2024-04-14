@@ -1,18 +1,15 @@
 #[derive(Debug)]
 pub struct MMU {
     // Make this one giant array
-    // and make sure each segement is placed accordingly in the array to simulate virtual memory
-    pub text_segment: Vec<u8>,
-    pub memory_segment: Vec<u8>,
     pub virtual_memory: Vec<u8>,
 }
+
+pub const RAM: u64 = 1024 * 1024 * 1024;
 
 impl MMU {
     pub fn new() -> Self {
         MMU {
-            text_segment: vec![0; 1024], // where our
-            memory_segment: vec![0; 0xFFFF],
-            virtual_memory: vec![0; 0xFFFFFFFF], // 4MB of address space by default
+            virtual_memory: vec![0; RAM as usize], // 1GB of address space by default
         }
     }
 }

@@ -14,15 +14,19 @@ pub struct CPU {
 }
 
 // XLEN = u64 arch size
-
+pub const DRAM_BASE: u64 = 0x8000_0000;
+pub const DRAM_SIZE: u64 = 1024 * 1024 * 1024;
 // RV64I: base integer instructions
 impl std::fmt::Display for CPU {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let mut display_string = format!("PC: {:#08X}\nSP: {:#08X}\nREGISTERS:", self.pc, self.sp);
         for i in 0..32 {
             let s = format!("X_{:?}: {:#04X} ", i, self.x_reg[i]).to_string();
-            display_string.push_str("\n");
+            display_string.push_str(" ");
             display_string.push_str(&s);
+            if i % 10 == 0 {
+                display_string.push_str("\n");
+            }
         }
         display_string.push_str("\n");
         write!(f, "{}", display_string)
@@ -47,28 +51,6 @@ impl CPU {
         }
     }
 
-    fn handle_15to13_100(self: &mut Self, bit12: u16, bit11to7: u16, bit6to2: u16) -> bool {
-        println!("{} {} {}", bit12, bit11to7, bit6to2);
-        match bit12 {
-            0 => match bit6to2 {
-                0 => self.c_jr(bit11to7),
-                _ => self.c_mv(bit11to7, bit6to2),
-            },
-            1 => {
-                println!("c.jalr");
-                println!("c.ebreak");
-                println!("c.add");
-                false
-            }
-            _ => {
-                // handle imm[5] bit five here ??
-                println!("c.srli");
-                println!("c.srai");
-                println!("c.andi");
-                false
-            }
-        }
-    }
     // https://github.com/d0iasm/rvemu/blob/main/src/cpu.rs <- guide because its confusing
     pub fn execute_compressed(self: &mut Self, instruction: u64) -> bool {
         let opcode = instruction & 0b11;
@@ -127,9 +109,9 @@ impl CPU {
                     self.c_sw(rs2 as u16, rs1 as u16, offset as u16)
                 }
                 0x7 => {
+                    println!("sd");
                     let rs2 = ((instruction >> 2) & 0x7) + 8;
                     let rs1 = ((instruction >> 7) & 0x7) + 8;
-                    // offset[5:3|7:6] = isnt[12:10|6:5]
                     let offset = ((instruction << 1) & 0xc0) // imm[7:6]
                                 | ((instruction >> 7) & 0x38); // imm[5:3]
                     self.c_sd(rs2 as u16, rs1 as u16, offset as u16)
@@ -266,7 +248,7 @@ impl CPU {
                         true => offset,
                         false => (0xf000 | offset) as i16 as i64 as u64,
                     };
-                    todo!("c.j");
+                    self.c_j(offset as u16)
                 }
                 0x6 => {
                     let rs1 = ((instruction >> 7) & 0b111) + 8;
@@ -667,11 +649,14 @@ impl CPU {
         false
     }
     fn c_sdsp(&mut self, rs2: u16, offset: u16) -> bool {
+        if self.debug_flag {
+            println!("c.sdsp x{rs2},{offset}(sp)");
+        }
         let _memory_address = self.x_reg[2].wrapping_add(offset as u64);
         let index = rs2 as usize;
         let value = self.x_reg[index] as u64;
         let value_as_bytes = value.to_le_bytes();
-        self.mmu.memory_segment[_memory_address as usize.._memory_address as usize + 8]
+        self.mmu.virtual_memory[_memory_address as usize.._memory_address as usize + 8]
             .copy_from_slice(&value_as_bytes);
         false
     }
@@ -680,7 +665,7 @@ impl CPU {
         let index = rs2 as usize;
         let value = self.x_reg[index] as u64;
         let value_as_bytes = value.to_le_bytes();
-        self.mmu.memory_segment[_memory_address as usize.._memory_address as usize + 4]
+        self.mmu.virtual_memory[_memory_address as usize.._memory_address as usize + 4]
             .copy_from_slice(&value_as_bytes);
         false
     }
@@ -706,25 +691,34 @@ impl CPU {
         false
     }
     fn c_lw(&mut self, rd: u16, rs1: u16, offset: u16) -> bool {
+        if self.debug_flag {
+            println!("c.lw x{rd},{offset},(x{rs1})");
+        }
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(offset as u64);
-        let value1 = self.mmu.memory_segment[_memory_address as usize] as u8;
-        let value2 = self.mmu.memory_segment[_memory_address as usize + 1] as u8;
-        let value3 = self.mmu.memory_segment[_memory_address as usize + 2] as u8;
-        let value4 = self.mmu.memory_segment[_memory_address as usize + 3] as u8;
+        let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
+        let value2 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
+        let value3 = self.mmu.virtual_memory[_memory_address as usize + 2] as u8;
+        let value4 = self.mmu.virtual_memory[_memory_address as usize + 3] as u8;
         let result = u32::from_le_bytes([value1, value2, value3, value4]) as i64 as u64;
         self.x_reg[rd as usize] = result as i32 as i64 as u64;
         false
     }
     fn c_ld(&mut self, rd: u16, rs1: u16, offset: u16) -> bool {
+        println!("c.ld");
+        println!(
+            "-> rd {:#08x} offset {:#08x} rs1 {:#08x} rs1 val {:#08x}",
+            rd, offset, rs1, self.x_reg[rs1 as usize]
+        );
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(offset as u64);
-        let value0 = self.mmu.memory_segment[_memory_address as usize] as u8;
-        let value1 = self.mmu.memory_segment[_memory_address as usize + 1] as u8;
-        let value2 = self.mmu.memory_segment[_memory_address as usize + 2] as u8;
-        let value3 = self.mmu.memory_segment[_memory_address as usize + 3] as u8;
-        let value4 = self.mmu.memory_segment[_memory_address as usize + 4] as u8;
-        let value5 = self.mmu.memory_segment[_memory_address as usize + 5] as u8;
-        let value6 = self.mmu.memory_segment[_memory_address as usize + 6] as u8;
-        let value7 = self.mmu.memory_segment[_memory_address as usize + 7] as u8;
+        println!("-> address {:#08X}", _memory_address);
+        let value0 = self.mmu.virtual_memory[_memory_address as usize] as u8;
+        let value1 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
+        let value2 = self.mmu.virtual_memory[_memory_address as usize + 2] as u8;
+        let value3 = self.mmu.virtual_memory[_memory_address as usize + 3] as u8;
+        let value4 = self.mmu.virtual_memory[_memory_address as usize + 4] as u8;
+        let value5 = self.mmu.virtual_memory[_memory_address as usize + 5] as u8;
+        let value6 = self.mmu.virtual_memory[_memory_address as usize + 6] as u8;
+        let value7 = self.mmu.virtual_memory[_memory_address as usize + 7] as u8;
         let result = u64::from_le_bytes([
             value0, value1, value2, value3, value4, value5, value6, value7,
         ]) as i64 as u64;
@@ -742,22 +736,27 @@ impl CPU {
         let index = rs2 as usize;
         let value = self.x_reg[index] as u32;
         let value_as_bytes = value.to_le_bytes();
-        self.mmu.memory_segment[_memory_address as usize.._memory_address as usize + 4]
+        self.mmu.virtual_memory[_memory_address as usize.._memory_address as usize + 4]
             .copy_from_slice(&value_as_bytes);
         false
     }
     fn c_sd(&mut self, rs2: u16, rs1: u16, offset: u16) -> bool {
-        println!("c_sd");
+        if self.debug_flag {
+            println!("c.sd x{rs1},{}(x{rs2})",offset as i16);
+        }
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(offset as u64);
         let index = rs2 as usize;
         let value = self.x_reg[index] as u64;
         let value_as_bytes = value.to_le_bytes();
-        self.mmu.memory_segment[_memory_address as usize.._memory_address as usize + 8]
+        self.mmu.virtual_memory[_memory_address as usize.._memory_address as usize + 8]
             .copy_from_slice(&value_as_bytes);
         false
     }
 
     fn c_addi(&mut self, rd: u16, nzimm: u16) -> bool {
+        if self.debug_flag {
+            println!("c.addi x{rd},x{rd},{}", nzimm as i16);
+        }
         if rd != 0 {
             self.x_reg[rd as usize] = self.x_reg[rd as usize].wrapping_add(nzimm as u64);
         }
@@ -771,12 +770,22 @@ impl CPU {
     }
 
     fn c_lui(&mut self, rd: u16, nzimm: u16) -> bool {
-        self.x_reg[rd as usize] = nzimm as u64;
+        if self.debug_flag {
+            println!("c.lui x{rd},{:#08X}", nzimm);
+        }
+        if nzimm != 0 {
+            self.x_reg[rd as usize] = nzimm as u64;
+        }
         false
     }
 
     fn c_li(&mut self, rd: u16, imm: u16) -> bool {
-        self.x_reg[rd as usize] = imm as u64;
+        if self.debug_flag {
+            println!("c.li x{rd},{:#08X}", imm);
+        }
+        if rd != 0 {
+            self.x_reg[rd as usize] = imm as u64;
+        }
         false
     }
 
@@ -964,7 +973,7 @@ impl CPU {
         let index = rs2 as usize;
         let value = self.x_reg[index] as u64;
         let value_as_bytes = value.to_le_bytes();
-        self.mmu.memory_segment[_memory_address as usize.._memory_address as usize + 8]
+        self.mmu.virtual_memory[_memory_address as usize.._memory_address as usize + 8]
             .copy_from_slice(&value_as_bytes);
         false
     }
@@ -974,7 +983,7 @@ impl CPU {
         let index = rs2 as usize;
         let value = self.x_reg[index] as u32;
         let value_as_bytes = value.to_le_bytes();
-        self.mmu.memory_segment[_memory_address as usize.._memory_address as usize + 4]
+        self.mmu.virtual_memory[_memory_address as usize.._memory_address as usize + 4]
             .copy_from_slice(&value_as_bytes);
         false
     }
@@ -983,27 +992,27 @@ impl CPU {
         let index = rs2 as usize;
         let value = self.x_reg[index] as u16;
         let value_as_bytes = value.to_le_bytes();
-        self.mmu.memory_segment[_memory_address as usize.._memory_address as usize + 2]
+        self.mmu.virtual_memory[_memory_address as usize.._memory_address as usize + 2]
             .copy_from_slice(&value_as_bytes);
         false
     }
     fn store_byte(self: &mut Self, rs2: u32, rs1: u32, imm: i32) -> bool {
-        let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
+        let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm as u64);
         let index = rs2 as usize;
         let value = self.x_reg[index] as u8;
         if self.debug_flag {
             println!("SB {:#08X} <- {:#08X}", _memory_address, value)
         }
-        self.mmu.memory_segment[_memory_address as usize] = value;
+        self.mmu.virtual_memory[_memory_address as usize] = value;
         false
     }
     fn load_word_unsigned(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
         println!("LWU");
         let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
-        let value1 = self.mmu.memory_segment[_memory_address as usize] as u8;
-        let value2 = self.mmu.memory_segment[_memory_address as usize + 1] as u8;
-        let value3 = self.mmu.memory_segment[_memory_address as usize + 2] as u8;
-        let value4 = self.mmu.memory_segment[_memory_address as usize + 3] as u8;
+        let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
+        let value2 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
+        let value3 = self.mmu.virtual_memory[_memory_address as usize + 2] as u8;
+        let value4 = self.mmu.virtual_memory[_memory_address as usize + 3] as u8;
         let result = u32::from_le_bytes([value1, value2, value3, value4]) as u64;
         self.x_reg[rd as usize] = result as u64;
         false
@@ -1012,14 +1021,14 @@ impl CPU {
         println!("LD");
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm as u64);
         println!("{:#08X}", _memory_address);
-        let value0 = self.mmu.memory_segment[_memory_address as usize] as u8;
-        let value1 = self.mmu.memory_segment[_memory_address as usize + 1] as u8;
-        let value2 = self.mmu.memory_segment[_memory_address as usize + 2] as u8;
-        let value3 = self.mmu.memory_segment[_memory_address as usize + 3] as u8;
-        let value4 = self.mmu.memory_segment[_memory_address as usize + 4] as u8;
-        let value5 = self.mmu.memory_segment[_memory_address as usize + 5] as u8;
-        let value6 = self.mmu.memory_segment[_memory_address as usize + 6] as u8;
-        let value7 = self.mmu.memory_segment[_memory_address as usize + 7] as u8;
+        let value0 = self.mmu.virtual_memory[_memory_address as usize] as u8;
+        let value1 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
+        let value2 = self.mmu.virtual_memory[_memory_address as usize + 2] as u8;
+        let value3 = self.mmu.virtual_memory[_memory_address as usize + 3] as u8;
+        let value4 = self.mmu.virtual_memory[_memory_address as usize + 4] as u8;
+        let value5 = self.mmu.virtual_memory[_memory_address as usize + 5] as u8;
+        let value6 = self.mmu.virtual_memory[_memory_address as usize + 6] as u8;
+        let value7 = self.mmu.virtual_memory[_memory_address as usize + 7] as u8;
         let result = u64::from_le_bytes([
             value0, value1, value2, value3, value4, value5, value6, value7,
         ]) as i64 as u64;
@@ -1029,14 +1038,14 @@ impl CPU {
     fn load_double_word_atomic(self: &mut Self, rd: u32, rs1: u32) -> bool {
         println!("LR.D");
         let _memory_address = self.x_reg[rs1 as usize];
-        let value0 = self.mmu.memory_segment[_memory_address as usize] as u8;
-        let value1 = self.mmu.memory_segment[_memory_address as usize + 1] as u8;
-        let value2 = self.mmu.memory_segment[_memory_address as usize + 2] as u8;
-        let value3 = self.mmu.memory_segment[_memory_address as usize + 3] as u8;
-        let value4 = self.mmu.memory_segment[_memory_address as usize + 4] as u8;
-        let value5 = self.mmu.memory_segment[_memory_address as usize + 5] as u8;
-        let value6 = self.mmu.memory_segment[_memory_address as usize + 6] as u8;
-        let value7 = self.mmu.memory_segment[_memory_address as usize + 7] as u8;
+        let value0 = self.mmu.virtual_memory[_memory_address as usize] as u8;
+        let value1 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
+        let value2 = self.mmu.virtual_memory[_memory_address as usize + 2] as u8;
+        let value3 = self.mmu.virtual_memory[_memory_address as usize + 3] as u8;
+        let value4 = self.mmu.virtual_memory[_memory_address as usize + 4] as u8;
+        let value5 = self.mmu.virtual_memory[_memory_address as usize + 5] as u8;
+        let value6 = self.mmu.virtual_memory[_memory_address as usize + 6] as u8;
+        let value7 = self.mmu.virtual_memory[_memory_address as usize + 7] as u8;
         let result = u64::from_le_bytes([
             value0, value1, value2, value3, value4, value5, value6, value7,
         ]) as i64 as u64;
@@ -1049,7 +1058,7 @@ impl CPU {
         let index = rs2 as usize;
         let value = self.x_reg[index] as u32;
         let value_as_bytes = value.to_le_bytes();
-        self.mmu.memory_segment[_memory_address as usize.._memory_address as usize + 8]
+        self.mmu.virtual_memory[_memory_address as usize.._memory_address as usize + 8]
             .copy_from_slice(&value_as_bytes);
         self.x_reg[rd as usize] = 0;
         false
@@ -1057,10 +1066,10 @@ impl CPU {
     fn load_word_atomic(self: &mut Self, rd: u32, rs1: u32) -> bool {
         println!("LR.W");
         let _memory_address = self.x_reg[rs1 as usize];
-        let value1 = self.mmu.memory_segment[_memory_address as usize] as u8;
-        let value2 = self.mmu.memory_segment[_memory_address as usize + 1] as u8;
-        let value3 = self.mmu.memory_segment[_memory_address as usize + 2] as u8;
-        let value4 = self.mmu.memory_segment[_memory_address as usize + 3] as u8;
+        let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
+        let value2 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
+        let value3 = self.mmu.virtual_memory[_memory_address as usize + 2] as u8;
+        let value4 = self.mmu.virtual_memory[_memory_address as usize + 3] as u8;
         let result = u32::from_le_bytes([value1, value2, value3, value4]) as i64 as u64;
         self.x_reg[rd as usize] = result as i64 as u64;
         false
@@ -1071,7 +1080,7 @@ impl CPU {
         let index = rs2 as usize;
         let value = self.x_reg[index] as u32;
         let value_as_bytes = value.to_le_bytes();
-        self.mmu.memory_segment[_memory_address as usize.._memory_address as usize + 4]
+        self.mmu.virtual_memory[_memory_address as usize.._memory_address as usize + 4]
             .copy_from_slice(&value_as_bytes);
         self.x_reg[rd as usize] = 0;
         false
@@ -1080,10 +1089,10 @@ impl CPU {
     fn maxu_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
         println!("AMOMAXU.W");
         let _memory_address = self.x_reg[rs1 as usize];
-        let value1 = self.mmu.memory_segment[_memory_address as usize] as u8;
-        let value2 = self.mmu.memory_segment[_memory_address as usize + 1] as u8;
-        let value3 = self.mmu.memory_segment[_memory_address as usize + 2] as u8;
-        let value4 = self.mmu.memory_segment[_memory_address as usize + 3] as u8;
+        let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
+        let value2 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
+        let value3 = self.mmu.virtual_memory[_memory_address as usize + 2] as u8;
+        let value4 = self.mmu.virtual_memory[_memory_address as usize + 3] as u8;
         let result = u32::from_le_bytes([value1, value2, value3, value4]) as u32 as u64;
         let min = if result as u64 > self.x_reg[rs2 as usize] {
             self.x_reg[rs2 as usize]
@@ -1092,17 +1101,17 @@ impl CPU {
         };
         self.x_reg[rd as usize] = min;
         let value_as_bytes = min.to_le_bytes();
-        self.mmu.memory_segment[_memory_address as usize.._memory_address as usize + 4]
+        self.mmu.virtual_memory[_memory_address as usize.._memory_address as usize + 4]
             .copy_from_slice(&value_as_bytes);
         false
     }
     fn minu_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
         println!("AMOMINU.W");
         let _memory_address = self.x_reg[rs1 as usize];
-        let value1 = self.mmu.memory_segment[_memory_address as usize] as u8;
-        let value2 = self.mmu.memory_segment[_memory_address as usize + 1] as u8;
-        let value3 = self.mmu.memory_segment[_memory_address as usize + 2] as u8;
-        let value4 = self.mmu.memory_segment[_memory_address as usize + 3] as u8;
+        let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
+        let value2 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
+        let value3 = self.mmu.virtual_memory[_memory_address as usize + 2] as u8;
+        let value4 = self.mmu.virtual_memory[_memory_address as usize + 3] as u8;
         let result = u32::from_le_bytes([value1, value2, value3, value4]) as u32 as u64;
         let min = if result as u64 > self.x_reg[rs2 as usize] {
             self.x_reg[rs2 as usize]
@@ -1111,7 +1120,7 @@ impl CPU {
         };
         self.x_reg[rd as usize] = min;
         let value_as_bytes = min.to_le_bytes();
-        self.mmu.memory_segment[_memory_address as usize.._memory_address as usize + 4]
+        self.mmu.virtual_memory[_memory_address as usize.._memory_address as usize + 4]
             .copy_from_slice(&value_as_bytes);
         false
     }
@@ -1119,10 +1128,10 @@ impl CPU {
     fn min_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
         println!("AMOMIN.W");
         let _memory_address = self.x_reg[rs1 as usize];
-        let value1 = self.mmu.memory_segment[_memory_address as usize] as u8;
-        let value2 = self.mmu.memory_segment[_memory_address as usize + 1] as u8;
-        let value3 = self.mmu.memory_segment[_memory_address as usize + 2] as u8;
-        let value4 = self.mmu.memory_segment[_memory_address as usize + 3] as u8;
+        let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
+        let value2 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
+        let value3 = self.mmu.virtual_memory[_memory_address as usize + 2] as u8;
+        let value4 = self.mmu.virtual_memory[_memory_address as usize + 3] as u8;
         let result = u32::from_le_bytes([value1, value2, value3, value4]) as i32;
         let min = if result > self.x_reg[rs2 as usize] as i32 {
             self.x_reg[rs2 as usize] as i32
@@ -1131,7 +1140,7 @@ impl CPU {
         };
         self.x_reg[rd as usize] = min as u64;
         let value_as_bytes = min.to_le_bytes();
-        self.mmu.memory_segment[_memory_address as usize.._memory_address as usize + 4]
+        self.mmu.virtual_memory[_memory_address as usize.._memory_address as usize + 4]
             .copy_from_slice(&value_as_bytes);
         false
     }
@@ -1139,10 +1148,10 @@ impl CPU {
     fn max_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
         println!("AMOMAX.W");
         let _memory_address = self.x_reg[rs1 as usize];
-        let value1 = self.mmu.memory_segment[_memory_address as usize] as u8;
-        let value2 = self.mmu.memory_segment[_memory_address as usize + 1] as u8;
-        let value3 = self.mmu.memory_segment[_memory_address as usize + 2] as u8;
-        let value4 = self.mmu.memory_segment[_memory_address as usize + 3] as u8;
+        let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
+        let value2 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
+        let value3 = self.mmu.virtual_memory[_memory_address as usize + 2] as u8;
+        let value4 = self.mmu.virtual_memory[_memory_address as usize + 3] as u8;
         let result = u32::from_le_bytes([value1, value2, value3, value4]) as i32;
         let max = if result > self.x_reg[rs2 as usize] as i32 {
             result
@@ -1151,71 +1160,71 @@ impl CPU {
         };
         self.x_reg[rd as usize] = max as u64;
         let value_as_bytes = max.to_le_bytes();
-        self.mmu.memory_segment[_memory_address as usize.._memory_address as usize + 4]
+        self.mmu.virtual_memory[_memory_address as usize.._memory_address as usize + 4]
             .copy_from_slice(&value_as_bytes);
         false
     }
     fn xor_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
         println!("AMOXOR.W");
         let _memory_address = self.x_reg[rs1 as usize];
-        let value1 = self.mmu.memory_segment[_memory_address as usize] as u8;
-        let value2 = self.mmu.memory_segment[_memory_address as usize + 1] as u8;
-        let value3 = self.mmu.memory_segment[_memory_address as usize + 2] as u8;
-        let value4 = self.mmu.memory_segment[_memory_address as usize + 3] as u8;
+        let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
+        let value2 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
+        let value3 = self.mmu.virtual_memory[_memory_address as usize + 2] as u8;
+        let value4 = self.mmu.virtual_memory[_memory_address as usize + 3] as u8;
         let result = u32::from_le_bytes([value1, value2, value3, value4]) as i32;
         let newrd = result as u64 ^ self.x_reg[rs2 as usize];
         self.x_reg[rd as usize] = newrd;
         // write to the memory address now
         let value_as_bytes = newrd.to_le_bytes();
-        self.mmu.memory_segment[_memory_address as usize.._memory_address as usize + 4]
+        self.mmu.virtual_memory[_memory_address as usize.._memory_address as usize + 4]
             .copy_from_slice(&value_as_bytes);
         false
     }
     fn or_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
         println!("AMOOR.W");
         let _memory_address = self.x_reg[rs1 as usize];
-        let value1 = self.mmu.memory_segment[_memory_address as usize] as u8;
-        let value2 = self.mmu.memory_segment[_memory_address as usize + 1] as u8;
-        let value3 = self.mmu.memory_segment[_memory_address as usize + 2] as u8;
-        let value4 = self.mmu.memory_segment[_memory_address as usize + 3] as u8;
+        let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
+        let value2 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
+        let value3 = self.mmu.virtual_memory[_memory_address as usize + 2] as u8;
+        let value4 = self.mmu.virtual_memory[_memory_address as usize + 3] as u8;
         let result = u32::from_le_bytes([value1, value2, value3, value4]) as i32;
         let newrd = result as u64 | self.x_reg[rs2 as usize];
         self.x_reg[rd as usize] = newrd;
         // write to the memory address now
         let value_as_bytes = newrd.to_le_bytes();
-        self.mmu.memory_segment[_memory_address as usize.._memory_address as usize + 4]
+        self.mmu.virtual_memory[_memory_address as usize.._memory_address as usize + 4]
             .copy_from_slice(&value_as_bytes);
         false
     }
     fn and_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
         println!("AMOAND.W");
         let _memory_address = self.x_reg[rs1 as usize];
-        let value1 = self.mmu.memory_segment[_memory_address as usize] as u8;
-        let value2 = self.mmu.memory_segment[_memory_address as usize + 1] as u8;
-        let value3 = self.mmu.memory_segment[_memory_address as usize + 2] as u8;
-        let value4 = self.mmu.memory_segment[_memory_address as usize + 3] as u8;
+        let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
+        let value2 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
+        let value3 = self.mmu.virtual_memory[_memory_address as usize + 2] as u8;
+        let value4 = self.mmu.virtual_memory[_memory_address as usize + 3] as u8;
         let result = u32::from_le_bytes([value1, value2, value3, value4]) as i32;
         let newrd = result as u64 & self.x_reg[rs2 as usize];
         self.x_reg[rd as usize] = newrd;
         // write to the memory address now
         let value_as_bytes = newrd.to_le_bytes();
-        self.mmu.memory_segment[_memory_address as usize.._memory_address as usize + 4]
+        self.mmu.virtual_memory[_memory_address as usize.._memory_address as usize + 4]
             .copy_from_slice(&value_as_bytes);
         false
     }
     fn add_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
         println!("AMOADD.W");
         let _memory_address = self.x_reg[rs1 as usize];
-        let value1 = self.mmu.memory_segment[_memory_address as usize] as u8;
-        let value2 = self.mmu.memory_segment[_memory_address as usize + 1] as u8;
-        let value3 = self.mmu.memory_segment[_memory_address as usize + 2] as u8;
-        let value4 = self.mmu.memory_segment[_memory_address as usize + 3] as u8;
+        let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
+        let value2 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
+        let value3 = self.mmu.virtual_memory[_memory_address as usize + 2] as u8;
+        let value4 = self.mmu.virtual_memory[_memory_address as usize + 3] as u8;
         let result = u32::from_le_bytes([value1, value2, value3, value4]) as i32;
         let newrd = result as u64 + self.x_reg[rs2 as usize];
         self.x_reg[rd as usize] = newrd;
         // write to the memory address now
         let value_as_bytes = newrd.to_le_bytes();
-        self.mmu.memory_segment[_memory_address as usize.._memory_address as usize + 4]
+        self.mmu.virtual_memory[_memory_address as usize.._memory_address as usize + 4]
             .copy_from_slice(&value_as_bytes);
         false
     }
@@ -1223,14 +1232,14 @@ impl CPU {
     fn minu_double_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
         println!("AMOMINU.D");
         let _memory_address = self.x_reg[rs1 as usize];
-        let value0 = self.mmu.memory_segment[_memory_address as usize] as u8;
-        let value1 = self.mmu.memory_segment[_memory_address as usize + 1] as u8;
-        let value2 = self.mmu.memory_segment[_memory_address as usize + 2] as u8;
-        let value3 = self.mmu.memory_segment[_memory_address as usize + 3] as u8;
-        let value4 = self.mmu.memory_segment[_memory_address as usize + 4] as u8;
-        let value5 = self.mmu.memory_segment[_memory_address as usize + 5] as u8;
-        let value6 = self.mmu.memory_segment[_memory_address as usize + 6] as u8;
-        let value7 = self.mmu.memory_segment[_memory_address as usize + 7] as u8;
+        let value0 = self.mmu.virtual_memory[_memory_address as usize] as u8;
+        let value1 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
+        let value2 = self.mmu.virtual_memory[_memory_address as usize + 2] as u8;
+        let value3 = self.mmu.virtual_memory[_memory_address as usize + 3] as u8;
+        let value4 = self.mmu.virtual_memory[_memory_address as usize + 4] as u8;
+        let value5 = self.mmu.virtual_memory[_memory_address as usize + 5] as u8;
+        let value6 = self.mmu.virtual_memory[_memory_address as usize + 6] as u8;
+        let value7 = self.mmu.virtual_memory[_memory_address as usize + 7] as u8;
         let result = u64::from_le_bytes([
             value0, value1, value2, value3, value4, value5, value6, value7,
         ]);
@@ -1241,7 +1250,7 @@ impl CPU {
         };
         self.x_reg[rd as usize] = min as u64;
         let value_as_bytes = min.to_le_bytes();
-        self.mmu.memory_segment[_memory_address as usize.._memory_address as usize + 4]
+        self.mmu.virtual_memory[_memory_address as usize.._memory_address as usize + 4]
             .copy_from_slice(&value_as_bytes);
         false
     }
@@ -1249,14 +1258,14 @@ impl CPU {
     fn maxu_double_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
         println!("AMOMAXU.D");
         let _memory_address = self.x_reg[rs1 as usize];
-        let value0 = self.mmu.memory_segment[_memory_address as usize] as u8;
-        let value1 = self.mmu.memory_segment[_memory_address as usize + 1] as u8;
-        let value2 = self.mmu.memory_segment[_memory_address as usize + 2] as u8;
-        let value3 = self.mmu.memory_segment[_memory_address as usize + 3] as u8;
-        let value4 = self.mmu.memory_segment[_memory_address as usize + 4] as u8;
-        let value5 = self.mmu.memory_segment[_memory_address as usize + 5] as u8;
-        let value6 = self.mmu.memory_segment[_memory_address as usize + 6] as u8;
-        let value7 = self.mmu.memory_segment[_memory_address as usize + 7] as u8;
+        let value0 = self.mmu.virtual_memory[_memory_address as usize] as u8;
+        let value1 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
+        let value2 = self.mmu.virtual_memory[_memory_address as usize + 2] as u8;
+        let value3 = self.mmu.virtual_memory[_memory_address as usize + 3] as u8;
+        let value4 = self.mmu.virtual_memory[_memory_address as usize + 4] as u8;
+        let value5 = self.mmu.virtual_memory[_memory_address as usize + 5] as u8;
+        let value6 = self.mmu.virtual_memory[_memory_address as usize + 6] as u8;
+        let value7 = self.mmu.virtual_memory[_memory_address as usize + 7] as u8;
         let result = u64::from_le_bytes([
             value0, value1, value2, value3, value4, value5, value6, value7,
         ]);
@@ -1268,7 +1277,7 @@ impl CPU {
         };
         self.x_reg[rd as usize] = max as u64;
         let value_as_bytes = max.to_le_bytes();
-        self.mmu.memory_segment[_memory_address as usize.._memory_address as usize + 4]
+        self.mmu.virtual_memory[_memory_address as usize.._memory_address as usize + 4]
             .copy_from_slice(&value_as_bytes);
         false
     }
@@ -1276,14 +1285,14 @@ impl CPU {
     fn max_double_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
         println!("AMOMAX.D");
         let _memory_address = self.x_reg[rs1 as usize];
-        let value0 = self.mmu.memory_segment[_memory_address as usize] as u8;
-        let value1 = self.mmu.memory_segment[_memory_address as usize + 1] as u8;
-        let value2 = self.mmu.memory_segment[_memory_address as usize + 2] as u8;
-        let value3 = self.mmu.memory_segment[_memory_address as usize + 3] as u8;
-        let value4 = self.mmu.memory_segment[_memory_address as usize + 4] as u8;
-        let value5 = self.mmu.memory_segment[_memory_address as usize + 5] as u8;
-        let value6 = self.mmu.memory_segment[_memory_address as usize + 6] as u8;
-        let value7 = self.mmu.memory_segment[_memory_address as usize + 7] as u8;
+        let value0 = self.mmu.virtual_memory[_memory_address as usize] as u8;
+        let value1 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
+        let value2 = self.mmu.virtual_memory[_memory_address as usize + 2] as u8;
+        let value3 = self.mmu.virtual_memory[_memory_address as usize + 3] as u8;
+        let value4 = self.mmu.virtual_memory[_memory_address as usize + 4] as u8;
+        let value5 = self.mmu.virtual_memory[_memory_address as usize + 5] as u8;
+        let value6 = self.mmu.virtual_memory[_memory_address as usize + 6] as u8;
+        let value7 = self.mmu.virtual_memory[_memory_address as usize + 7] as u8;
         let result = u64::from_le_bytes([
             value0, value1, value2, value3, value4, value5, value6, value7,
         ]);
@@ -1294,7 +1303,7 @@ impl CPU {
         };
         self.x_reg[rd as usize] = max as u64;
         let value_as_bytes = max.to_le_bytes();
-        self.mmu.memory_segment[_memory_address as usize.._memory_address as usize + 4]
+        self.mmu.virtual_memory[_memory_address as usize.._memory_address as usize + 4]
             .copy_from_slice(&value_as_bytes);
         false
     }
@@ -1302,14 +1311,14 @@ impl CPU {
     fn min_double_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
         println!("AMOMIN.D");
         let _memory_address = self.x_reg[rs1 as usize];
-        let value0 = self.mmu.memory_segment[_memory_address as usize] as u8;
-        let value1 = self.mmu.memory_segment[_memory_address as usize + 1] as u8;
-        let value2 = self.mmu.memory_segment[_memory_address as usize + 2] as u8;
-        let value3 = self.mmu.memory_segment[_memory_address as usize + 3] as u8;
-        let value4 = self.mmu.memory_segment[_memory_address as usize + 4] as u8;
-        let value5 = self.mmu.memory_segment[_memory_address as usize + 5] as u8;
-        let value6 = self.mmu.memory_segment[_memory_address as usize + 6] as u8;
-        let value7 = self.mmu.memory_segment[_memory_address as usize + 7] as u8;
+        let value0 = self.mmu.virtual_memory[_memory_address as usize] as u8;
+        let value1 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
+        let value2 = self.mmu.virtual_memory[_memory_address as usize + 2] as u8;
+        let value3 = self.mmu.virtual_memory[_memory_address as usize + 3] as u8;
+        let value4 = self.mmu.virtual_memory[_memory_address as usize + 4] as u8;
+        let value5 = self.mmu.virtual_memory[_memory_address as usize + 5] as u8;
+        let value6 = self.mmu.virtual_memory[_memory_address as usize + 6] as u8;
+        let value7 = self.mmu.virtual_memory[_memory_address as usize + 7] as u8;
         let result = u64::from_le_bytes([
             value0, value1, value2, value3, value4, value5, value6, value7,
         ]);
@@ -1321,7 +1330,7 @@ impl CPU {
         self.x_reg[rd as usize] = min as u64;
         // write to the memory address
         let value_as_bytes = min.to_le_bytes();
-        self.mmu.memory_segment[_memory_address as usize.._memory_address as usize + 4]
+        self.mmu.virtual_memory[_memory_address as usize.._memory_address as usize + 4]
             .copy_from_slice(&value_as_bytes);
         false
     }
@@ -1329,14 +1338,14 @@ impl CPU {
     fn xor_double_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
         println!("AMOXOR.D");
         let _memory_address = self.x_reg[rs1 as usize];
-        let value0 = self.mmu.memory_segment[_memory_address as usize] as u8;
-        let value1 = self.mmu.memory_segment[_memory_address as usize + 1] as u8;
-        let value2 = self.mmu.memory_segment[_memory_address as usize + 2] as u8;
-        let value3 = self.mmu.memory_segment[_memory_address as usize + 3] as u8;
-        let value4 = self.mmu.memory_segment[_memory_address as usize + 4] as u8;
-        let value5 = self.mmu.memory_segment[_memory_address as usize + 5] as u8;
-        let value6 = self.mmu.memory_segment[_memory_address as usize + 6] as u8;
-        let value7 = self.mmu.memory_segment[_memory_address as usize + 7] as u8;
+        let value0 = self.mmu.virtual_memory[_memory_address as usize] as u8;
+        let value1 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
+        let value2 = self.mmu.virtual_memory[_memory_address as usize + 2] as u8;
+        let value3 = self.mmu.virtual_memory[_memory_address as usize + 3] as u8;
+        let value4 = self.mmu.virtual_memory[_memory_address as usize + 4] as u8;
+        let value5 = self.mmu.virtual_memory[_memory_address as usize + 5] as u8;
+        let value6 = self.mmu.virtual_memory[_memory_address as usize + 6] as u8;
+        let value7 = self.mmu.virtual_memory[_memory_address as usize + 7] as u8;
         let result = u64::from_le_bytes([
             value0, value1, value2, value3, value4, value5, value6, value7,
         ]);
@@ -1344,21 +1353,21 @@ impl CPU {
         self.x_reg[rd as usize] = newrd;
         // write to the memory address now
         let value_as_bytes = newrd.to_le_bytes();
-        self.mmu.memory_segment[_memory_address as usize.._memory_address as usize + 4]
+        self.mmu.virtual_memory[_memory_address as usize.._memory_address as usize + 4]
             .copy_from_slice(&value_as_bytes);
         false
     }
     fn and_double_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
         println!("AMOAND.D");
         let _memory_address = self.x_reg[rs1 as usize];
-        let value0 = self.mmu.memory_segment[_memory_address as usize] as u8;
-        let value1 = self.mmu.memory_segment[_memory_address as usize + 1] as u8;
-        let value2 = self.mmu.memory_segment[_memory_address as usize + 2] as u8;
-        let value3 = self.mmu.memory_segment[_memory_address as usize + 3] as u8;
-        let value4 = self.mmu.memory_segment[_memory_address as usize + 4] as u8;
-        let value5 = self.mmu.memory_segment[_memory_address as usize + 5] as u8;
-        let value6 = self.mmu.memory_segment[_memory_address as usize + 6] as u8;
-        let value7 = self.mmu.memory_segment[_memory_address as usize + 7] as u8;
+        let value0 = self.mmu.virtual_memory[_memory_address as usize] as u8;
+        let value1 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
+        let value2 = self.mmu.virtual_memory[_memory_address as usize + 2] as u8;
+        let value3 = self.mmu.virtual_memory[_memory_address as usize + 3] as u8;
+        let value4 = self.mmu.virtual_memory[_memory_address as usize + 4] as u8;
+        let value5 = self.mmu.virtual_memory[_memory_address as usize + 5] as u8;
+        let value6 = self.mmu.virtual_memory[_memory_address as usize + 6] as u8;
+        let value7 = self.mmu.virtual_memory[_memory_address as usize + 7] as u8;
         let result = u64::from_le_bytes([
             value0, value1, value2, value3, value4, value5, value6, value7,
         ]);
@@ -1366,21 +1375,21 @@ impl CPU {
         self.x_reg[rd as usize] = newrd;
         // write to the memory address now
         let value_as_bytes = newrd.to_le_bytes();
-        self.mmu.memory_segment[_memory_address as usize.._memory_address as usize + 4]
+        self.mmu.virtual_memory[_memory_address as usize.._memory_address as usize + 4]
             .copy_from_slice(&value_as_bytes);
         false
     }
     fn or_double_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
         println!("AMOOR.D");
         let _memory_address = self.x_reg[rs1 as usize];
-        let value0 = self.mmu.memory_segment[_memory_address as usize] as u8;
-        let value1 = self.mmu.memory_segment[_memory_address as usize + 1] as u8;
-        let value2 = self.mmu.memory_segment[_memory_address as usize + 2] as u8;
-        let value3 = self.mmu.memory_segment[_memory_address as usize + 3] as u8;
-        let value4 = self.mmu.memory_segment[_memory_address as usize + 4] as u8;
-        let value5 = self.mmu.memory_segment[_memory_address as usize + 5] as u8;
-        let value6 = self.mmu.memory_segment[_memory_address as usize + 6] as u8;
-        let value7 = self.mmu.memory_segment[_memory_address as usize + 7] as u8;
+        let value0 = self.mmu.virtual_memory[_memory_address as usize] as u8;
+        let value1 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
+        let value2 = self.mmu.virtual_memory[_memory_address as usize + 2] as u8;
+        let value3 = self.mmu.virtual_memory[_memory_address as usize + 3] as u8;
+        let value4 = self.mmu.virtual_memory[_memory_address as usize + 4] as u8;
+        let value5 = self.mmu.virtual_memory[_memory_address as usize + 5] as u8;
+        let value6 = self.mmu.virtual_memory[_memory_address as usize + 6] as u8;
+        let value7 = self.mmu.virtual_memory[_memory_address as usize + 7] as u8;
         let result = u64::from_le_bytes([
             value0, value1, value2, value3, value4, value5, value6, value7,
         ]);
@@ -1388,21 +1397,21 @@ impl CPU {
         self.x_reg[rd as usize] = newrd;
         // write to the memory address now
         let value_as_bytes = newrd.to_le_bytes();
-        self.mmu.memory_segment[_memory_address as usize.._memory_address as usize + 4]
+        self.mmu.virtual_memory[_memory_address as usize.._memory_address as usize + 4]
             .copy_from_slice(&value_as_bytes);
         false
     }
     fn add_double_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
         println!("AMOADD.D");
         let _memory_address = self.x_reg[rs1 as usize];
-        let value0 = self.mmu.memory_segment[_memory_address as usize] as u8;
-        let value1 = self.mmu.memory_segment[_memory_address as usize + 1] as u8;
-        let value2 = self.mmu.memory_segment[_memory_address as usize + 2] as u8;
-        let value3 = self.mmu.memory_segment[_memory_address as usize + 3] as u8;
-        let value4 = self.mmu.memory_segment[_memory_address as usize + 4] as u8;
-        let value5 = self.mmu.memory_segment[_memory_address as usize + 5] as u8;
-        let value6 = self.mmu.memory_segment[_memory_address as usize + 6] as u8;
-        let value7 = self.mmu.memory_segment[_memory_address as usize + 7] as u8;
+        let value0 = self.mmu.virtual_memory[_memory_address as usize] as u8;
+        let value1 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
+        let value2 = self.mmu.virtual_memory[_memory_address as usize + 2] as u8;
+        let value3 = self.mmu.virtual_memory[_memory_address as usize + 3] as u8;
+        let value4 = self.mmu.virtual_memory[_memory_address as usize + 4] as u8;
+        let value5 = self.mmu.virtual_memory[_memory_address as usize + 5] as u8;
+        let value6 = self.mmu.virtual_memory[_memory_address as usize + 6] as u8;
+        let value7 = self.mmu.virtual_memory[_memory_address as usize + 7] as u8;
         let result = u64::from_le_bytes([
             value0, value1, value2, value3, value4, value5, value6, value7,
         ]);
@@ -1410,7 +1419,7 @@ impl CPU {
         self.x_reg[rd as usize] = newrd;
         // write to the memory address now
         let value_as_bytes = newrd.to_le_bytes();
-        self.mmu.memory_segment[_memory_address as usize.._memory_address as usize + 4]
+        self.mmu.virtual_memory[_memory_address as usize.._memory_address as usize + 4]
             .copy_from_slice(&value_as_bytes);
         false
     }
@@ -1418,14 +1427,14 @@ impl CPU {
     fn swap_double_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
         println!("AMOSWAP.D");
         let _memory_address = self.x_reg[rs1 as usize];
-        let value0 = self.mmu.memory_segment[_memory_address as usize] as u8;
-        let value1 = self.mmu.memory_segment[_memory_address as usize + 1] as u8;
-        let value2 = self.mmu.memory_segment[_memory_address as usize + 2] as u8;
-        let value3 = self.mmu.memory_segment[_memory_address as usize + 3] as u8;
-        let value4 = self.mmu.memory_segment[_memory_address as usize + 4] as u8;
-        let value5 = self.mmu.memory_segment[_memory_address as usize + 5] as u8;
-        let value6 = self.mmu.memory_segment[_memory_address as usize + 6] as u8;
-        let value7 = self.mmu.memory_segment[_memory_address as usize + 7] as u8;
+        let value0 = self.mmu.virtual_memory[_memory_address as usize] as u8;
+        let value1 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
+        let value2 = self.mmu.virtual_memory[_memory_address as usize + 2] as u8;
+        let value3 = self.mmu.virtual_memory[_memory_address as usize + 3] as u8;
+        let value4 = self.mmu.virtual_memory[_memory_address as usize + 4] as u8;
+        let value5 = self.mmu.virtual_memory[_memory_address as usize + 5] as u8;
+        let value6 = self.mmu.virtual_memory[_memory_address as usize + 6] as u8;
+        let value7 = self.mmu.virtual_memory[_memory_address as usize + 7] as u8;
         let result = u64::from_le_bytes([
             value0, value1, value2, value3, value4, value5, value6, value7,
         ]) as i64 as u64;
@@ -1436,7 +1445,7 @@ impl CPU {
         let swapped_rd = self.x_reg[rd as usize];
         // write to the memory address now
         let value_as_bytes = swapped_rd.to_le_bytes();
-        self.mmu.memory_segment[_memory_address as usize.._memory_address as usize + 4]
+        self.mmu.virtual_memory[_memory_address as usize.._memory_address as usize + 4]
             .copy_from_slice(&value_as_bytes);
         false
     }
@@ -1444,10 +1453,10 @@ impl CPU {
     fn swap_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
         println!("AMOSWAP.W");
         let _memory_address = self.x_reg[rs1 as usize];
-        let value1 = self.mmu.memory_segment[_memory_address as usize] as u8;
-        let value2 = self.mmu.memory_segment[_memory_address as usize + 1] as u8;
-        let value3 = self.mmu.memory_segment[_memory_address as usize + 2] as u8;
-        let value4 = self.mmu.memory_segment[_memory_address as usize + 3] as u8;
+        let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
+        let value2 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
+        let value3 = self.mmu.virtual_memory[_memory_address as usize + 2] as u8;
+        let value4 = self.mmu.virtual_memory[_memory_address as usize + 3] as u8;
         let result = u32::from_le_bytes([value1, value2, value3, value4]) as i32;
         self.x_reg[rd as usize] = result as u64;
         let oldrs2 = self.x_reg[rs2 as usize];
@@ -1456,17 +1465,17 @@ impl CPU {
         let swapped_rd = self.x_reg[rd as usize];
         // write to the memory address now
         let value_as_bytes = swapped_rd.to_le_bytes();
-        self.mmu.memory_segment[_memory_address as usize.._memory_address as usize + 4]
+        self.mmu.virtual_memory[_memory_address as usize.._memory_address as usize + 4]
             .copy_from_slice(&value_as_bytes);
         false
     }
 
     fn load_word(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
         let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
-        let value1 = self.mmu.memory_segment[_memory_address as usize] as u8;
-        let value2 = self.mmu.memory_segment[_memory_address as usize + 1] as u8;
-        let value3 = self.mmu.memory_segment[_memory_address as usize + 2] as u8;
-        let value4 = self.mmu.memory_segment[_memory_address as usize + 3] as u8;
+        let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
+        let value2 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
+        let value3 = self.mmu.virtual_memory[_memory_address as usize + 2] as u8;
+        let value4 = self.mmu.virtual_memory[_memory_address as usize + 3] as u8;
         let result = u32::from_le_bytes([value1, value2, value3, value4]) as i64 as u64;
         self.x_reg[rd as usize] = result as u64;
         false
@@ -1474,8 +1483,8 @@ impl CPU {
     // load 16 bit value
     fn load_half(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
         let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
-        let value1 = self.mmu.memory_segment[_memory_address as usize] as u8;
-        let value2 = self.mmu.memory_segment[_memory_address as usize + 1] as u8;
+        let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
+        let value2 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
         let result = u16::from_le_bytes([value1, value2]) as i64 as u64;
         self.x_reg[rd as usize] = result as u64;
         false
@@ -1483,7 +1492,7 @@ impl CPU {
     // load 8 bit value
     fn load_byte(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
         let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
-        let value = self.mmu.memory_segment[_memory_address as usize] as u8;
+        let value = self.mmu.virtual_memory[_memory_address as usize] as u8;
         if self.debug_flag {
             println!(
                 "LB x{rd} ({:#08X}) {:#08X} -> ({:#08X})",
@@ -1497,8 +1506,8 @@ impl CPU {
     // load 16 bit value
     fn load_half_u(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
         let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
-        let value1 = self.mmu.memory_segment[_memory_address as usize] as u8;
-        let value2 = self.mmu.memory_segment[_memory_address as usize + 1] as u8;
+        let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
+        let value2 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
         let result = u16::from_le_bytes([value1, value2]) as u64;
         self.x_reg[rd as usize] = result as u64;
         false
@@ -1506,33 +1515,36 @@ impl CPU {
     // load 8 bit value
     fn load_byte_u(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
         let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
-        let value = self.mmu.memory_segment[_memory_address as usize] as u8;
+        let value = self.mmu.virtual_memory[_memory_address as usize] as u8;
         self.x_reg[rd as usize] = value as u64;
         false
     }
     // add immediate
     fn addi(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
         if self.debug_flag {
-            println!(
-                "ADDI x{rd} ({:#08X}) x{rs1} ({:#08X}) imm ({:#08X})",
-                self.x_reg[rd as usize], self.x_reg[rs1 as usize], imm
-            );
+            println!("ADDI x{rd}, x{rs1}, {}", imm);
         }
         self.x_reg[rd as usize] = imm.wrapping_add(self.x_reg[rs1 as usize]);
         false
     }
     fn andi(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
-        println!("ANDI");
+        if self.debug_flag {
+            println!("ANDI x{rd}, x{rs1}, {}", imm as i64);
+        }
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize] & imm;
         false
     }
     fn ori(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
-        println!("ORI");
+        if self.debug_flag {
+            println!("ORI x{rd}, x{rs1}, {}", imm);
+        }
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize] | imm;
         false
     }
     fn xori(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
-        println!("XORI");
+        if self.debug_flag {
+            println!("XORI x{rd}, x{rs1}, {}", imm);
+        }
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize] ^ imm;
         false
     }
@@ -1590,7 +1602,8 @@ impl CPU {
     fn bne(self: &mut Self, rs1: u32, rs2: u32, imm_b_type: i32) -> bool {
         println!("bne");
         if self.x_reg[rs1 as usize] != self.x_reg[rs2 as usize] {
-            self.pc += imm_b_type as i64 as u64;
+            self.pc = self.pc.wrapping_add(imm_b_type as u64);
+            //self.pc += imm_b_type as i64 as u64;
             return true;
         }
         false
@@ -1610,10 +1623,12 @@ impl CPU {
         true
     }
     fn c_beqz(self: &mut Self, rs1: u16, offset: u16) -> bool {
+        println!("beqz");
         if self.x_reg[rs1 as usize] == 0 {
             self.pc = self.pc.wrapping_add(offset as u64);
+            return true;
         }
-        true
+        false
     }
     fn c_bnez(self: &mut Self, rs1: u16, offset: u16) -> bool {
         if self.x_reg[rs1 as usize] != 0 {
@@ -1623,14 +1638,31 @@ impl CPU {
     }
 
     fn c_mv(self: &mut Self, rd: u16, rs2: u16) -> bool {
-        println!("c.mv");
-        self.x_reg[rd as usize] = self.x_reg[rs2 as usize];
+        if self.debug_flag {
+            println!("c.mv x{rd}, x{rs2}");
+        }
+        if rs2 != 0 {
+            self.x_reg[rd as usize] = self.x_reg[rs2 as usize];
+        }
         false
+    }
+    fn c_j(self: &mut Self, offset: u16) -> bool {
+        if self.debug_flag {
+            println!("c.j {:#08X}", self.pc.wrapping_add(offset as u64));
+        }
+        self.pc = self.pc.wrapping_add(offset as u64);
+        true
     }
     fn c_jr(self: &mut Self, rs1: u16) -> bool {
         println!("c.JR");
-        self.pc = self.x_reg[rs1 as usize];
-        true
+        if rs1 != 0 {
+            self.pc = self.x_reg[rs1 as usize];
+            println!("register -> {}", rs1 as usize);
+            println!("RS1 -> {:#08X}", self.x_reg[rs1 as usize]);
+            println!("NEW PC -> {:#08X}", self.pc);
+            return true;
+        }
+        false
     }
     fn c_jalr(self: &mut Self, rs1: u16) -> bool {
         println!("c.JALR");
@@ -1651,7 +1683,9 @@ impl CPU {
         false
     }
     fn auipc(self: &mut Self, rd: u32, imm_u_type: u64) -> bool {
-        println!("AUIPC");
+        if self.debug_flag {
+            println!("AUIPC x{} {:#08X}", rd, imm_u_type);
+        }
         self.x_reg[rd as usize] = (imm_u_type as i64 as u64).wrapping_add(self.pc);
         false
     }
@@ -1861,7 +1895,7 @@ impl CPU {
             0x40 => {
                 let fd = _a0;
                 let end = _a1 + _a2;
-                let raw_bytes = &self.mmu.memory_segment[_a1 as usize..end as usize];
+                let raw_bytes = &self.mmu.virtual_memory[_a1 as usize..end as usize];
                 unsafe {
                     let utf_bytes = core::str::from_utf8_unchecked(raw_bytes);
                     //let utf_bytes = core::str::from_utf8(raw_bytes).unwrap();
