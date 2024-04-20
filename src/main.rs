@@ -10,7 +10,7 @@ mod tests;
 
 fn main() {
     let mut emulator = Emulator::new();
-    let elf_segments = loader::load_elf("test.elf");
+    let elf_segments = loader::load_elf("test_relaxed.elf");
     emulator.load_elf_segments(&elf_segments);
     emulator.cpu.pc = elf_segments.entry_point;
     //emulator.load_raw_instructions("./add.bin").unwrap();
@@ -23,6 +23,7 @@ fn main() {
         if !emulator.fetch_instruction() {
             break;
         }
+        print!("CoffeePot Registers: \n{}\n", emulator.cpu);
         // Decode && Execute
         emulator.execute_instruction();
         //print!("CoffeePot: \n{}\n", emulator.cpu);
@@ -33,14 +34,13 @@ fn main() {
         print!("coffeepot registers: \n{}\n", emulator.cpu);
         //
         */
+        //let stdin = std::io::stdin();
+        //let mut line = String::new();
+        //stdin.lock().read_line(&mut line).unwrap();
         //print!("CoffeePot Registers: \n{}\n", emulator.cpu);
-        let stdin = std::io::stdin();
-        let mut line = String::new();
-        stdin.lock().read_line(&mut line).unwrap();
-        print!("CoffeePot Registers: \n{}\n", emulator.cpu);
-        print!("PC: {:#08X}\n", emulator.cpu.pc);
-        print!("SP: {:#08X}\n", emulator.cpu.sp);
-        print!("Instructions Executed: {}\n", counter);
+        //print!("PC: {:#08X}\n", emulator.cpu.pc);
+        //print!("SP: {:#08X}\n", emulator.cpu.sp);
+        //print!("Instructions Executed: {}\n", counter);
         counter += 1;
         /*
                 print!(
