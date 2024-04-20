@@ -29,6 +29,16 @@ impl std::fmt::Display for CPU {
             }
         }
         display_string.push_str("\n");
+        let stack_data = &self.mmu.virtual_memory[self.sp as usize..self.sp as usize + 8];
+        let stack_byte0 = stack_data[0];
+        let stack_byte1 = stack_data[1];
+        let stack_byte2 = stack_data[2];
+        let stack_byte3 = stack_data[3];
+        let stack_string = format!(
+            "STACK\n{:#02X} {:#02X} {:#02X} {:#02X} \n",
+            stack_byte0, stack_byte1, stack_byte2, stack_byte3
+        );
+        display_string.push_str(&stack_string);
         write!(f, "{}", display_string)
     }
 }
@@ -36,12 +46,31 @@ impl std::fmt::Display for CPU {
 impl CPU {
     pub fn new() -> Self {
         let mut xreg: [u64; 32] = [0; 32];
-        let sp_start = 0x1024;
-        xreg[2] = sp_start;
+        let stack_base = 0x0;
+        let sp_start = stack_base + 1024 * 1024;
+        xreg[2] = sp_start as u64;
+        let mut sp = xreg[2];
+        let mut mmu = MMU::new();
+        mmu.virtual_memory[0x50] = b'A';
+        // setup initial program stack state
+        // Auxp
+        mmu.virtual_memory[sp as usize] = 0;
+        sp = sp - 8;
+        // Envp
+        mmu.virtual_memory[sp as usize] = 0;
+        sp = sp - 8;
+        // Argv end
+        mmu.virtual_memory[sp as usize] = 0;
+        sp = sp - 8;
+        // argv 0
+        mmu.virtual_memory[sp as usize] = 0x50;
+        // argc 1
+        mmu.virtual_memory[sp as usize] = 1;
+        sp = sp - 8;
         CPU {
-            sp: sp_start as u64,
+            sp: sp,
             pc: 0x00000000,
-            mmu: MMU::new(),
+            mmu: mmu,
             x_reg: xreg,
             f_reg: [0; 32],
             csr_reg: [0; 4096],
@@ -1649,7 +1678,10 @@ impl CPU {
     }
     fn beq(self: &mut Self, rs1: u32, rs2: u32, imm_b_type: i32) -> bool {
         if self.debug_flag {
-            println!("beq -> x{:#08X}",self.pc.wrapping_add(imm_b_type as u64));
+            println!(
+                "beq if x{rs2} == x{rs1} -> x{:#08X}",
+                self.pc.wrapping_add(imm_b_type as u64)
+            );
         }
         if self.x_reg[rs1 as usize] == self.x_reg[rs2 as usize] {
             self.pc = self.pc.wrapping_add(imm_b_type as u64);
