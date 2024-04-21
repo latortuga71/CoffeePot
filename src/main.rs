@@ -16,6 +16,7 @@ fn main() {
     //emulator.load_raw_instructions("./add.bin").unwrap();
     //print!("{:?}", emulator.cpu.mmu.text_segment);
     let mut counter = 0;
+    let mut debug = false;
     println!("=== CoffeePot Init!  ===");
     loop {
         //println!("{}", emulator.cpu);
@@ -27,13 +28,16 @@ fn main() {
         // Decode && Execute
         emulator.execute_instruction();
         //print!("CoffeePot: \n{}\n", emulator.cpu);
-        /*
-        let stdin = std::io::stdin();
-        let mut line = String::new();
-        stdin.lock().read_line(&mut line).unwrap();
-        print!("coffeepot registers: \n{}\n", emulator.cpu);
+        if emulator.cpu.pc == 0x12220 {
+            debug = true;
+        }
+        if debug {
+            let stdin = std::io::stdin();
+            let mut line = String::new();
+            stdin.lock().read_line(&mut line).unwrap();
+        }
+        //print!("coffeepot registers: \n{}\n", emulator.cpu);
         //
-        */
         //let stdin = std::io::stdin();
         //let mut line = String::new();
         //stdin.lock().read_line(&mut line).unwrap();

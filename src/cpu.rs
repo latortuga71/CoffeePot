@@ -1,3 +1,5 @@
+use std::io::Write;
+
 use crate::mmu::MMU;
 
 #[derive(Debug)]
@@ -29,16 +31,11 @@ impl std::fmt::Display for CPU {
             }
         }
         display_string.push_str("\n");
-        let stack_data = &self.mmu.virtual_memory[self.sp as usize..self.sp as usize + 8];
-        let stack_byte0 = stack_data[0];
-        let stack_byte1 = stack_data[1];
-        let stack_byte2 = stack_data[2];
-        let stack_byte3 = stack_data[3];
-        let stack_string = format!(
-            "STACK\n{:#02X} {:#02X} {:#02X} {:#02X} \n",
-            stack_byte0, stack_byte1, stack_byte2, stack_byte3
-        );
-        display_string.push_str(&stack_string);
+        /*
+                let stack_slice = &self.mmu.virtual_memory[self.sp as usize..self.sp as usize + 32];
+                let stack_format = format!("{:#08X?}\n", stack_slice);
+                display_string.push_str(&stack_format);
+        */
         write!(f, "{}", display_string)
     }
 }
@@ -50,25 +47,25 @@ impl CPU {
         let sp_start = stack_base + 1024 * 1024;
         xreg[2] = sp_start as u64;
         let mut sp = xreg[2];
+        let og = sp;
         let mut mmu = MMU::new();
-        mmu.virtual_memory[0x50] = b'A';
-        // setup initial program stack state
-        // Auxp
-        mmu.virtual_memory[sp as usize] = 0;
-        sp = sp - 8;
-        // Envp
-        mmu.virtual_memory[sp as usize] = 0;
-        sp = sp - 8;
-        // Argv end
-        mmu.virtual_memory[sp as usize] = 0;
-        sp = sp - 8;
-        // argv 0
-        mmu.virtual_memory[sp as usize] = 0x50;
-        // argc 1
-        mmu.virtual_memory[sp as usize] = 1;
-        sp = sp - 8;
+
+        mmu.virtual_memory[0x99..0x99 + 7].fill(0x41); // set to ascii 'AAAAAAAAA'
+                                                       // setup initial program stack state
+                                                       // Auxp
+        let argc = u64::to_le_bytes(0x1);
+        mmu.virtual_memory[sp as usize..sp as usize + 8].copy_from_slice(&argc);
+        sp += 8;
+        let argv0_addr = u64::to_le_bytes(0x99);
+        mmu.virtual_memory[sp as usize..sp as usize + 8].copy_from_slice(&argv0_addr);
+        sp += 8;
+        mmu.virtual_memory[sp as usize..sp as usize + 7].fill(0x0);
+        sp += 8;
+        mmu.virtual_memory[sp as usize..sp as usize + 7].fill(0x0);
+        sp += 8;
+        mmu.virtual_memory[sp as usize..sp as usize + 7].fill(0x0);
         CPU {
-            sp: sp,
+            sp: og,
             pc: 0x00000000,
             mmu: mmu,
             x_reg: xreg,
@@ -784,7 +781,7 @@ impl CPU {
     }
     fn c_sd(&mut self, rs2: u16, rs1: u16, offset: u16) -> bool {
         if self.debug_flag {
-            println!("{:#08X} c.sd x{rs1},{}(x{rs2})", self.pc, offset as i16);
+            println!("{:#08X} c.sd x{rs2},{}(x{rs1})", self.pc, offset as i16);
         }
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(offset as u64);
         let index = rs2 as usize;
@@ -886,13 +883,20 @@ impl CPU {
         false
     }
     fn c_add(&mut self, rd: u16, rs2: u16) -> bool {
-        println!("add");
-        self.x_reg[rd as usize] = self.x_reg[rd as usize].wrapping_add(self.x_reg[rs2 as usize]);
+        if self.debug_flag {
+            println!("c.add x{rd},x{rd},x{rs2}");
+        }
+        if rs2 != 0 {
+            self.x_reg[rd as usize] =
+                self.x_reg[rd as usize].wrapping_add(self.x_reg[rs2 as usize]);
+        }
         false
     }
 
     fn c_addw(&mut self, rd: u16, rs2: u16) -> bool {
-        println!("addw");
+        if self.debug_flag {
+            println!("c.addw x{rd},x{rd},x{rs2}");
+        }
         self.x_reg[rd as usize] =
             self.x_reg[rd as usize].wrapping_add(self.x_reg[rs2 as usize]) as i32 as i64 as u64;
         false
