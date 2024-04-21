@@ -153,7 +153,7 @@ impl CPU {
                         true => nzimm,
                         false => (0xc0 | nzimm) as i8 as i64 as u64,
                     };
-                    self.c_addi(rd as u16, nzimm as u16)
+                    self.c_addi(rd, nzimm)
                 }
                 0x1 => {
                     let rd = (instruction >> 7) & 0x1f;
@@ -792,7 +792,7 @@ impl CPU {
         false
     }
 
-    fn c_addi(&mut self, rd: u16, nzimm: u16) -> bool {
+    fn c_addi(&mut self, rd: u64, nzimm: u64) -> bool {
         if self.debug_flag {
             println!("{:#08X} c.addi x{rd},x{rd},{}", self.pc, nzimm as i16);
         }
@@ -802,8 +802,12 @@ impl CPU {
         false
     }
     fn c_addiw(&mut self, rd: u16, nzimm: u16) -> bool {
+        if self.debug_flag {
+            println!("{:#08X} c.addiw x{rd},x{rd},{}", self.pc, nzimm as i16);
+        }
         if rd != 0 {
-            self.x_reg[rd as usize] = self.x_reg[rd as usize].wrapping_add(nzimm as u64);
+            self.x_reg[rd as usize] =
+                self.x_reg[rd as usize].wrapping_add(nzimm as u64) as i32 as i64 as u64;
         }
         false
     }
