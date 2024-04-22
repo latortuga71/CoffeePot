@@ -49,7 +49,7 @@ impl Emulator {
             self.cpu.was_last_compressed = true;
         } else {
             // not compressed
-            if !self.cpu.execute(self.current_instruction) {
+            if !self.cpu.execute(self.current_instruction as u64) {
                 self.cpu.pc += 0x4; // no branch increment PC
             }
             self.cpu.was_last_compressed = false;

@@ -1,3 +1,4 @@
+use std::io::BufRead;
 use std::io::Write;
 
 use crate::mmu::MMU;
@@ -135,7 +136,6 @@ impl CPU {
                     self.c_sw(rs2, rs1, offset)
                 }
                 0x7 => {
-                    println!("sd");
                     let rs2 = ((instruction >> 2) & 0x7) + 8;
                     let rs1 = ((instruction >> 7) & 0x7) + 8;
                     let offset = ((instruction << 1) & 0xc0) // imm[7:6]
@@ -162,7 +162,7 @@ impl CPU {
                         true => nzimm,
                         false => (0xc0 | nzimm) as i8 as i64 as u64,
                     };
-                    self.c_addiw(rd , nzimm )
+                    self.c_addiw(rd, nzimm)
                 }
                 0x2 => {
                     let rd = (instruction >> 7) & 0x1f;
@@ -171,7 +171,7 @@ impl CPU {
                         true => nzimm,
                         false => (0xc0 | nzimm) as i8 as i64 as u64,
                     };
-                    self.c_li(rd  ,nzimm )
+                    self.c_li(rd, nzimm)
                 }
                 0x3 => {
                     let rd = (instruction >> 7) & 0x1f;
@@ -197,7 +197,7 @@ impl CPU {
                                 true => nzimm as u64,
                                 false => (0xfffc0000 | nzimm) as i32 as i64 as u64,
                             };
-                            self.c_lui(rd , nzimm )
+                            self.c_lui(rd, nzimm)
                         }
                     }
                 }
@@ -207,12 +207,12 @@ impl CPU {
                         0x0 => {
                             let rd = ((instruction >> 7) & 0b111) + 8;
                             let shamt = ((instruction >> 7) & 0x20) | ((instruction >> 2) & 0x1f);
-                            self.c_srli(rd , shamt)
+                            self.c_srli(rd, shamt)
                         }
                         0x1 => {
                             let rd = ((instruction >> 7) & 0b111) + 8;
                             let shamt = ((instruction >> 7) & 0x20) | ((instruction >> 2) & 0x1f);
-                            self.c_srai(rd , shamt )
+                            self.c_srai(rd, shamt)
                         }
                         0x2 => {
                             let rd = ((instruction >> 7) & 0b111) + 8;
@@ -221,18 +221,18 @@ impl CPU {
                                 true => imm,
                                 false => (0xc0 | imm) as i8 as i64 as u64,
                             };
-                            self.c_andi(rd, imm )
+                            self.c_andi(rd, imm)
                         }
                         0x3 => match ((instruction >> 12) & 0b1, (instruction >> 5) & 0b11) {
                             (0x0, 0x0) => {
                                 let rd = ((instruction >> 7) & 0b111) + 8;
                                 let rs2 = ((instruction >> 2) & 0b111) + 8;
-                                self.c_sub(rd , rs2 )
+                                self.c_sub(rd, rs2)
                             }
                             (0x0, 0x1) => {
                                 let rd = ((instruction >> 7) & 0b111) + 8;
                                 let rs2 = ((instruction >> 2) & 0b111) + 8;
-                                self.c_xor(rd , rs2 )
+                                self.c_xor(rd, rs2)
                             }
                             (0x0, 0x2) => {
                                 let rd = ((instruction >> 7) & 0b111) + 8;
@@ -242,17 +242,17 @@ impl CPU {
                             (0x0, 0x3) => {
                                 let rd = ((instruction >> 7) & 0b111) + 8;
                                 let rs2 = ((instruction >> 2) & 0b111) + 8;
-                                self.c_and(rd, rs2 )
+                                self.c_and(rd, rs2)
                             }
                             (0x1, 0x0) => {
                                 let rd = ((instruction >> 7) & 0b111) + 8;
                                 let rs2 = ((instruction >> 2) & 0b111) + 8;
-                                self.c_subw(rd , rs2 )
+                                self.c_subw(rd, rs2)
                             }
                             (0x1, 0x1) => {
                                 let rd = ((instruction >> 7) & 0b111) + 8;
                                 let rs2 = ((instruction >> 2) & 0b111) + 8;
-                                self.c_addw(rd , rs2 )
+                                self.c_addw(rd, rs2)
                             }
                             (_, _) => panic!("invalid quadrant 2 funct2"),
                         },
@@ -289,7 +289,7 @@ impl CPU {
                         true => offset,
                         false => (0xfe00 | offset) as i16 as i64 as u64,
                     };
-                    self.c_beqz(rs1 , offset )
+                    self.c_beqz(rs1, offset)
                 }
                 0x7 => {
                     let rs1 = ((instruction >> 7) & 0b111) + 8;
@@ -303,7 +303,7 @@ impl CPU {
                         true => offset,
                         false => (0xfe00 | offset) as i16 as i64 as u64,
                     };
-                    self.c_bnez(rs1 , offset )
+                    self.c_bnez(rs1, offset)
                 }
                 _ => todo!("quadrant 1 invalid funct3"),
             },
@@ -312,7 +312,7 @@ impl CPU {
                 0x0 => {
                     let rd = (instruction >> 7) & 0x1f;
                     let shamt = ((instruction >> 7) & 0x20) | ((instruction >> 2) & 0x1f);
-                    self.c_slli(rd , shamt )
+                    self.c_slli(rd, shamt)
                 }
                 0x1 => {
                     let rd = (instruction >> 7) & 0x1f;
@@ -321,14 +321,14 @@ impl CPU {
                             | ((instruction >> 7) & 0x20) // offset[5]
                             | ((instruction >> 2) & 0x18); // offset[4:3]
 
-                    self.c_fldsp(rd , offset)
+                    self.c_fldsp(rd, offset)
                 }
                 0x2 => {
                     let rd = (instruction >> 7) & 0x1f;
                     let offset = ((instruction << 4) & 0xc0) // offset[7:6]
                             | ((instruction >> 7) & 0x20) // offset[5]
                             | ((instruction >> 2) & 0x1c); // offset[4:2]
-                    self.c_lwsp(rd , offset )
+                    self.c_lwsp(rd, offset)
                 }
                 0x3 => {
                     let rd = (instruction >> 7) & 0x1f;
@@ -336,7 +336,7 @@ impl CPU {
                     let offset = ((instruction << 4) & 0x1c0) // offset[8:6]
                             | ((instruction >> 7) & 0x20) // offset[5]
                             | ((instruction >> 2) & 0x18); // offset[4:3]
-                    self.c_ldsp(rd , offset )
+                    self.c_ldsp(rd, offset)
                 }
                 0x4 => match ((instruction >> 12) & 0x1, (instruction >> 2) & 0x1f) {
                     (0, 0) => {
@@ -346,7 +346,7 @@ impl CPU {
                     (0, _) => {
                         let rd = (instruction >> 7) & 0x1f;
                         let rs2 = (instruction >> 2) & 0x1f;
-                        self.c_mv(rd , rs2)
+                        self.c_mv(rd, rs2)
                     }
                     (1, 0) => {
                         let rd = (instruction >> 7) & 0x1F;
@@ -354,12 +354,12 @@ impl CPU {
                             todo!("c.ebreak");
                         }
                         let rs1 = (instruction >> 7) & 0x1f;
-                        self.c_jalr(rs1 )
+                        self.c_jalr(rs1)
                     }
                     (1, _) => {
                         let rd = (instruction >> 7) & 0x1f;
                         let rs2 = (instruction >> 2) & 0x1f;
-                        self.c_add(rd , rs2)
+                        self.c_add(rd, rs2)
                     }
                     (_, _) => {
                         panic!("invalid quadrant 2 ")
@@ -377,13 +377,13 @@ impl CPU {
                     // offset[5:2|7:6] = inst[12:9|8:7]
                     let offset = ((instruction >> 1) & 0xc0) // offset[7:6]
                             | ((instruction >> 7) & 0x3c); // offset[5:2]
-                    self.c_swsp(rs2 , offset )
+                    self.c_swsp(rs2, offset)
                 }
                 0x7 => {
                     let rs2 = (instruction >> 2) & 0x1f;
                     let offset = ((instruction >> 1) & 0x1c0) // offset[8:6]
                             | ((instruction >> 7) & 0x38); // offset[5:3]
-                    self.c_sdsp(rs2 , offset )
+                    self.c_sdsp(rs2, offset)
                 }
                 _ => todo!("quadrant 2 invalid funct3"),
             },
@@ -392,43 +392,13 @@ impl CPU {
     }
     // EOF
     // execute instructioon
-    pub fn execute(self: &mut Self, instruction: u32) -> bool {
-        // I TYPE
-        let opcode = instruction & 0b1111111;
+    pub fn execute(self: &mut Self, instruction: u64) -> bool {
+        let opcode = instruction & 0x0000007f;
         let rd = (instruction & 0x00000f80) >> 7;
         let rs1 = (instruction & 0x000f8000) >> 15;
-        let csr = (instruction) & (((1 << 12) - 1) << 20);
-        let _rs2 = (instruction & 0x01f00000) >> 20;
+        let rs2 = (instruction & 0x01f00000) >> 20;
         let funct3 = (instruction & 0x00007000) >> 12;
         let funct7 = (instruction & 0xfe000000) >> 25;
-        let funct5 = (instruction & 0xfe000000) >> 27;
-        let imm = ((instruction as i32 as i64) >> 20) as u64;
-        let imm_5_11_mode = (imm >> 6) & 0b111111;
-        let _imm_5_11 = imm & 0b111111;
-        let shamt = imm & 0b111111;
-        let _funct6 = funct7 >> 1;
-
-        // S TYPE IMMEDIATE VALUE
-        let imm115 = (instruction >> 25) & 0b1111111;
-        let imm40 = (instruction >> 7) & 0b11111;
-        let imm_s = (imm115 << 5) | imm40;
-        let imm_s_type = ((imm_s as i32) << 20) >> 20;
-        // B TYPE IMMEDIATE VALUE
-        let imm12 = (instruction >> 31) & 1;
-        let imm105 = (instruction >> 25) & 0b111111;
-        let imm41 = (instruction >> 8) & 0b1111;
-        let imm11 = (instruction >> 7) & 1;
-        let imm_b = (imm12 << 12) | (imm11 << 11) | (imm105 << 5) | (imm41 << 1);
-        let imm_b_type = ((imm_b as i32) << 19) >> 19;
-        // J TYPE IMMEDIATE VALUE
-        let imm20 = (instruction >> 31) & 1;
-        let imm101 = (instruction >> 21) & 0b1111111111;
-        let imm11 = (instruction >> 20) & 1;
-        let imm1912 = (instruction >> 12) & 0b11111111;
-        let imm_j = (imm20 << 20) | (imm1912 << 12) | (imm11 << 11) | (imm101 << 1);
-        let imm_j_type = ((imm_j as i32) << 11) >> 11;
-        // U TYPE IMMEDIATE VALUE
-        let imm_u_type = (instruction as i32 as i64 as u64) >> 12;
         match opcode {
             0b1110011 => match funct3 {
                 0x0 => match funct7 {
@@ -562,7 +532,7 @@ impl CPU {
             0b1100011 => match funct3 {
                 0x0 => self.beq(rs1, _rs2, imm_b_type),
                 0x1 => self.bne(rs1, _rs2, imm_b_type),
-                0x4 => self.blt(rs1, _rs2, imm_b_type),
+                0x4 => self.blt(rs1, _rs2, imm_b_type_new),
                 0x5 => self.bge(rs1, _rs2, imm_b_type),
                 0x6 => self.bltu(rs1, _rs2, imm_b_type),
                 0x7 => self.bgeu(rs1, _rs2, imm_b_type),
@@ -724,7 +694,7 @@ impl CPU {
     }
 
     fn c_add4spn(&mut self, rd: u64, nzuimm: u64) -> bool {
-        print!("c.add4spn");
+        println!("c.addi4spn");
         let temp = self.x_reg[2].wrapping_add(nzuimm as u64);
         self.x_reg[rd as usize] = temp;
         false
@@ -1679,10 +1649,16 @@ impl CPU {
         false
     }
 
-    fn blt(self: &mut Self, rs1: u32, rs2: u32, imm_b_type: i32) -> bool {
-        println!("blt");
+    fn blt(self: &mut Self, rs1: u32, rs2: u32, imm_b_type: u64) -> bool {
+        if self.debug_flag {
+            println!("blt x{rs1},x{rs2},{:#08X}", imm_b_type);
+            println!(
+                "if {:#08X} less than {:#08X}",
+                self.x_reg[rs1 as usize] as i64, self.x_reg[rs2 as usize] as i64
+            );
+        }
         if (self.x_reg[rs1 as usize] as i64) < (self.x_reg[rs2 as usize] as i64) {
-            self.pc += imm_b_type as i64 as u64;
+            self.pc = self.pc.wrapping_add(imm_b_type);
             return true;
         }
         false
@@ -1692,7 +1668,6 @@ impl CPU {
         println!("bne");
         if self.x_reg[rs1 as usize] != self.x_reg[rs2 as usize] {
             self.pc = self.pc.wrapping_add(imm_b_type as u64);
-            //self.pc += imm_b_type as i64 as u64;
             return true;
         }
         false
@@ -2000,7 +1975,20 @@ impl CPU {
         let _a3 = self.x_reg[13];
         let _a4 = self.x_reg[14];
         let _a5 = self.x_reg[15];
+        println!("syscall {:#08X}", syscall);
+        let stdin = std::io::stdin();
+        let mut line = String::new();
+        stdin.lock().read_line(&mut line).unwrap();
         match syscall {
+            0x62 => {
+                // https://man7.org/linux/man-pages/man2/lseek.2.html
+                let fd = _a0;
+                let offset = _a1;
+                let whence = _a2;
+                println!("{:#08X} {:#08X} {:#08X}", fd, offset, whence);
+                self.x_reg[10] = fd;
+                todo!("lseek");
+            }
             0x60 => {
                 // https://man7.org/linux/man-pages/man2/set_tid_address.2.html
                 let tidptr = _a0;
@@ -2030,7 +2018,7 @@ impl CPU {
                 std::process::exit(_a0 as i32);
             }
             _ => {
-                panic!("Unimplemented syscall -> {:#08X}",syscall);
+                panic!("Unimplemented syscall -> {:#08X}", syscall);
             }
         }
         false
