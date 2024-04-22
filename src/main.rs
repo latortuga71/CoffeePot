@@ -28,6 +28,7 @@ fn main() {
         // Decode && Execute
         emulator.execute_instruction();
         //print!("CoffeePot: \n{}\n", emulator.cpu);
+        /*
         if emulator.cpu.pc == 0x12220 {
             debug = true;
         }
@@ -36,6 +37,7 @@ fn main() {
             let mut line = String::new();
             stdin.lock().read_line(&mut line).unwrap();
         }
+        */
         //print!("coffeepot registers: \n{}\n", emulator.cpu);
         //
         //let stdin = std::io::stdin();

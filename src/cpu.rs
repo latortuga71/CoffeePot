@@ -94,14 +94,14 @@ impl CPU {
                     if nzuimm == 0 {
                         panic!("illegal instruction");
                     }
-                    self.c_add4spn(rd as u16, nzuimm as u16)
+                    self.c_add4spn(rd, nzuimm)
                 }
                 0x1 => {
                     let rd = ((instruction >> 2) & 0x7) + 8;
                     let rs1 = ((instruction >> 7) & 0x7) + 8;
                     let offset = ((instruction << 1) & 0xc0) // imm[7:6]
                             | ((instruction >> 7) & 0x38); // imm[5:3]{
-                    self.c_fld(rd as u16, rs1 as u16, offset as u16)
+                    self.c_fld(rd, rs1, offset)
                 }
                 0x2 => {
                     let rd = ((instruction >> 2) & 0x7) + 8;
@@ -110,13 +110,13 @@ impl CPU {
                     let offset = ((instruction << 1) & 0x40) // imm[6]
                             | ((instruction >> 7) & 0x38) // imm[5:3]
                             | ((instruction >> 4) & 0x4); // imm[2]
-                    self.c_lw(rd as u16, rs1 as u16, offset as u16)
+                    self.c_lw(rd, rs1, offset)
                 }
                 0x3 => {
                     let rd = ((instruction >> 2) & 0x7) + 8;
                     let rs1 = ((instruction >> 7) & 0x7) + 8;
                     let offset = ((instruction << 1) & 0xc0) | ((instruction >> 7) & 0x38);
-                    self.c_ld(rd as u16, rs1 as u16, offset as u16)
+                    self.c_ld(rd, rs1, offset)
                 }
                 0x4 => panic!("reserved"),
                 0x5 => {
@@ -124,7 +124,7 @@ impl CPU {
                     let rs1 = ((instruction >> 7) & 0x7) + 8;
                     let offset = ((instruction << 1) & 0xc0) // imm[7:6]
                             | ((instruction >> 7) & 0x38); // imm[5:3]
-                    self.c_fsd(rs1 as u16, rs2 as u16, offset as u16)
+                    self.c_fsd(rs1, rs2, offset)
                 }
                 0x6 => {
                     let rs2 = ((instruction >> 2) & 0x7) + 8;
@@ -132,7 +132,7 @@ impl CPU {
                     let offset = ((instruction << 1) & 0x40) // imm[6]
                             | ((instruction >> 7) & 0x38) // imm[5:3]
                             | ((instruction >> 4) & 0x4); // imm[2]
-                    self.c_sw(rs2 as u16, rs1 as u16, offset as u16)
+                    self.c_sw(rs2, rs1, offset)
                 }
                 0x7 => {
                     println!("sd");
@@ -140,7 +140,7 @@ impl CPU {
                     let rs1 = ((instruction >> 7) & 0x7) + 8;
                     let offset = ((instruction << 1) & 0xc0) // imm[7:6]
                                 | ((instruction >> 7) & 0x38); // imm[5:3]
-                    self.c_sd(rs2 as u16, rs1 as u16, offset as u16)
+                    self.c_sd(rs2, rs1, offset)
                 }
                 _ => todo!("quadrant 0 invalid funct3"),
             },
@@ -162,7 +162,7 @@ impl CPU {
                         true => nzimm,
                         false => (0xc0 | nzimm) as i8 as i64 as u64,
                     };
-                    self.c_addiw(rd as u16, nzimm as u16)
+                    self.c_addiw(rd , nzimm )
                 }
                 0x2 => {
                     let rd = (instruction >> 7) & 0x1f;
@@ -171,7 +171,7 @@ impl CPU {
                         true => nzimm,
                         false => (0xc0 | nzimm) as i8 as i64 as u64,
                     };
-                    self.c_li(rd as u16, nzimm as u16)
+                    self.c_li(rd  ,nzimm )
                 }
                 0x3 => {
                     let rd = (instruction >> 7) & 0x1f;
@@ -187,7 +187,7 @@ impl CPU {
                                 true => nzimm,
                                 false => (0xfc00 | nzimm) as i16 as i32 as i64 as u64,
                             };
-                            self.c_addi16sp(rd as u16, nzimm as u16)
+                            self.c_addi16sp(rd, nzimm)
                         }
                         _ => {
                             let mut nzimm =
@@ -197,7 +197,7 @@ impl CPU {
                                 true => nzimm as u64,
                                 false => (0xfffc0000 | nzimm) as i32 as i64 as u64,
                             };
-                            self.c_lui(rd as u16, nzimm as u16)
+                            self.c_lui(rd , nzimm )
                         }
                     }
                 }
@@ -207,12 +207,12 @@ impl CPU {
                         0x0 => {
                             let rd = ((instruction >> 7) & 0b111) + 8;
                             let shamt = ((instruction >> 7) & 0x20) | ((instruction >> 2) & 0x1f);
-                            self.c_srli(rd as u16, shamt as u16)
+                            self.c_srli(rd , shamt)
                         }
                         0x1 => {
                             let rd = ((instruction >> 7) & 0b111) + 8;
                             let shamt = ((instruction >> 7) & 0x20) | ((instruction >> 2) & 0x1f);
-                            self.c_srai(rd as u16, shamt as u16)
+                            self.c_srai(rd , shamt )
                         }
                         0x2 => {
                             let rd = ((instruction >> 7) & 0b111) + 8;
@@ -221,38 +221,38 @@ impl CPU {
                                 true => imm,
                                 false => (0xc0 | imm) as i8 as i64 as u64,
                             };
-                            self.c_andi(rd as u16, imm as u16)
+                            self.c_andi(rd, imm )
                         }
                         0x3 => match ((instruction >> 12) & 0b1, (instruction >> 5) & 0b11) {
                             (0x0, 0x0) => {
                                 let rd = ((instruction >> 7) & 0b111) + 8;
                                 let rs2 = ((instruction >> 2) & 0b111) + 8;
-                                self.c_sub(rd as u16, rs2 as u16)
+                                self.c_sub(rd , rs2 )
                             }
                             (0x0, 0x1) => {
                                 let rd = ((instruction >> 7) & 0b111) + 8;
                                 let rs2 = ((instruction >> 2) & 0b111) + 8;
-                                self.c_xor(rd as u16, rs2 as u16)
+                                self.c_xor(rd , rs2 )
                             }
                             (0x0, 0x2) => {
                                 let rd = ((instruction >> 7) & 0b111) + 8;
                                 let rs2 = ((instruction >> 2) & 0b111) + 8;
-                                self.c_or(rd as u16, rs2 as u16)
+                                self.c_or(rd, rs2)
                             }
                             (0x0, 0x3) => {
                                 let rd = ((instruction >> 7) & 0b111) + 8;
                                 let rs2 = ((instruction >> 2) & 0b111) + 8;
-                                self.c_and(rd as u16, rs2 as u16)
+                                self.c_and(rd, rs2 )
                             }
                             (0x1, 0x0) => {
                                 let rd = ((instruction >> 7) & 0b111) + 8;
                                 let rs2 = ((instruction >> 2) & 0b111) + 8;
-                                self.c_subw(rd as u16, rs2 as u16)
+                                self.c_subw(rd , rs2 )
                             }
                             (0x1, 0x1) => {
                                 let rd = ((instruction >> 7) & 0b111) + 8;
                                 let rs2 = ((instruction >> 2) & 0b111) + 8;
-                                self.c_addw(rd as u16, rs2 as u16)
+                                self.c_addw(rd , rs2 )
                             }
                             (_, _) => panic!("invalid quadrant 2 funct2"),
                         },
@@ -274,7 +274,7 @@ impl CPU {
                         true => offset,
                         false => (0xf000 | offset) as i16 as i64 as u64,
                     };
-                    self.c_j(offset as u16)
+                    self.c_j(offset)
                 }
                 0x6 => {
                     let rs1 = ((instruction >> 7) & 0b111) + 8;
@@ -289,7 +289,7 @@ impl CPU {
                         true => offset,
                         false => (0xfe00 | offset) as i16 as i64 as u64,
                     };
-                    self.c_beqz(rs1 as u16, offset as u16)
+                    self.c_beqz(rs1 , offset )
                 }
                 0x7 => {
                     let rs1 = ((instruction >> 7) & 0b111) + 8;
@@ -303,7 +303,7 @@ impl CPU {
                         true => offset,
                         false => (0xfe00 | offset) as i16 as i64 as u64,
                     };
-                    self.c_bnez(rs1 as u16, offset as u16)
+                    self.c_bnez(rs1 , offset )
                 }
                 _ => todo!("quadrant 1 invalid funct3"),
             },
@@ -312,7 +312,7 @@ impl CPU {
                 0x0 => {
                     let rd = (instruction >> 7) & 0x1f;
                     let shamt = ((instruction >> 7) & 0x20) | ((instruction >> 2) & 0x1f);
-                    self.c_slli(rd as u16, shamt as u16)
+                    self.c_slli(rd , shamt )
                 }
                 0x1 => {
                     let rd = (instruction >> 7) & 0x1f;
@@ -321,14 +321,14 @@ impl CPU {
                             | ((instruction >> 7) & 0x20) // offset[5]
                             | ((instruction >> 2) & 0x18); // offset[4:3]
 
-                    self.c_fldsp(rd as u16, offset as u16)
+                    self.c_fldsp(rd , offset)
                 }
                 0x2 => {
                     let rd = (instruction >> 7) & 0x1f;
                     let offset = ((instruction << 4) & 0xc0) // offset[7:6]
                             | ((instruction >> 7) & 0x20) // offset[5]
                             | ((instruction >> 2) & 0x1c); // offset[4:2]
-                    self.c_lwsp(rd as u16, offset as u16)
+                    self.c_lwsp(rd , offset )
                 }
                 0x3 => {
                     let rd = (instruction >> 7) & 0x1f;
@@ -336,17 +336,17 @@ impl CPU {
                     let offset = ((instruction << 4) & 0x1c0) // offset[8:6]
                             | ((instruction >> 7) & 0x20) // offset[5]
                             | ((instruction >> 2) & 0x18); // offset[4:3]
-                    self.c_ldsp(rd as u16, offset as u16)
+                    self.c_ldsp(rd , offset )
                 }
                 0x4 => match ((instruction >> 12) & 0x1, (instruction >> 2) & 0x1f) {
                     (0, 0) => {
                         let rs1 = (instruction >> 7) & 0x1f;
-                        self.c_jr(rs1 as u16)
+                        self.c_jr(rs1)
                     }
                     (0, _) => {
                         let rd = (instruction >> 7) & 0x1f;
                         let rs2 = (instruction >> 2) & 0x1f;
-                        self.c_mv(rd as u16, rs2 as u16)
+                        self.c_mv(rd , rs2)
                     }
                     (1, 0) => {
                         let rd = (instruction >> 7) & 0x1F;
@@ -354,12 +354,12 @@ impl CPU {
                             todo!("c.ebreak");
                         }
                         let rs1 = (instruction >> 7) & 0x1f;
-                        self.c_jalr(rs1 as u16)
+                        self.c_jalr(rs1 )
                     }
                     (1, _) => {
                         let rd = (instruction >> 7) & 0x1f;
                         let rs2 = (instruction >> 2) & 0x1f;
-                        self.c_add(rd as u16, rs2 as u16)
+                        self.c_add(rd , rs2)
                     }
                     (_, _) => {
                         panic!("invalid quadrant 2 ")
@@ -377,13 +377,13 @@ impl CPU {
                     // offset[5:2|7:6] = inst[12:9|8:7]
                     let offset = ((instruction >> 1) & 0xc0) // offset[7:6]
                             | ((instruction >> 7) & 0x3c); // offset[5:2]
-                    self.c_swsp(rs2 as u16, offset as u16)
+                    self.c_swsp(rs2 , offset )
                 }
                 0x7 => {
                     let rs2 = (instruction >> 2) & 0x1f;
                     let offset = ((instruction >> 1) & 0x1c0) // offset[8:6]
                             | ((instruction >> 7) & 0x38); // offset[5:3]
-                    self.c_sdsp(rs2 as u16, offset as u16)
+                    self.c_sdsp(rs2 , offset )
                 }
                 _ => todo!("quadrant 2 invalid funct3"),
             },
@@ -546,17 +546,17 @@ impl CPU {
             0b0010011 => match funct3 {
                 // I TYPE
                 0x0 => self.addi(rd, rs1, imm),
-                0x4 => self.xori(rd, rs1, imm),
-                0x6 => self.ori(rd, rs1, imm),
-                0x7 => self.andi(rd, rs1, imm),
                 0x1 => self.slli(rd, rs1, shamt),
-                0x5 => match imm_5_11_mode {
-                    0x0 => self.srli(rd, rs1, shamt),
-                    0x20 => self.srai(rd, rs1, shamt),
-                    _ => panic!("INVALID IMMEDIATE 5-11"),
-                },
                 0x2 => self.slti(rd, rs1, imm),
                 0x3 => self.sltiu(rd, rs1, imm),
+                0x4 => self.xori(rd, rs1, imm),
+                0x5 => match imm_5_11_mode {
+                    0x0 => self.srli(rd, rs1, shamt),
+                    0x10 => self.srai(rd, rs1, shamt),
+                    _ => panic!("INVALID IMMEDIATE 5-11"),
+                },
+                0x6 => self.ori(rd, rs1, imm),
+                0x7 => self.andi(rd, rs1, imm),
                 _ => panic!("Unimplemented funct3"),
             },
             0b1100011 => match funct3 {
@@ -666,16 +666,16 @@ impl CPU {
         self.x_reg[rd as usize] = result as u64;
         false
     }
-    fn c_slli(&mut self, rd: u16, shamt: u16) -> bool {
+    fn c_slli(&mut self, rd: u64, shamt: u64) -> bool {
         println!("{:#08X} c.slli x{rd},x{rd},{:#04X}", self.pc, shamt);
         self.x_reg[rd as usize] = self.x_reg[rd as usize] << shamt;
         false
     }
-    fn c_fldsp(&mut self, rd: u16, offset: u16) -> bool {
+    fn c_fldsp(&mut self, rd: u64, offset: u64) -> bool {
         todo!("floatingpoint");
         false
     }
-    fn c_sdsp(&mut self, rs2: u16, offset: u16) -> bool {
+    fn c_sdsp(&mut self, rs2: u64, offset: u64) -> bool {
         if self.debug_flag {
             println!("{:#08X} c.sdsp x{rs2},{offset}(sp)", self.pc);
         }
@@ -687,7 +687,7 @@ impl CPU {
             .copy_from_slice(&value_as_bytes);
         false
     }
-    fn c_swsp(&mut self, rs2: u16, offset: u16) -> bool {
+    fn c_swsp(&mut self, rs2: u64, offset: u64) -> bool {
         println!("swsp");
         let _memory_address = self.x_reg[2].wrapping_add(offset as u64);
         let index = rs2 as usize;
@@ -697,30 +697,43 @@ impl CPU {
             .copy_from_slice(&value_as_bytes);
         false
     }
-    fn c_lwsp(&mut self, rd: u16, offset: u16) -> bool {
+    fn c_lwsp(&mut self, rd: u64, offset: u64) -> bool {
         println!("lwsp");
         let value = self.x_reg[2].wrapping_add(offset as u64) as i32 as i64 as u64;
         self.x_reg[rd as usize] = value;
         false
     }
-    fn c_ldsp(&mut self, rd: u16, offset: u16) -> bool {
-        println!("ldsp");
-        let value = self.x_reg[2].wrapping_add(offset as u64);
-        self.x_reg[rd as usize] = value;
+    fn c_ldsp(&mut self, rd: u64, offset: u64) -> bool {
+        if self.debug_flag {
+            println!("c.ldsp x{rd} {offset},(x2)");
+        }
+        let _memory_address = self.x_reg[2].wrapping_add(offset);
+        let value0 = self.mmu.virtual_memory[_memory_address as usize] as u8;
+        let value1 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
+        let value2 = self.mmu.virtual_memory[_memory_address as usize + 2] as u8;
+        let value3 = self.mmu.virtual_memory[_memory_address as usize + 3] as u8;
+        let value4 = self.mmu.virtual_memory[_memory_address as usize + 4] as u8;
+        let value5 = self.mmu.virtual_memory[_memory_address as usize + 5] as u8;
+        let value6 = self.mmu.virtual_memory[_memory_address as usize + 6] as u8;
+        let value7 = self.mmu.virtual_memory[_memory_address as usize + 7] as u8;
+        let result = u64::from_le_bytes([
+            value0, value1, value2, value3, value4, value5, value6, value7,
+        ]) as i64 as u64;
+        self.x_reg[rd as usize] = result;
         false
     }
 
-    fn c_add4spn(&mut self, rd: u16, nzuimm: u16) -> bool {
+    fn c_add4spn(&mut self, rd: u64, nzuimm: u64) -> bool {
         print!("c.add4spn");
         let temp = self.x_reg[2].wrapping_add(nzuimm as u64);
         self.x_reg[rd as usize] = temp;
         false
     }
-    fn c_fld(&mut self, rd: u16, rs1: u16, offset: u16) -> bool {
+    fn c_fld(&mut self, rd: u64, rs1: u64, offset: u64) -> bool {
         todo!("FLOATING POINT REGISTERS");
         false
     }
-    fn c_lw(&mut self, rd: u16, rs1: u16, offset: u16) -> bool {
+    fn c_lw(&mut self, rd: u64, rs1: u64, offset: u64) -> bool {
         if self.debug_flag {
             println!("{:#08X} c.lw x{rd},{offset},(x{rs1})", self.pc);
         }
@@ -742,7 +755,7 @@ impl CPU {
         self.x_reg[rd as usize] = result as i32 as i64 as u64;
         false
     }
-    fn c_ld(&mut self, rd: u16, rs1: u16, offset: u16) -> bool {
+    fn c_ld(&mut self, rd: u64, rs1: u64, offset: u64) -> bool {
         if self.debug_flag {
             println!("{:#08X} c.ld x{rd},{offset},(x{rs1})", self.pc);
         }
@@ -764,12 +777,12 @@ impl CPU {
         self.x_reg[rd as usize] = result as i32 as i64 as u64;
         false
     }
-    fn c_fsd(&mut self, rd: u16, rs1: u16, offset: u16) -> bool {
+    fn c_fsd(&mut self, rd: u64, rs1: u64, offset: u64) -> bool {
         todo!("floating point");
         false
     }
 
-    fn c_sw(&mut self, rs2: u16, rs1: u16, offset: u16) -> bool {
+    fn c_sw(&mut self, rs2: u64, rs1: u64, offset: u64) -> bool {
         println!("c_sw");
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(offset as u64);
         let index = rs2 as usize;
@@ -779,7 +792,7 @@ impl CPU {
             .copy_from_slice(&value_as_bytes);
         false
     }
-    fn c_sd(&mut self, rs2: u16, rs1: u16, offset: u16) -> bool {
+    fn c_sd(&mut self, rs2: u64, rs1: u64, offset: u64) -> bool {
         if self.debug_flag {
             println!("{:#08X} c.sd x{rs2},{}(x{rs1})", self.pc, offset as i16);
         }
@@ -801,7 +814,7 @@ impl CPU {
         }
         false
     }
-    fn c_addiw(&mut self, rd: u16, nzimm: u16) -> bool {
+    fn c_addiw(&mut self, rd: u64, nzimm: u64) -> bool {
         if self.debug_flag {
             println!("{:#08X} c.addiw x{rd},x{rd},{}", self.pc, nzimm as i16);
         }
@@ -812,7 +825,7 @@ impl CPU {
         false
     }
 
-    fn c_lui(&mut self, rd: u16, nzimm: u16) -> bool {
+    fn c_lui(&mut self, rd: u64, nzimm: u64) -> bool {
         if self.debug_flag {
             println!("{:#08X} c.lui x{rd},{:#08X}", self.pc, nzimm);
         }
@@ -822,7 +835,7 @@ impl CPU {
         false
     }
 
-    fn c_li(&mut self, rd: u16, imm: u16) -> bool {
+    fn c_li(&mut self, rd: u64, imm: u64) -> bool {
         if self.debug_flag {
             println!("{:#08X} c.li x{rd},{:#08X}", self.pc, imm);
         }
@@ -832,7 +845,7 @@ impl CPU {
         false
     }
 
-    fn c_addi16sp(&mut self, rd: u16, nzimm: u16) -> bool {
+    fn c_addi16sp(&mut self, rd: u64, nzimm: u64) -> bool {
         if self.debug_flag {
             println!("{:#08X} c.addi16sp sp,sp,{}", self.pc, nzimm as i16);
         }
@@ -841,52 +854,52 @@ impl CPU {
         }
         false
     }
-    fn c_srli(&mut self, rd: u16, shamt: u16) -> bool {
+    fn c_srli(&mut self, rd: u64, shamt: u64) -> bool {
         println!("srli");
         self.x_reg[rd as usize] = self.x_reg[rd as usize] >> shamt;
         false
     }
-    fn c_srai(&mut self, rd: u16, shamt: u16) -> bool {
+    fn c_srai(&mut self, rd: u64, shamt: u64) -> bool {
         println!("srai");
         self.x_reg[rd as usize] = ((self.x_reg[rd as usize] as i64) >> shamt) as u64;
         false
     }
 
-    fn c_andi(&mut self, rd: u16, imm: u16) -> bool {
+    fn c_andi(&mut self, rd: u64, imm: u64) -> bool {
         println!("andi");
         self.x_reg[rd as usize] = self.x_reg[rd as usize] & imm as u64;
         false
     }
 
-    fn c_sub(&mut self, rd: u16, rs2: u16) -> bool {
+    fn c_sub(&mut self, rd: u64, rs2: u64) -> bool {
         println!("sub");
         self.x_reg[rd as usize] = self.x_reg[rd as usize].wrapping_sub(self.x_reg[rs2 as usize]);
         false
     }
 
-    fn c_xor(&mut self, rd: u16, rs2: u16) -> bool {
+    fn c_xor(&mut self, rd: u64, rs2: u64) -> bool {
         println!("xor");
         self.x_reg[rd as usize] = self.x_reg[rd as usize] ^ self.x_reg[rs2 as usize];
         false
     }
-    fn c_or(&mut self, rd: u16, rs2: u16) -> bool {
+    fn c_or(&mut self, rd: u64, rs2: u64) -> bool {
         println!("or");
         self.x_reg[rd as usize] = self.x_reg[rd as usize] ^ self.x_reg[rs2 as usize];
         false
     }
-    fn c_and(&mut self, rd: u16, rs2: u16) -> bool {
+    fn c_and(&mut self, rd: u64, rs2: u64) -> bool {
         println!("and");
         self.x_reg[rd as usize] = self.x_reg[rd as usize] & self.x_reg[rs2 as usize];
         false
     }
 
-    fn c_subw(&mut self, rd: u16, rs2: u16) -> bool {
+    fn c_subw(&mut self, rd: u64, rs2: u64) -> bool {
         println!("subw");
         self.x_reg[rd as usize] =
             self.x_reg[rd as usize].wrapping_sub(self.x_reg[rs2 as usize]) as i32 as i64 as u64;
         false
     }
-    fn c_add(&mut self, rd: u16, rs2: u16) -> bool {
+    fn c_add(&mut self, rd: u64, rs2: u64) -> bool {
         if self.debug_flag {
             println!("c.add x{rd},x{rd},x{rs2}");
         }
@@ -897,7 +910,7 @@ impl CPU {
         false
     }
 
-    fn c_addw(&mut self, rd: u16, rs2: u16) -> bool {
+    fn c_addw(&mut self, rd: u64, rs2: u64) -> bool {
         if self.debug_flag {
             println!("c.addw x{rd},x{rd},x{rs2}");
         }
@@ -1544,7 +1557,7 @@ impl CPU {
 
     fn load_word(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
         println!("lw");
-        let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
+        let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm);
         let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
         let value2 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
         let value3 = self.mmu.virtual_memory[_memory_address as usize + 2] as u8;
@@ -1660,7 +1673,7 @@ impl CPU {
     fn bge(self: &mut Self, rs1: u32, rs2: u32, imm_b_type: i32) -> bool {
         println!("bge");
         if (self.x_reg[rs1 as usize] as i64) >= (self.x_reg[rs2 as usize] as i64) {
-            self.pc += imm_b_type as i64 as u64;
+            self.pc = self.pc.wrapping_add(imm_b_type as u64);
             return true;
         }
         false
@@ -1703,7 +1716,7 @@ impl CPU {
         self.pc = self.pc.wrapping_add(imm_j_type as i64 as u64);
         true
     }
-    fn c_beqz(self: &mut Self, rs1: u16, offset: u16) -> bool {
+    fn c_beqz(self: &mut Self, rs1: u64, offset: u64) -> bool {
         if self.debug_flag {
             println!("c.beqz x{rs1} {:#08X}", offset);
         }
@@ -1713,15 +1726,18 @@ impl CPU {
         }
         false
     }
-    fn c_bnez(self: &mut Self, rs1: u16, offset: u16) -> bool {
-        println!("bnez");
+    fn c_bnez(self: &mut Self, rs1: u64, offset: u64) -> bool {
+        if self.debug_flag {
+            println!("c.bnez x{rs1},x0,{:#08X}", offset);
+        }
         if self.x_reg[rs1 as usize] != 0 {
             self.pc = self.pc.wrapping_add(offset as u64);
+            return true;
         }
-        true
+        false
     }
 
-    fn c_mv(self: &mut Self, rd: u16, rs2: u16) -> bool {
+    fn c_mv(self: &mut Self, rd: u64, rs2: u64) -> bool {
         if self.debug_flag {
             println!("{:#08X} c.mv x{rd}, x{rs2}", self.pc);
         }
@@ -1730,7 +1746,7 @@ impl CPU {
         }
         false
     }
-    fn c_j(self: &mut Self, offset: u16) -> bool {
+    fn c_j(self: &mut Self, offset: u64) -> bool {
         if self.debug_flag {
             println!(
                 "{:#08X} c.j {:#08X}",
@@ -1741,18 +1757,17 @@ impl CPU {
         self.pc = self.pc.wrapping_add(offset as u64);
         true
     }
-    fn c_jr(self: &mut Self, rs1: u16) -> bool {
-        println!("c.JR");
+    fn c_jr(self: &mut Self, rs1: u64) -> bool {
+        if self.debug_flag {
+            println!("c.JR");
+        }
         if rs1 != 0 {
             self.pc = self.x_reg[rs1 as usize];
-            println!("register -> {}", rs1 as usize);
-            println!("RS1 -> {:#08X}", self.x_reg[rs1 as usize]);
-            println!("NEW PC -> {:#08X}", self.pc);
             return true;
         }
         false
     }
-    fn c_jalr(self: &mut Self, rs1: u16) -> bool {
+    fn c_jalr(self: &mut Self, rs1: u64) -> bool {
         println!("c.JALR");
         let t = self.pc + 2;
         self.pc = self.x_reg[rs1 as usize];
@@ -1986,6 +2001,12 @@ impl CPU {
         let _a4 = self.x_reg[14];
         let _a5 = self.x_reg[15];
         match syscall {
+            0x60 => {
+                // https://man7.org/linux/man-pages/man2/set_tid_address.2.html
+                let tidptr = _a0;
+                // return value set current pid as value
+                self.x_reg[10] = std::process::id() as u64;
+            }
             0x40 => {
                 let fd = _a0;
                 let end = _a1 + _a2;
@@ -2009,7 +2030,7 @@ impl CPU {
                 std::process::exit(_a0 as i32);
             }
             _ => {
-                panic!("Unimplemented syscall");
+                panic!("Unimplemented syscall -> {:#08X}",syscall);
             }
         }
         false
