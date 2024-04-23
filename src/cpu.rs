@@ -399,6 +399,22 @@ impl CPU {
         let rs2 = (instruction & 0x01f00000) >> 20;
         let funct3 = (instruction & 0x00007000) >> 12;
         let funct7 = (instruction & 0xfe000000) >> 25;
+        let funct6 = funct7 >> 1;
+        let funct5 = (funct7 & 0b1111100) >> 2;
+        let shamt = (instruction >> 20) & 0x3f;
+
+        let imm= ((instruction as i32 as i64) >> 20) as u64;
+        let imm_s_type = (((instruction & 0xfe000000) as i32 as i64 >> 20) as u64) | ((instruction >> 7) & 0x1f);
+        let imm_b_type = (((instruction & 0x80000000) as i32 as i64 >> 19) as u64)
+        | ((instruction & 0x80) << 4) // imm[11]
+        | ((instruction >> 20) & 0x7e0) // imm[10:5]
+        | ((instruction>> 7) & 0x1e); // imm[4:1]
+
+        let imm_j_type = (((instruction & 0x80000000) as i32 as i64 >> 11) as u64) // imm[20]
+        | (instruction & 0xff000) // imm[19:12]
+        | ((instruction >> 9) & 0x800) // imm[11]
+        | ((instruction >> 20) & 0x7fe); // imm[10:1]
+
         match opcode {
             0b1110011 => match funct3 {
                 0x0 => match funct7 {
@@ -408,86 +424,88 @@ impl CPU {
                     _ => panic!("invalid funct7"),
                 },
                 // CSR INSTRUCTIONS
+                /*
                 0x1 => self.csrrw(csr, rs1, rd),
                 0x2 => self.csrrs(csr, rs1, rd),
                 0x3 => self.csrrc(csr, rs1, rd),
-                0x5 => self.csrrwi(csr, rs1 as u64, rd),
-                0x6 => self.csrrsi(csr, rs1 as u64, rd),
-                0x7 => self.csrrci(csr, rs1 as u64, rd),
+                0x5 => self.csrrwi(csr, rs1, rd),
+                0x6 => self.csrrsi(csr, rs1, rd),
+                0x7 => self.csrrci(csr, rs1, rd),
+                */
                 _ => panic!("Invalid funct3"),
             },
             0b0101111 => match funct3 {
                 0x3 => match funct5 {
                     0x2 => self.load_double_word_atomic(rd, rs1),
-                    0x3 => self.store_double_word_atomic(rd, rs1, _rs2),
-                    0x1 => self.swap_double_word_atomic(rd, rs1, _rs2),
-                    0x0 => self.add_double_word_atomic(rd, rs1, _rs2),
-                    0xC => self.and_double_word_atomic(rd, rs1, _rs2),
-                    0x8 => self.or_double_word_atomic(rd, rs1, _rs2),
-                    0x4 => self.xor_double_word_atomic(rd, rs1, _rs2),
-                    0x14 => self.max_double_word_atomic(rd, rs1, _rs2),
-                    0x10 => self.min_double_word_atomic(rd, rs1, _rs2),
-                    0x18 => self.minu_double_word_atomic(rd, rs1, _rs2),
-                    0x1C => self.maxu_double_word_atomic(rd, rs1, _rs2),
+                    0x3 => self.store_double_word_atomic(rd, rs1, rs2),
+                    0x1 => self.swap_double_word_atomic(rd, rs1, rs2),
+                    0x0 => self.add_double_word_atomic(rd, rs1, rs2),
+                    0xC => self.and_double_word_atomic(rd, rs1, rs2),
+                    0x8 => self.or_double_word_atomic(rd, rs1, rs2),
+                    0x4 => self.xor_double_word_atomic(rd, rs1, rs2),
+                    0x14 => self.max_double_word_atomic(rd, rs1, rs2),
+                    0x10 => self.min_double_word_atomic(rd, rs1, rs2),
+                    0x18 => self.minu_double_word_atomic(rd, rs1, rs2),
+                    0x1C => self.maxu_double_word_atomic(rd, rs1, rs2),
                     _ => panic!("invalid funct5"),
                 },
                 0x2 => match funct5 {
                     0x2 => self.load_word_atomic(rd, rs1),
-                    0x3 => self.store_word_atomic(rd, rs1, _rs2),
-                    0x1 => self.swap_word_atomic(rd, rs1, _rs2),
-                    0x0 => self.add_word_atomic(rd, rs1, _rs2),
-                    0xC => self.and_word_atomic(rd, rs1, _rs2),
-                    0x8 => self.or_word_atomic(rd, rs1, _rs2),
-                    0x4 => self.xor_word_atomic(rd, rs1, _rs2),
-                    0x14 => self.max_word_atomic(rd, rs1, _rs2),
-                    0x10 => self.min_word_atomic(rd, rs1, _rs2),
-                    0x18 => self.minu_word_atomic(rd, rs1, _rs2),
-                    0x1C => self.maxu_word_atomic(rd, rs1, _rs2),
+                    0x3 => self.store_word_atomic(rd, rs1, rs2),
+                    0x1 => self.swap_word_atomic(rd, rs1, rs2),
+                    0x0 => self.add_word_atomic(rd, rs1, rs2),
+                    0xC => self.and_word_atomic(rd, rs1, rs2),
+                    0x8 => self.or_word_atomic(rd, rs1, rs2),
+                    0x4 => self.xor_word_atomic(rd, rs1, rs2),
+                    0x14 => self.max_word_atomic(rd, rs1, rs2),
+                    0x10 => self.min_word_atomic(rd, rs1, rs2),
+                    0x18 => self.minu_word_atomic(rd, rs1, rs2),
+                    0x1C => self.maxu_word_atomic(rd, rs1, rs2),
                     _ => panic!("Invalid funct5"),
                 },
                 _ => panic!("invalid funct3"),
             },
             0b0110011 => match funct3 {
                 0x0 => match funct7 {
-                    0x0 => self.add(rd, rs1, _rs2),
-                    0x1 => self.mul(rd, rs1, _rs2),
-                    0x20 => self.sub(rd, rs1, _rs2),
+                    0x0 => self.add(rd, rs1, rs2),
+                    0x1 => self.mul(rd, rs1, rs2),
+                    0x20 => self.sub(rd, rs1, rs2),
                     _ => panic!("Invalid funct7"),
                 },
                 0x5 => match funct7 {
-                    0x0 => self.srl(rd, rs1, _rs2),
-                    0x1 => self.divu(rd, rs1, _rs2),
-                    0x20 => self.sra(rd, rs1, _rs2),
+                    0x0 => self.srl(rd, rs1, rs2),
+                    0x1 => self.divu(rd, rs1, rs2),
+                    0x20 => self.sra(rd, rs1, rs2),
                     _ => panic!("Invalid funct7"),
                 },
                 0x4 => match funct7 {
-                    0x0 => self.xor(rd, rs1, _rs2),
-                    0x1 => self.div(rd, rs1, _rs2),
+                    0x0 => self.xor(rd, rs1, rs2),
+                    0x1 => self.div(rd, rs1, rs2),
                     _ => panic!("INVALID FUNCT7"),
                 },
                 0x6 => match funct7 {
-                    0x0 => self.or(rd, rs1, _rs2),
-                    0x1 => self.rem(rd, rs1, _rs2),
+                    0x0 => self.or(rd, rs1, rs2),
+                    0x1 => self.rem(rd, rs1, rs2),
                     _ => panic!("INVALID FUNCT7"),
                 },
                 0x7 => match funct7 {
-                    0x0 => self.and(rd, rs1, _rs2),
-                    0x1 => self.remu(rd, rs1, _rs2),
+                    0x0 => self.and(rd, rs1, rs2),
+                    0x1 => self.remu(rd, rs1, rs2),
                     _ => panic!("INVALID FUNCT7"),
                 },
                 0x1 => match funct7 {
-                    0x0 => self.sll(rd, rs1, _rs2),
-                    0x1 => self.mulh(rd, rs1, _rs2),
+                    0x0 => self.sll(rd, rs1, rs2),
+                    0x1 => self.mulh(rd, rs1, rs2),
                     _ => panic!("INVALID FUNCT7"),
                 },
                 0x2 => match funct7 {
-                    0x0 => self.slt(rd, rs1, _rs2),
-                    0x1 => self.mulhsu(rd, rs1, _rs2),
+                    0x0 => self.slt(rd, rs1, rs2),
+                    0x1 => self.mulhsu(rd, rs1, rs2),
                     _ => panic!("invalid funct 7"),
                 },
                 0x3 => match funct7 {
-                    0x0 => self.sltu(rd, rs1, _rs2),
-                    0x1 => self.mulu(rd, rs1, _rs2),
+                    0x0 => self.sltu(rd, rs1, rs2),
+                    0x1 => self.mulu(rd, rs1, rs2),
                     _ => panic!("invalidu func7"),
                 },
                 _ => panic!("INVALID FUNCT3"),
@@ -507,10 +525,10 @@ impl CPU {
             // Store Instructions
             0b0100011 => match funct3 {
                 // Stores are S TYPE everything is the same except the immediate register
-                0x0 => self.store_byte(_rs2, rs1, imm_s_type),
-                0x1 => self.store_half(_rs2, rs1, imm_s_type),
-                0x2 => self.store_word(_rs2, rs1, imm_s_type),
-                0x3 => self.store_double_word(_rs2, rs1, imm_s_type),
+                0x0 => self.store_byte(rs2, rs1, imm_s_type),
+                0x1 => self.store_half(rs2, rs1, imm_s_type),
+                0x2 => self.store_word(rs2, rs1, imm_s_type),
+                0x3 => self.store_double_word(rs2, rs1, imm_s_type),
                 _ => panic!("Invalid funct3 {:#08X}", funct3),
             },
             0b0010011 => match funct3 {
@@ -520,7 +538,7 @@ impl CPU {
                 0x2 => self.slti(rd, rs1, imm),
                 0x3 => self.sltiu(rd, rs1, imm),
                 0x4 => self.xori(rd, rs1, imm),
-                0x5 => match imm_5_11_mode {
+                0x5 => match funct6 {
                     0x0 => self.srli(rd, rs1, shamt),
                     0x10 => self.srai(rd, rs1, shamt),
                     _ => panic!("INVALID IMMEDIATE 5-11"),
@@ -530,12 +548,12 @@ impl CPU {
                 _ => panic!("Unimplemented funct3"),
             },
             0b1100011 => match funct3 {
-                0x0 => self.beq(rs1, _rs2, imm_b_type),
-                0x1 => self.bne(rs1, _rs2, imm_b_type),
-                0x4 => self.blt(rs1, _rs2, imm_b_type_new),
-                0x5 => self.bge(rs1, _rs2, imm_b_type),
-                0x6 => self.bltu(rs1, _rs2, imm_b_type),
-                0x7 => self.bgeu(rs1, _rs2, imm_b_type),
+                0x0 => self.beq(rs1, rs2, imm_b_type),
+                0x1 => self.bne(rs1, rs2, imm_b_type),
+                0x4 => self.blt(rs1, rs2, imm_b_type),
+                0x5 => self.bge(rs1, rs2, imm_b_type),
+                0x6 => self.bltu(rs1, rs2, imm_b_type),
+                0x7 => self.bgeu(rs1, rs2, imm_b_type),
                 _ => panic!("PANIC INVAID OPCODE"),
             },
             0b1101111 => self.jal(rd, imm_j_type),
@@ -554,28 +572,28 @@ impl CPU {
             },
             0b0111011 => match funct3 {
                 0x7 => match funct7 {
-                    0x1 => self.remuw(rd, rs1, _rs2),
+                    0x1 => self.remuw(rd, rs1, rs2),
                     _ => panic!(""),
                 },
                 0x6 => match funct7 {
-                    0x1 => self.remw(rd, rs1, _rs2),
+                    0x1 => self.remw(rd, rs1, rs2),
                     _ => panic!(""),
                 },
                 0x4 => match funct7 {
-                    0x1 => self.divw(rd, rs1, _rs2),
+                    0x1 => self.divw(rd, rs1, rs2),
                     _ => panic!(""),
                 },
                 0x0 => match funct7 {
-                    0x0 => self.addw(rd, rs1, _rs2),
-                    0x20 => self.subw(rd, rs1, _rs2),
-                    0x1 => self.mulw(rd, rs1, _rs2),
+                    0x0 => self.addw(rd, rs1, rs2),
+                    0x20 => self.subw(rd, rs1, rs2),
+                    0x1 => self.mulw(rd, rs1, rs2),
                     _ => panic!("invalid funct7"),
                 },
-                0x1 => self.sllw(rd, rs1, _rs2),
+                0x1 => self.sllw(rd, rs1, rs2),
                 0x5 => match funct7 {
-                    0x1 => self.divuw(rd, rs1, _rs2),
-                    0x0 => self.srlw(rd, rs1, _rs2),
-                    0x20 => self.sraw(rd, rs1, _rs2),
+                    0x1 => self.divuw(rd, rs1, rs2),
+                    0x0 => self.srlw(rd, rs1, rs2),
+                    0x20 => self.sraw(rd, rs1, rs2),
                     _ => panic!("invalid funct7"),
                 },
                 _ => panic!("unknown funct3"),
@@ -585,7 +603,7 @@ impl CPU {
         // match on opcode then match on func3?
     }
 
-    fn remu(&mut self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn remu(&mut self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("REMU");
         let left = self.x_reg[rs1 as usize];
         let right = self.x_reg[rs2 as usize];
@@ -598,7 +616,7 @@ impl CPU {
         false
     }
 
-    fn rem(&mut self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn rem(&mut self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("REM");
         let left = self.x_reg[rs1 as usize] as i64;
         let right = self.x_reg[rs2 as usize] as i64;
@@ -611,7 +629,7 @@ impl CPU {
         false
     }
 
-    fn divu(&mut self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn divu(&mut self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("DIVU");
         let left = self.x_reg[rs1 as usize];
         let right = self.x_reg[rs2 as usize];
@@ -624,7 +642,7 @@ impl CPU {
         false
     }
 
-    fn div(&mut self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn div(&mut self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("DIV");
         let left = self.x_reg[rs1 as usize] as i64;
         let right = self.x_reg[rs2 as usize] as i64;
@@ -889,7 +907,7 @@ impl CPU {
         false
     }
 
-    fn mulu(&mut self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn mulu(&mut self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("MULU");
         let left = self.x_reg[rs1 as usize] as u64 as u128;
         let right = self.x_reg[rs2 as usize] as u64 as u128;
@@ -898,13 +916,13 @@ impl CPU {
         false
     }
 
-    fn sll(&mut self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn sll(&mut self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("SLL");
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize] << (self.x_reg[rs2 as usize] & 0b11111);
         false
     }
 
-    fn slt(&mut self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn slt(&mut self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("SLT");
         if (self.x_reg[rs1 as usize] as i64) < (self.x_reg[rs2 as usize] as i64) {
             self.x_reg[rd as usize] = 1;
@@ -914,25 +932,25 @@ impl CPU {
         false
     }
 
-    fn slli(&mut self, rd: u32, rs1: u32, shamt: u64) -> bool {
+    fn slli(&mut self, rd: u64, rs1: u64, shamt: u64) -> bool {
         println!("SLLI");
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize] << shamt;
         false
     }
 
-    fn srli(&mut self, rd: u32, rs1: u32, shamt: u64) -> bool {
+    fn srli(&mut self, rd: u64, rs1: u64, shamt: u64) -> bool {
         println!("SRLI");
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize] >> shamt;
         false
     }
 
-    fn srai(&mut self, rd: u32, rs1: u32, shamt: u64) -> bool {
+    fn srai(&mut self, rd: u64, rs1: u64, shamt: u64) -> bool {
         println!("SRAI");
         self.x_reg[rd as usize] = ((self.x_reg[rs1 as usize] as i64) >> shamt) as u64;
         false
     }
 
-    fn slti(&mut self, rd: u32, rs1: u32, imm: u64) -> bool {
+    fn slti(&mut self, rd: u64, rs1: u64, imm: u64) -> bool {
         println!("SRLTI");
         if (self.x_reg[rs1 as usize] as i64) < (imm as i64) {
             self.x_reg[rd as usize] = 1;
@@ -942,7 +960,7 @@ impl CPU {
         false
     }
 
-    fn sltiu(&mut self, rd: u32, rs1: u32, imm: u64) -> bool {
+    fn sltiu(&mut self, rd: u64, rs1: u64, imm: u64) -> bool {
         println!("SLTIU");
         if (self.x_reg[rs1 as usize] as u64) < imm {
             self.x_reg[rd as usize] = 1;
@@ -952,7 +970,7 @@ impl CPU {
         false
     }
 
-    fn sltu(&mut self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn sltu(&mut self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("SLTU");
         if (self.x_reg[rs1 as usize] as u64) < (self.x_reg[rs2 as usize] as u64) {
             self.x_reg[rd as usize] = 1;
@@ -962,7 +980,7 @@ impl CPU {
         false
     }
 
-    fn mulhsu(&mut self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn mulhsu(&mut self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("MULHSU");
         let left = self.x_reg[rs1 as usize] as i64 as u128;
         let right = self.x_reg[rs2 as usize] as u64 as u128;
@@ -971,20 +989,20 @@ impl CPU {
         false
     }
 
-    fn srl(&mut self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn srl(&mut self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("SRL");
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize] >> (self.x_reg[rs2 as usize] & 0b11111);
         false
     }
 
-    fn sra(&mut self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn sra(&mut self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("SRA");
         self.x_reg[rd as usize] =
             self.x_reg[rs1 as usize] >> ((self.x_reg[rs2 as usize] & 0b11111) as i64) as u64;
         false
     }
 
-    fn mulh(&mut self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn mulh(&mut self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("MULH");
         let left = self.x_reg[rs1 as usize] as i64 as u128;
         let right = self.x_reg[rs2 as usize] as i64 as u128;
@@ -993,19 +1011,19 @@ impl CPU {
         false
     }
 
-    fn mul(&mut self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn mul(&mut self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("MUL");
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize].wrapping_mul(self.x_reg[rs2 as usize]);
         false
     }
 
-    fn sub(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn sub(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("SUB");
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize].wrapping_sub(self.x_reg[rs2 as usize]);
         false
     }
 
-    fn add(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn add(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
         if self.debug_flag {
             println!(
                 "{:#08X} ADD x{rd} ({:#08X}) x{rs1} ({:#08X}) x{rs2} ({:#08X})",
@@ -1018,7 +1036,7 @@ impl CPU {
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize].wrapping_add(self.x_reg[rs2 as usize]);
         false
     }
-    fn store_double_word(self: &mut Self, rs2: u32, rs1: u32, imm: i32) -> bool {
+    fn store_double_word(self: &mut Self, rs2: u64, rs1: u64, imm: u64) -> bool {
         println!("SD RS1 = {:#08X}", self.x_reg[rs1 as usize]);
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm as u64);
         let index = rs2 as usize;
@@ -1028,7 +1046,7 @@ impl CPU {
             .copy_from_slice(&value_as_bytes);
         false
     }
-    fn store_word(self: &mut Self, rs2: u32, rs1: u32, imm: i32) -> bool {
+    fn store_word(self: &mut Self, rs2: u64, rs1: u64, imm: u64) -> bool {
         println!("SW");
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm as u64);
         let index = rs2 as usize;
@@ -1038,7 +1056,7 @@ impl CPU {
             .copy_from_slice(&value_as_bytes);
         false
     }
-    fn store_half(self: &mut Self, rs2: u32, rs1: u32, imm: i32) -> bool {
+    fn store_half(self: &mut Self, rs2: u64, rs1: u64, imm: u64) -> bool {
         println!("SH");
         let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
         let index = rs2 as usize;
@@ -1048,7 +1066,7 @@ impl CPU {
             .copy_from_slice(&value_as_bytes);
         false
     }
-    fn store_byte(self: &mut Self, rs2: u32, rs1: u32, imm: i32) -> bool {
+    fn store_byte(self: &mut Self, rs2: u64, rs1: u64, imm: u64) -> bool {
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm as u64);
         let index = rs2 as usize;
         let value = self.x_reg[index] as u8;
@@ -1061,7 +1079,7 @@ impl CPU {
         self.mmu.virtual_memory[_memory_address as usize] = value;
         false
     }
-    fn load_word_unsigned(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
+    fn load_word_unsigned(self: &mut Self, rd: u64, rs1: u64, imm: u64) -> bool {
         println!("LWU");
         let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
         let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
@@ -1072,7 +1090,7 @@ impl CPU {
         self.x_reg[rd as usize] = result as u64;
         false
     }
-    fn load_double_word(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
+    fn load_double_word(self: &mut Self, rd: u64, rs1: u64, imm: u64) -> bool {
         println!("LD");
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm as u64);
         println!("{:#08X}", _memory_address);
@@ -1090,7 +1108,7 @@ impl CPU {
         self.x_reg[rd as usize] = result as u64;
         false
     }
-    fn load_double_word_atomic(self: &mut Self, rd: u32, rs1: u32) -> bool {
+    fn load_double_word_atomic(self: &mut Self, rd: u64, rs1: u64) -> bool {
         println!("LR.D");
         let _memory_address = self.x_reg[rs1 as usize];
         let value0 = self.mmu.virtual_memory[_memory_address as usize] as u8;
@@ -1107,7 +1125,7 @@ impl CPU {
         self.x_reg[rd as usize] = result as u64;
         false
     }
-    fn store_double_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn store_double_word_atomic(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("SC.D");
         let _memory_address = self.x_reg[rs1 as usize];
         let index = rs2 as usize;
@@ -1118,7 +1136,7 @@ impl CPU {
         self.x_reg[rd as usize] = 0;
         false
     }
-    fn load_word_atomic(self: &mut Self, rd: u32, rs1: u32) -> bool {
+    fn load_word_atomic(self: &mut Self, rd: u64, rs1: u64) -> bool {
         println!("LR.W");
         let _memory_address = self.x_reg[rs1 as usize];
         let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
@@ -1129,7 +1147,7 @@ impl CPU {
         self.x_reg[rd as usize] = result as i64 as u64;
         false
     }
-    fn store_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn store_word_atomic(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("SC.W");
         let _memory_address = self.x_reg[rs1 as usize];
         let index = rs2 as usize;
@@ -1141,7 +1159,7 @@ impl CPU {
         false
     }
 
-    fn maxu_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn maxu_word_atomic(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("AMOMAXU.W");
         let _memory_address = self.x_reg[rs1 as usize];
         let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
@@ -1160,7 +1178,7 @@ impl CPU {
             .copy_from_slice(&value_as_bytes);
         false
     }
-    fn minu_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn minu_word_atomic(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("AMOMINU.W");
         let _memory_address = self.x_reg[rs1 as usize];
         let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
@@ -1180,7 +1198,7 @@ impl CPU {
         false
     }
 
-    fn min_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn min_word_atomic(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("AMOMIN.W");
         let _memory_address = self.x_reg[rs1 as usize];
         let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
@@ -1200,7 +1218,7 @@ impl CPU {
         false
     }
 
-    fn max_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn max_word_atomic(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("AMOMAX.W");
         let _memory_address = self.x_reg[rs1 as usize];
         let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
@@ -1219,7 +1237,7 @@ impl CPU {
             .copy_from_slice(&value_as_bytes);
         false
     }
-    fn xor_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn xor_word_atomic(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("AMOXOR.W");
         let _memory_address = self.x_reg[rs1 as usize];
         let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
@@ -1235,7 +1253,7 @@ impl CPU {
             .copy_from_slice(&value_as_bytes);
         false
     }
-    fn or_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn or_word_atomic(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("AMOOR.W");
         let _memory_address = self.x_reg[rs1 as usize];
         let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
@@ -1251,7 +1269,7 @@ impl CPU {
             .copy_from_slice(&value_as_bytes);
         false
     }
-    fn and_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn and_word_atomic(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("AMOAND.W");
         let _memory_address = self.x_reg[rs1 as usize];
         let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
@@ -1267,7 +1285,7 @@ impl CPU {
             .copy_from_slice(&value_as_bytes);
         false
     }
-    fn add_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn add_word_atomic(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("AMOADD.W");
         let _memory_address = self.x_reg[rs1 as usize];
         let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
@@ -1284,7 +1302,7 @@ impl CPU {
         false
     }
 
-    fn minu_double_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn minu_double_word_atomic(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("AMOMINU.D");
         let _memory_address = self.x_reg[rs1 as usize];
         let value0 = self.mmu.virtual_memory[_memory_address as usize] as u8;
@@ -1310,7 +1328,7 @@ impl CPU {
         false
     }
 
-    fn maxu_double_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn maxu_double_word_atomic(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("AMOMAXU.D");
         let _memory_address = self.x_reg[rs1 as usize];
         let value0 = self.mmu.virtual_memory[_memory_address as usize] as u8;
@@ -1337,7 +1355,7 @@ impl CPU {
         false
     }
 
-    fn max_double_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn max_double_word_atomic(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("AMOMAX.D");
         let _memory_address = self.x_reg[rs1 as usize];
         let value0 = self.mmu.virtual_memory[_memory_address as usize] as u8;
@@ -1363,7 +1381,7 @@ impl CPU {
         false
     }
 
-    fn min_double_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn min_double_word_atomic(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("AMOMIN.D");
         let _memory_address = self.x_reg[rs1 as usize];
         let value0 = self.mmu.virtual_memory[_memory_address as usize] as u8;
@@ -1390,7 +1408,7 @@ impl CPU {
         false
     }
 
-    fn xor_double_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn xor_double_word_atomic(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("AMOXOR.D");
         let _memory_address = self.x_reg[rs1 as usize];
         let value0 = self.mmu.virtual_memory[_memory_address as usize] as u8;
@@ -1412,7 +1430,7 @@ impl CPU {
             .copy_from_slice(&value_as_bytes);
         false
     }
-    fn and_double_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn and_double_word_atomic(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("AMOAND.D");
         let _memory_address = self.x_reg[rs1 as usize];
         let value0 = self.mmu.virtual_memory[_memory_address as usize] as u8;
@@ -1434,7 +1452,7 @@ impl CPU {
             .copy_from_slice(&value_as_bytes);
         false
     }
-    fn or_double_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn or_double_word_atomic(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("AMOOR.D");
         let _memory_address = self.x_reg[rs1 as usize];
         let value0 = self.mmu.virtual_memory[_memory_address as usize] as u8;
@@ -1456,7 +1474,7 @@ impl CPU {
             .copy_from_slice(&value_as_bytes);
         false
     }
-    fn add_double_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn add_double_word_atomic(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("AMOADD.D");
         let _memory_address = self.x_reg[rs1 as usize];
         let value0 = self.mmu.virtual_memory[_memory_address as usize] as u8;
@@ -1479,7 +1497,7 @@ impl CPU {
         false
     }
 
-    fn swap_double_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn swap_double_word_atomic(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("AMOSWAP.D");
         let _memory_address = self.x_reg[rs1 as usize];
         let value0 = self.mmu.virtual_memory[_memory_address as usize] as u8;
@@ -1505,7 +1523,7 @@ impl CPU {
         false
     }
 
-    fn swap_word_atomic(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn swap_word_atomic(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("AMOSWAP.W");
         let _memory_address = self.x_reg[rs1 as usize];
         let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
@@ -1525,7 +1543,7 @@ impl CPU {
         false
     }
 
-    fn load_word(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
+    fn load_word(self: &mut Self, rd: u64, rs1: u64, imm: u64) -> bool {
         println!("lw");
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm);
         let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
@@ -1537,7 +1555,7 @@ impl CPU {
         false
     }
     // load 16 bit value
-    fn load_half(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
+    fn load_half(self: &mut Self, rd: u64, rs1: u64, imm: u64) -> bool {
         println!("lh");
         let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
         let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
@@ -1547,7 +1565,7 @@ impl CPU {
         false
     }
     // load 8 bit value
-    fn load_byte(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
+    fn load_byte(self: &mut Self, rd: u64, rs1: u64, imm: u64) -> bool {
         let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
         let value = self.mmu.virtual_memory[_memory_address as usize] as u8;
         if self.debug_flag {
@@ -1561,7 +1579,7 @@ impl CPU {
         false
     }
     // load 16 bit value
-    fn load_half_u(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
+    fn load_half_u(self: &mut Self, rd: u64, rs1: u64, imm: u64) -> bool {
         println!("lhu");
         let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
         let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
@@ -1571,7 +1589,7 @@ impl CPU {
         false
     }
     // load 8 bit value
-    fn load_byte_u(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
+    fn load_byte_u(self: &mut Self, rd: u64, rs1: u64, imm: u64) -> bool {
         println!("lbu");
         let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
         let value = self.mmu.virtual_memory[_memory_address as usize] as u8;
@@ -1579,68 +1597,68 @@ impl CPU {
         false
     }
     // add immediate
-    fn addi(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
+    fn addi(self: &mut Self, rd: u64, rs1: u64, imm: u64) -> bool {
         if self.debug_flag {
             println!("{:#08X} ADDI x{rd}, x{rs1}, {}", self.pc, imm);
         }
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize].wrapping_add(imm);
         false
     }
-    fn andi(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
+    fn andi(self: &mut Self, rd: u64, rs1: u64, imm: u64) -> bool {
         if self.debug_flag {
             println!("{:#08X} ANDI x{rd}, x{rs1}, {}", self.pc, imm as i64);
         }
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize] & imm;
         false
     }
-    fn ori(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
+    fn ori(self: &mut Self, rd: u64, rs1: u64, imm: u64) -> bool {
         if self.debug_flag {
             println!("{:#08X} ORI x{rd}, x{rs1}, {}", self.pc, imm);
         }
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize] | imm;
         false
     }
-    fn xori(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
+    fn xori(self: &mut Self, rd: u64, rs1: u64, imm: u64) -> bool {
         if self.debug_flag {
             println!("{:#08X} XORI x{rd}, x{rs1}, {}", self.pc, imm);
         }
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize] ^ imm;
         false
     }
-    fn and(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn and(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("AND");
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize] & self.x_reg[rs2 as usize];
         false
     }
-    fn or(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn or(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("OR");
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize] | self.x_reg[rs2 as usize];
         false
     }
-    fn xor(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn xor(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("XOR");
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize] ^ self.x_reg[rs2 as usize];
         false
     }
 
-    fn bgeu(self: &mut Self, rs1: u32, rs2: u32, imm_b_type: i32) -> bool {
+    fn bgeu(self: &mut Self, rs1: u64, rs2: u64, imm_b_type: u64) -> bool {
         println!("BGEU");
         if (self.x_reg[rs1 as usize] as u64) >= (self.x_reg[rs2 as usize] as u64) {
-            self.pc += imm_b_type as i64 as u64;
+            self.pc = self.pc.wrapping_add(imm_b_type as i64 as u64);
             return true;
         }
         false
     }
-    fn bltu(self: &mut Self, rs1: u32, rs2: u32, imm_b_type: i32) -> bool {
+    fn bltu(self: &mut Self, rs1: u64, rs2: u64, imm_b_type: u64) -> bool {
         println!("bltu");
         if (self.x_reg[rs1 as usize] as u64) < (self.x_reg[rs2 as usize] as u64) {
-            self.pc += imm_b_type as i64 as u64;
+            self.pc = self.pc.wrapping_add(imm_b_type as i64 as u64);
             return true;
         }
         false
     }
 
-    fn bge(self: &mut Self, rs1: u32, rs2: u32, imm_b_type: i32) -> bool {
+    fn bge(self: &mut Self, rs1: u64, rs2: u64, imm_b_type: u64) -> bool {
         println!("bge");
         if (self.x_reg[rs1 as usize] as i64) >= (self.x_reg[rs2 as usize] as i64) {
             self.pc = self.pc.wrapping_add(imm_b_type as u64);
@@ -1649,11 +1667,11 @@ impl CPU {
         false
     }
 
-    fn blt(self: &mut Self, rs1: u32, rs2: u32, imm_b_type: u64) -> bool {
+    fn blt(self: &mut Self, rs1: u64, rs2: u64, imm_b_type: u64) -> bool {
         if self.debug_flag {
             println!("blt x{rs1},x{rs2},{:#08X}", imm_b_type);
             println!(
-                "if {:#08X} less than {:#08X}",
+                "if {:#016X} less than {:#08X}",
                 self.x_reg[rs1 as usize] as i64, self.x_reg[rs2 as usize] as i64
             );
         }
@@ -1664,7 +1682,7 @@ impl CPU {
         false
     }
 
-    fn bne(self: &mut Self, rs1: u32, rs2: u32, imm_b_type: i32) -> bool {
+    fn bne(self: &mut Self, rs1: u64, rs2: u64, imm_b_type: u64) -> bool {
         println!("bne");
         if self.x_reg[rs1 as usize] != self.x_reg[rs2 as usize] {
             self.pc = self.pc.wrapping_add(imm_b_type as u64);
@@ -1672,7 +1690,7 @@ impl CPU {
         }
         false
     }
-    fn beq(self: &mut Self, rs1: u32, rs2: u32, imm_b_type: i32) -> bool {
+    fn beq(self: &mut Self, rs1: u64, rs2: u64, imm_b_type: u64) -> bool {
         if self.debug_flag {
             println!(
                 "beq if x{rs2} == x{rs1} -> x{:#08X}",
@@ -1685,7 +1703,7 @@ impl CPU {
         }
         false
     }
-    fn jal(self: &mut Self, rd: u32, imm_j_type: i32) -> bool {
+    fn jal(self: &mut Self, rd: u64, imm_j_type: u64) -> bool {
         println!("JAL");
         self.x_reg[rd as usize] = self.pc.wrapping_add(0x4); // return address saved in RD
         self.pc = self.pc.wrapping_add(imm_j_type as i64 as u64);
@@ -1749,7 +1767,7 @@ impl CPU {
         self.x_reg[1] = t; // set x0 to ret
         true
     }
-    fn jalr(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
+    fn jalr(self: &mut Self, rd: u64, rs1: u64, imm: u64) -> bool {
         let t = self.pc.wrapping_add(4);
         let target = ((self.x_reg[rs1 as usize] as i64).wrapping_add(imm as i64)) & !1;
         self.pc = target as u64;
@@ -1759,14 +1777,14 @@ impl CPU {
         }
         true
     }
-    fn lui(self: &mut Self, rd: u32, imm_u_type: u64) -> bool {
+    fn lui(self: &mut Self, rd: u64, imm_u_type: u64) -> bool {
         if self.debug_flag {
             println!("{:#08X} LUI x{},{:#08X}", self.pc, rd, imm_u_type);
         }
         self.x_reg[rd as usize] = imm_u_type;
         false
     }
-    fn auipc(self: &mut Self, rd: u32, imm_u_type: u64) -> bool {
+    fn auipc(self: &mut Self, rd: u64, imm_u_type: u64) -> bool {
         if self.debug_flag {
             println!("{:#08X} AUIPC x{} {:#08X}", self.pc, rd, imm_u_type);
         }
@@ -1774,14 +1792,14 @@ impl CPU {
         false
     }
 
-    fn addiw(self: &mut Self, rd: u32, rs1: u32, imm: u64) -> bool {
+    fn addiw(self: &mut Self, rd: u64, rs1: u64, imm: u64) -> bool {
         println!("ADDIW confirm works");
         let rs1__ = self.x_reg[rs1 as usize];
         self.x_reg[rd as usize] = rs1__.wrapping_add(imm) as i64 as u64;
         false
     }
 
-    fn slliw(self: &mut Self, rd: u32, rs1: u32, shamt: u64) -> bool {
+    fn slliw(self: &mut Self, rd: u64, rs1: u64, shamt: u64) -> bool {
         println!("SLLIW");
         let left = self.x_reg[rs1 as usize] as u32;
         let right = shamt as u32;
@@ -1789,7 +1807,7 @@ impl CPU {
         false
     }
 
-    fn srliw(self: &mut Self, rd: u32, rs1: u32, shamt: u64) -> bool {
+    fn srliw(self: &mut Self, rd: u64, rs1: u64, shamt: u64) -> bool {
         println!("SRLIW");
         let left = self.x_reg[rs1 as usize] as u32;
         let right = shamt as u32;
@@ -1797,28 +1815,28 @@ impl CPU {
         false
     }
 
-    fn sraw(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn sraw(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("SRAW");
         let left = self.x_reg[rs1 as usize] as u32;
         let right = self.x_reg[rs2 as usize] as u32 & 0b11111;
         self.x_reg[rd as usize] = (left >> right) as u32 as i64 as u64;
         false
     }
-    fn sraiw(self: &mut Self, rd: u32, rs1: u32, shamt: u64) -> bool {
+    fn sraiw(self: &mut Self, rd: u64, rs1: u64, shamt: u64) -> bool {
         println!("SRAIW");
         let left = self.x_reg[rs1 as usize] as u32;
         let right = shamt as i32;
         self.x_reg[rd as usize] = (left >> right) as u32 as i64 as u64;
         false
     }
-    fn srlw(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn srlw(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("SRLW");
         let left = self.x_reg[rs1 as usize] as u32;
         let right = self.x_reg[rs2 as usize] as u32 & 0b11111;
         self.x_reg[rd as usize] = (left >> right) as u32 as u64;
         false
     }
-    fn sllw(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn sllw(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("SLLW");
         let left = self.x_reg[rs1 as usize] as u32;
         let right = self.x_reg[rs2 as usize] as u32 & 0b11111;
@@ -1826,7 +1844,7 @@ impl CPU {
         false
     }
 
-    fn divuw(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn divuw(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("DIVUW");
         let left = self.x_reg[rs1 as usize] as u32;
         let right = self.x_reg[rs2 as usize] as u32;
@@ -1839,7 +1857,7 @@ impl CPU {
         false
     }
 
-    fn mulw(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn mulw(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("MULW");
         let left = self.x_reg[rs1 as usize] as u32;
         let right = self.x_reg[rs2 as usize] as u32;
@@ -1847,14 +1865,14 @@ impl CPU {
         self.x_reg[rd as usize] = result as i32 as u64;
         false
     }
-    fn subw(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn subw(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("SUBW");
         self.x_reg[rd as usize] = (self.x_reg[rs1 as usize] as u32)
             .wrapping_sub(self.x_reg[rs2 as usize] as u32) as i64
             as u64;
         false
     }
-    fn addw(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn addw(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("ADDW");
         self.x_reg[rd as usize] = (self.x_reg[rs1 as usize] as u32)
             .wrapping_add(self.x_reg[rs2 as usize] as u32) as i64
@@ -1862,7 +1880,7 @@ impl CPU {
         false
     }
 
-    fn divw(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn divw(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("DIVW");
         let left = self.x_reg[rs1 as usize] as i32;
         let right = self.x_reg[rs2 as usize] as i32;
@@ -1874,7 +1892,7 @@ impl CPU {
         self.x_reg[rd as usize] = result as i32 as u64;
         false
     }
-    fn remw(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn remw(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("REMW");
         let left = self.x_reg[rs1 as usize] as i32;
         let right = self.x_reg[rs2 as usize] as i32;
@@ -1886,7 +1904,7 @@ impl CPU {
         self.x_reg[rd as usize] = result as i32 as u64;
         false
     }
-    fn remuw(self: &mut Self, rd: u32, rs1: u32, rs2: u32) -> bool {
+    fn remuw(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("REMUW");
         let left = self.x_reg[rs1 as usize] as u32;
         let right = self.x_reg[rs2 as usize] as u32;
@@ -1899,7 +1917,7 @@ impl CPU {
         false
     }
 
-    fn csrrw(&mut self, csr: u32, rs1: u32, rd: u32) -> bool {
+    fn csrrw(&mut self, csr: u64, rs1: u64, rd: u64) -> bool {
         println!("CSRRW");
         if rd == 0 {
             return false;
@@ -1911,7 +1929,7 @@ impl CPU {
         false
     }
 
-    fn csrrwi(&mut self, csr: u32, imm: u64, rd: u32) -> bool {
+    fn csrrwi(&mut self, csr: u64, imm: u64, rd: u64) -> bool {
         println!("CSRRWI");
         let oldcsr = self.csr_reg[csr as usize] as u64;
         self.x_reg[rd as usize] = oldcsr;
@@ -1919,7 +1937,7 @@ impl CPU {
         false
     }
 
-    fn csrrs(&mut self, csr: u32, rs1: u32, rd: u32) -> bool {
+    fn csrrs(&mut self, csr: u64, rs1: u64, rd: u64) -> bool {
         println!("CSRRS");
         let oldcsr = self.csr_reg[csr as usize] as u64;
         let mask = self.csr_reg[rs1 as usize] as u64;
@@ -1928,7 +1946,7 @@ impl CPU {
         false
     }
 
-    fn csrrc(&mut self, csr: u32, rs1: u32, rd: u32) -> bool {
+    fn csrrc(&mut self, csr: u64, rs1: u64, rd: u64) -> bool {
         println!("CSRRC");
         let oldcsr = self.csr_reg[csr as usize] as u64;
         let mask = self.csr_reg[rs1 as usize] as u64;
@@ -1937,7 +1955,7 @@ impl CPU {
         false
     }
 
-    fn csrrsi(&mut self, csr: u32, imm: u64, rd: u32) -> bool {
+    fn csrrsi(&mut self, csr: u64, imm: u64, rd: u64) -> bool {
         println!("CSRRSI");
         let oldcsr = self.csr_reg[csr as usize] as u64;
         self.x_reg[rd as usize] = oldcsr;
@@ -1945,7 +1963,7 @@ impl CPU {
         false
     }
 
-    fn csrrci(&mut self, csr: u32, imm: u64, rd: u32) -> bool {
+    fn csrrci(&mut self, csr: u64, imm: u64, rd: u64) -> bool {
         println!("CSRRCI");
         let oldcsr = self.csr_reg[csr as usize] as u64;
         self.x_reg[rd as usize] = oldcsr;
