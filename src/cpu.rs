@@ -432,10 +432,11 @@ impl CPU {
                 0x6 => self.csrrsi(csr, rs1, rd),
                 0x7 => self.csrrci(csr, rs1, rd),
                 */
-                _ => panic!("Invalid funct3"),
+                _ => todo!("Support CSR Instructions"),
             },
             0b0101111 => match funct3 {
                 0x3 => match funct5 {
+                    /*
                     0x2 => self.load_double_word_atomic(rd, rs1),
                     0x3 => self.store_double_word_atomic(rd, rs1, rs2),
                     0x1 => self.swap_double_word_atomic(rd, rs1, rs2),
@@ -447,9 +448,11 @@ impl CPU {
                     0x10 => self.min_double_word_atomic(rd, rs1, rs2),
                     0x18 => self.minu_double_word_atomic(rd, rs1, rs2),
                     0x1C => self.maxu_double_word_atomic(rd, rs1, rs2),
-                    _ => panic!("invalid funct5"),
+                    */
+                    _ => todo!("Support Atomic Instructions"),
                 },
                 0x2 => match funct5 {
+                    /* 
                     0x2 => self.load_word_atomic(rd, rs1),
                     0x3 => self.store_word_atomic(rd, rs1, rs2),
                     0x1 => self.swap_word_atomic(rd, rs1, rs2),
@@ -461,9 +464,10 @@ impl CPU {
                     0x10 => self.min_word_atomic(rd, rs1, rs2),
                     0x18 => self.minu_word_atomic(rd, rs1, rs2),
                     0x1C => self.maxu_word_atomic(rd, rs1, rs2),
-                    _ => panic!("Invalid funct5"),
+                    */
+                _ => todo!("Support Atomic Instructions"),
                 },
-                _ => panic!("invalid funct3"),
+                _ => todo!("Support Atomic Instructions"),
             },
             0b0110011 => match funct3 {
                 0x0 => match funct7 {
@@ -565,7 +569,7 @@ impl CPU {
                 0x1 => self.slliw(rd, rs1, shamt),
                 0x3 => match funct7 {
                     0x0 => self.srliw(rd, rs1, shamt),
-                    0x20 => self.sraiw(rd, rs1, shamt),
+                    0x20 => self.sraiw(rd, rs1, imm),
                     _ => panic!("invalid funct7"),
                 },
                 _ => panic!("invalid funct"),
@@ -917,13 +921,18 @@ impl CPU {
     }
 
     fn sll(&mut self, rd: u64, rs1: u64, rs2: u64) -> bool {
-        println!("SLL");
-        self.x_reg[rd as usize] = self.x_reg[rs1 as usize] << (self.x_reg[rs2 as usize] & 0b11111);
+        if self.debug_flag {
+            println!("{:#08X} sll",self.pc);
+        }
+        let shamt = self.x_reg[rs2 as usize] & 0x3f;
+        self.x_reg[rd as usize] = self.x_reg[rs1 as usize] << shamt;
         false
     }
 
     fn slt(&mut self, rd: u64, rs1: u64, rs2: u64) -> bool {
-        println!("SLT");
+        if self.debug_flag {
+            println!("{:#08X} slt",self.pc);
+        }
         if (self.x_reg[rs1 as usize] as i64) < (self.x_reg[rs2 as usize] as i64) {
             self.x_reg[rd as usize] = 1;
         } else {
@@ -939,13 +948,17 @@ impl CPU {
     }
 
     fn srli(&mut self, rd: u64, rs1: u64, shamt: u64) -> bool {
-        println!("SRLI");
+        if self.debug_flag {
+            println!("{:#08X} srli",self.pc);
+        }
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize] >> shamt;
         false
     }
 
     fn srai(&mut self, rd: u64, rs1: u64, shamt: u64) -> bool {
-        println!("SRAI");
+        if self.debug_flag {
+            println!("{:#08X} srai",self.pc);
+        }
         self.x_reg[rd as usize] = ((self.x_reg[rs1 as usize] as i64) >> shamt) as u64;
         false
     }
@@ -1003,7 +1016,9 @@ impl CPU {
     }
 
     fn mulh(&mut self, rd: u64, rs1: u64, rs2: u64) -> bool {
-        println!("MULH");
+        if self.debug_flag {
+            println!("{:#08X} mulh",self.pc);
+        }
         let left = self.x_reg[rs1 as usize] as i64 as u128;
         let right = self.x_reg[rs2 as usize] as i64 as u128;
         let result = (left.wrapping_mul(right) >> 64) as u64;
@@ -1012,13 +1027,17 @@ impl CPU {
     }
 
     fn mul(&mut self, rd: u64, rs1: u64, rs2: u64) -> bool {
-        println!("MUL");
-        self.x_reg[rd as usize] = self.x_reg[rs1 as usize].wrapping_mul(self.x_reg[rs2 as usize]);
+        if self.debug_flag {
+            println!("{:#08X} mul",self.pc);
+        }
+        self.x_reg[rd as usize] = (self.x_reg[rs1 as usize] as i64).wrapping_mul(self.x_reg[rs2 as usize] as i64) as u64;
         false
     }
 
     fn sub(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
-        println!("SUB");
+        if self.debug_flag {
+            println!("{:#08X} sub",self.pc);
+        }
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize].wrapping_sub(self.x_reg[rs2 as usize]);
         false
     }
@@ -1026,7 +1045,7 @@ impl CPU {
     fn add(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
         if self.debug_flag {
             println!(
-                "{:#08X} ADD x{rd} ({:#08X}) x{rs1} ({:#08X}) x{rs2} ({:#08X})",
+                "{:#08X} add x{rd} ({:#08X}) x{rs1} ({:#08X}) x{rs2} ({:#08X})",
                 self.pc,
                 self.x_reg[rd as usize],
                 self.x_reg[rs1 as usize],
@@ -1080,13 +1099,15 @@ impl CPU {
         false
     }
     fn load_word_unsigned(self: &mut Self, rd: u64, rs1: u64, imm: u64) -> bool {
-        println!("LWU");
+        if self.debug_flag {
+            println!("{:#08X} lwu",self.pc);
+        }
         let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
         let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
         let value2 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
         let value3 = self.mmu.virtual_memory[_memory_address as usize + 2] as u8;
         let value4 = self.mmu.virtual_memory[_memory_address as usize + 3] as u8;
-        let result = u32::from_le_bytes([value1, value2, value3, value4]) as u64;
+        let result = u32::from_le_bytes([value1, value2, value3, value4]);
         self.x_reg[rd as usize] = result as u64;
         false
     }
@@ -1104,8 +1125,8 @@ impl CPU {
         let value7 = self.mmu.virtual_memory[_memory_address as usize + 7] as u8;
         let result = u64::from_le_bytes([
             value0, value1, value2, value3, value4, value5, value6, value7,
-        ]) as i64 as u64;
-        self.x_reg[rd as usize] = result as u64;
+        ]);
+        self.x_reg[rd as usize] = result;
         false
     }
     fn load_double_word_atomic(self: &mut Self, rd: u64, rs1: u64) -> bool {
@@ -1544,13 +1565,15 @@ impl CPU {
     }
 
     fn load_word(self: &mut Self, rd: u64, rs1: u64, imm: u64) -> bool {
-        println!("lw");
+        if self.debug_flag{
+        println!("{:#08X} lw",self.pc);
+        }
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm);
         let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
         let value2 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
         let value3 = self.mmu.virtual_memory[_memory_address as usize + 2] as u8;
         let value4 = self.mmu.virtual_memory[_memory_address as usize + 3] as u8;
-        let result = u32::from_le_bytes([value1, value2, value3, value4]) as i64 as u64;
+        let result = u32::from_le_bytes([value1, value2, value3, value4]) as i32 as i64 as u64;
         self.x_reg[rd as usize] = result as u64;
         false
     }
@@ -1560,14 +1583,14 @@ impl CPU {
         let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
         let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
         let value2 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
-        let result = u16::from_le_bytes([value1, value2]) as i64 as u64;
+        let result = u16::from_le_bytes([value1, value2]) as i16 as i64 as u64;
         self.x_reg[rd as usize] = result as u64;
         false
     }
     // load 8 bit value
     fn load_byte(self: &mut Self, rd: u64, rs1: u64, imm: u64) -> bool {
         let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
-        let value = self.mmu.virtual_memory[_memory_address as usize] as u8;
+        let value = self.mmu.virtual_memory[_memory_address as usize] as i8;
         if self.debug_flag {
             println!(
                 "{:#08X} LB x{rd} ({:#08X}) {:#08X} -> ({:#08X})",
@@ -1584,43 +1607,45 @@ impl CPU {
         let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
         let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
         let value2 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
-        let result = u16::from_le_bytes([value1, value2]) as u64;
+        let result = u16::from_le_bytes([value1, value2]);
         self.x_reg[rd as usize] = result as u64;
         false
     }
     // load 8 bit value
     fn load_byte_u(self: &mut Self, rd: u64, rs1: u64, imm: u64) -> bool {
-        println!("lbu");
-        let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
-        let value = self.mmu.virtual_memory[_memory_address as usize] as u8;
+        if self.debug_flag {
+            println!("{:#08X} lbu",self.pc);
+        }
+        let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm);
+        let value = self.mmu.virtual_memory[_memory_address as usize];
         self.x_reg[rd as usize] = value as u64;
         false
     }
     // add immediate
     fn addi(self: &mut Self, rd: u64, rs1: u64, imm: u64) -> bool {
         if self.debug_flag {
-            println!("{:#08X} ADDI x{rd}, x{rs1}, {}", self.pc, imm);
+            println!("{:#08X} addi x{rd}, x{rs1}, {}", self.pc, imm);
         }
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize].wrapping_add(imm);
         false
     }
     fn andi(self: &mut Self, rd: u64, rs1: u64, imm: u64) -> bool {
         if self.debug_flag {
-            println!("{:#08X} ANDI x{rd}, x{rs1}, {}", self.pc, imm as i64);
+            println!("{:#08X} andi x{rd}, x{rs1}, {}", self.pc, imm as i64);
         }
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize] & imm;
         false
     }
     fn ori(self: &mut Self, rd: u64, rs1: u64, imm: u64) -> bool {
         if self.debug_flag {
-            println!("{:#08X} ORI x{rd}, x{rs1}, {}", self.pc, imm);
+            println!("{:#08X} ori x{rd}, x{rs1}, {}", self.pc, imm);
         }
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize] | imm;
         false
     }
     fn xori(self: &mut Self, rd: u64, rs1: u64, imm: u64) -> bool {
         if self.debug_flag {
-            println!("{:#08X} XORI x{rd}, x{rs1}, {}", self.pc, imm);
+            println!("{:#08X} xori x{rd}, x{rs1}, {}", self.pc, imm);
         }
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize] ^ imm;
         false
@@ -1800,9 +1825,10 @@ impl CPU {
     }
 
     fn slliw(self: &mut Self, rd: u64, rs1: u64, shamt: u64) -> bool {
-        println!("SLLIW");
-        let left = self.x_reg[rs1 as usize] as u32;
-        let right = shamt as u32;
+        if self.debug_flag {
+            println!("{:#08X} slliw",self.pc);
+        }
+        let shamt =  shamt as u32;
         self.x_reg[rd as usize] = (left >> right) as u32 as i64 as u64;
         false
     }
@@ -1816,17 +1842,21 @@ impl CPU {
     }
 
     fn sraw(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
-        println!("SRAW");
-        let left = self.x_reg[rs1 as usize] as u32;
-        let right = self.x_reg[rs2 as usize] as u32 & 0b11111;
-        self.x_reg[rd as usize] = (left >> right) as u32 as i64 as u64;
+        if self.debug_flag {
+            println!("{:#08X} sraw",self.pc);
+        }
+        let left = self.x_reg[rs1 as usize] as i32;
+        let shamt = self.x_reg[rs2 as usize] & 0x1f;
+        self.x_reg[rd as usize] = (left >> shamt ) as i64 as u64;
         false
     }
-    fn sraiw(self: &mut Self, rd: u64, rs1: u64, shamt: u64) -> bool {
-        println!("SRAIW");
-        let left = self.x_reg[rs1 as usize] as u32;
-        let right = shamt as i32;
-        self.x_reg[rd as usize] = (left >> right) as u32 as i64 as u64;
+    fn sraiw(self: &mut Self, rd: u64, rs1: u64, imm: u64) -> bool {
+        if self.debug_flag{
+            println!("{:#08X} sraiw", self.pc);
+        }
+        let left = self.x_reg[rs1 as usize] as i32;
+        let shamt = (imm & 0x1f) as u32;
+        self.x_reg[rd as usize] = (left >> shamt)  as i64 as u64;
         false
     }
     fn srlw(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
