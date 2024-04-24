@@ -1,7 +1,10 @@
+use std::io;
 use std::io::BufRead;
 use std::io::Write;
 
+use crate::data;
 use crate::mmu::MMU;
+use crate::data::Iovec;
 
 #[derive(Debug)]
 pub struct CPU {
@@ -566,13 +569,13 @@ impl CPU {
             0b0010111 => self.auipc(rd, (instruction & 0xfffff000) as i32 as i64 as u64),
             0b0011011 => match funct3 {
                 0x0 => self.addiw(rd, rs1, imm),
-                0x1 => self.slliw(rd, rs1, shamt),
-                0x3 => match funct7 {
+                0x1 => self.slliw(rd, rs1, imm),
+                0x5 => match funct7 {
                     0x0 => self.srliw(rd, rs1, shamt),
                     0x20 => self.sraiw(rd, rs1, imm),
                     _ => panic!("invalid funct7"),
                 },
-                _ => panic!("invalid funct"),
+                _ => panic!("invalid funct {funct3}"),
             },
             0b0111011 => match funct3 {
                 0x7 => match funct7 {
@@ -608,7 +611,9 @@ impl CPU {
     }
 
     fn remu(&mut self, rd: u64, rs1: u64, rs2: u64) -> bool {
-        println!("REMU");
+        if self.debug_flag {
+            println!("REMU");
+        }
         let left = self.x_reg[rs1 as usize];
         let right = self.x_reg[rs2 as usize];
         let result = if right == 0 {
@@ -621,7 +626,9 @@ impl CPU {
     }
 
     fn rem(&mut self, rd: u64, rs1: u64, rs2: u64) -> bool {
-        println!("REM");
+        if self.debug_flag {
+            println!("REM");
+        }
         let left = self.x_reg[rs1 as usize] as i64;
         let right = self.x_reg[rs2 as usize] as i64;
         let result = if right == 0 {
@@ -634,7 +641,9 @@ impl CPU {
     }
 
     fn divu(&mut self, rd: u64, rs1: u64, rs2: u64) -> bool {
-        println!("DIVU");
+        if self.debug_flag {
+            println!("DIVU");
+        }
         let left = self.x_reg[rs1 as usize];
         let right = self.x_reg[rs2 as usize];
         let result = if right == 0 {
@@ -647,7 +656,9 @@ impl CPU {
     }
 
     fn div(&mut self, rd: u64, rs1: u64, rs2: u64) -> bool {
-        println!("DIV");
+        if self.debug_flag {
+            println!("DIV");
+        }
         let left = self.x_reg[rs1 as usize] as i64;
         let right = self.x_reg[rs2 as usize] as i64;
         let result = if right == 0 {
@@ -659,7 +670,9 @@ impl CPU {
         false
     }
     fn c_slli(&mut self, rd: u64, shamt: u64) -> bool {
-        println!("{:#08X} c.slli x{rd},x{rd},{:#04X}", self.pc, shamt);
+        if self.debug_flag{
+            println!("{:#08X} c.slli x{rd},x{rd},{:#04X}", self.pc, shamt);
+        }
         self.x_reg[rd as usize] = self.x_reg[rd as usize] << shamt;
         false
     }
@@ -680,17 +693,18 @@ impl CPU {
         false
     }
     fn c_swsp(&mut self, rs2: u64, offset: u64) -> bool {
-        println!("swsp");
-        let _memory_address = self.x_reg[2].wrapping_add(offset as u64);
-        let index = rs2 as usize;
-        let value = self.x_reg[index] as u64;
+        if self.debug_flag{
+            println!("{:#08X} swsp",self.pc);
+        }
+        let _memory_address = self.x_reg[2].wrapping_add(offset);
+        let value = self.x_reg[rs2 as usize] as u32;
         let value_as_bytes = value.to_le_bytes();
         self.mmu.virtual_memory[_memory_address as usize.._memory_address as usize + 4]
             .copy_from_slice(&value_as_bytes);
         false
     }
     fn c_lwsp(&mut self, rd: u64, offset: u64) -> bool {
-        println!("lwsp");
+        if self.debug_flag{println!("lwsp");}
         let value = self.x_reg[2].wrapping_add(offset as u64) as i32 as i64 as u64;
         self.x_reg[rd as usize] = value;
         false
@@ -716,7 +730,7 @@ impl CPU {
     }
 
     fn c_add4spn(&mut self, rd: u64, nzuimm: u64) -> bool {
-        println!("c.addi4spn");
+        if self.debug_flag{println!("c.addi4spn");}
         let temp = self.x_reg[2].wrapping_add(nzuimm as u64);
         self.x_reg[rd as usize] = temp;
         false
@@ -775,7 +789,7 @@ impl CPU {
     }
 
     fn c_sw(&mut self, rs2: u64, rs1: u64, offset: u64) -> bool {
-        println!("c_sw");
+        if self.debug_flag{println!("c_sw");};
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(offset as u64);
         let index = rs2 as usize;
         let value = self.x_reg[index] as u32;
@@ -847,46 +861,46 @@ impl CPU {
         false
     }
     fn c_srli(&mut self, rd: u64, shamt: u64) -> bool {
-        println!("srli");
+        if self.debug_flag{println!("srli");}
         self.x_reg[rd as usize] = self.x_reg[rd as usize] >> shamt;
         false
     }
     fn c_srai(&mut self, rd: u64, shamt: u64) -> bool {
-        println!("srai");
+        if self.debug_flag{println!("srai");}
         self.x_reg[rd as usize] = ((self.x_reg[rd as usize] as i64) >> shamt) as u64;
         false
     }
 
     fn c_andi(&mut self, rd: u64, imm: u64) -> bool {
-        println!("andi");
+        if self.debug_flag{println!("c.andi");}
         self.x_reg[rd as usize] = self.x_reg[rd as usize] & imm as u64;
         false
     }
 
     fn c_sub(&mut self, rd: u64, rs2: u64) -> bool {
-        println!("sub");
+        if self.debug_flag{println!("c.sub");}
         self.x_reg[rd as usize] = self.x_reg[rd as usize].wrapping_sub(self.x_reg[rs2 as usize]);
         false
     }
 
     fn c_xor(&mut self, rd: u64, rs2: u64) -> bool {
-        println!("xor");
+        if self.debug_flag{println!("c.xor");}
         self.x_reg[rd as usize] = self.x_reg[rd as usize] ^ self.x_reg[rs2 as usize];
         false
     }
     fn c_or(&mut self, rd: u64, rs2: u64) -> bool {
-        println!("or");
+        if self.debug_flag{println!("c.or");}
         self.x_reg[rd as usize] = self.x_reg[rd as usize] ^ self.x_reg[rs2 as usize];
         false
     }
     fn c_and(&mut self, rd: u64, rs2: u64) -> bool {
-        println!("and");
+        if self.debug_flag{println!("c.and");}
         self.x_reg[rd as usize] = self.x_reg[rd as usize] & self.x_reg[rs2 as usize];
         false
     }
 
     fn c_subw(&mut self, rd: u64, rs2: u64) -> bool {
-        println!("subw");
+        if self.debug_flag{println!("c.subw");}
         self.x_reg[rd as usize] =
             self.x_reg[rd as usize].wrapping_sub(self.x_reg[rs2 as usize]) as i32 as i64 as u64;
         false
@@ -912,7 +926,7 @@ impl CPU {
     }
 
     fn mulu(&mut self, rd: u64, rs1: u64, rs2: u64) -> bool {
-        println!("MULU");
+        if self.debug_flag{println!("MULU");}
         let left = self.x_reg[rs1 as usize] as u64 as u128;
         let right = self.x_reg[rs2 as usize] as u64 as u128;
         let result = (left.wrapping_mul(right) >> 64) as u64;
@@ -942,7 +956,7 @@ impl CPU {
     }
 
     fn slli(&mut self, rd: u64, rs1: u64, shamt: u64) -> bool {
-        println!("SLLI");
+        if self.debug_flag{println!("SLLI");}
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize] << shamt;
         false
     }
@@ -964,7 +978,7 @@ impl CPU {
     }
 
     fn slti(&mut self, rd: u64, rs1: u64, imm: u64) -> bool {
-        println!("SRLTI");
+        if self.debug_flag{println!("SRLTI");}
         if (self.x_reg[rs1 as usize] as i64) < (imm as i64) {
             self.x_reg[rd as usize] = 1;
         } else {
@@ -974,7 +988,7 @@ impl CPU {
     }
 
     fn sltiu(&mut self, rd: u64, rs1: u64, imm: u64) -> bool {
-        println!("SLTIU");
+        if self.debug_flag{println!("SLTIU");}
         if (self.x_reg[rs1 as usize] as u64) < imm {
             self.x_reg[rd as usize] = 1;
         } else {
@@ -984,7 +998,7 @@ impl CPU {
     }
 
     fn sltu(&mut self, rd: u64, rs1: u64, rs2: u64) -> bool {
-        println!("SLTU");
+        if self.debug_flag{println!("SLTU");}
         if (self.x_reg[rs1 as usize] as u64) < (self.x_reg[rs2 as usize] as u64) {
             self.x_reg[rd as usize] = 1;
         } else {
@@ -994,7 +1008,7 @@ impl CPU {
     }
 
     fn mulhsu(&mut self, rd: u64, rs1: u64, rs2: u64) -> bool {
-        println!("MULHSU");
+        if self.debug_flag{println!("MULHSU");}
         let left = self.x_reg[rs1 as usize] as i64 as u128;
         let right = self.x_reg[rs2 as usize] as u64 as u128;
         let result = (left.wrapping_mul(right) >> 64) as u64;
@@ -1056,7 +1070,7 @@ impl CPU {
         false
     }
     fn store_double_word(self: &mut Self, rs2: u64, rs1: u64, imm: u64) -> bool {
-        println!("SD RS1 = {:#08X}", self.x_reg[rs1 as usize]);
+        if self.debug_flag{println!("SD RS1 = {:#08X}", self.x_reg[rs1 as usize]);}
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm as u64);
         let index = rs2 as usize;
         let value = self.x_reg[index] as u64;
@@ -1066,7 +1080,7 @@ impl CPU {
         false
     }
     fn store_word(self: &mut Self, rs2: u64, rs1: u64, imm: u64) -> bool {
-        println!("SW");
+        if self.debug_flag{println!("SW");}
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm as u64);
         let index = rs2 as usize;
         let value = self.x_reg[index] as u32;
@@ -1112,9 +1126,8 @@ impl CPU {
         false
     }
     fn load_double_word(self: &mut Self, rd: u64, rs1: u64, imm: u64) -> bool {
-        println!("LD");
+        if self.debug_flag{println!("LD");}
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm as u64);
-        println!("{:#08X}", _memory_address);
         let value0 = self.mmu.virtual_memory[_memory_address as usize] as u8;
         let value1 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
         let value2 = self.mmu.virtual_memory[_memory_address as usize + 2] as u8;
@@ -1130,7 +1143,7 @@ impl CPU {
         false
     }
     fn load_double_word_atomic(self: &mut Self, rd: u64, rs1: u64) -> bool {
-        println!("LR.D");
+        if self.debug_flag{println!("LR.d");}
         let _memory_address = self.x_reg[rs1 as usize];
         let value0 = self.mmu.virtual_memory[_memory_address as usize] as u8;
         let value1 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
@@ -1651,23 +1664,23 @@ impl CPU {
         false
     }
     fn and(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
-        println!("AND");
+        if self.debug_flag{println!("and");}
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize] & self.x_reg[rs2 as usize];
         false
     }
     fn or(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
-        println!("OR");
+        if self.debug_flag{println!("OR");}
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize] | self.x_reg[rs2 as usize];
         false
     }
     fn xor(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
-        println!("XOR");
+        if self.debug_flag{println!("XOR");}
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize] ^ self.x_reg[rs2 as usize];
         false
     }
 
     fn bgeu(self: &mut Self, rs1: u64, rs2: u64, imm_b_type: u64) -> bool {
-        println!("BGEU");
+        if self.debug_flag{println!("BGEU");}
         if (self.x_reg[rs1 as usize] as u64) >= (self.x_reg[rs2 as usize] as u64) {
             self.pc = self.pc.wrapping_add(imm_b_type as i64 as u64);
             return true;
@@ -1675,7 +1688,7 @@ impl CPU {
         false
     }
     fn bltu(self: &mut Self, rs1: u64, rs2: u64, imm_b_type: u64) -> bool {
-        println!("bltu");
+        if self.debug_flag{println!("bltu");}
         if (self.x_reg[rs1 as usize] as u64) < (self.x_reg[rs2 as usize] as u64) {
             self.pc = self.pc.wrapping_add(imm_b_type as i64 as u64);
             return true;
@@ -1684,7 +1697,7 @@ impl CPU {
     }
 
     fn bge(self: &mut Self, rs1: u64, rs2: u64, imm_b_type: u64) -> bool {
-        println!("bge");
+        if self.debug_flag{println!("bge");}
         if (self.x_reg[rs1 as usize] as i64) >= (self.x_reg[rs2 as usize] as i64) {
             self.pc = self.pc.wrapping_add(imm_b_type as u64);
             return true;
@@ -1708,7 +1721,7 @@ impl CPU {
     }
 
     fn bne(self: &mut Self, rs1: u64, rs2: u64, imm_b_type: u64) -> bool {
-        println!("bne");
+        if self.debug_flag{println!("bne");}
         if self.x_reg[rs1 as usize] != self.x_reg[rs2 as usize] {
             self.pc = self.pc.wrapping_add(imm_b_type as u64);
             return true;
@@ -1729,7 +1742,7 @@ impl CPU {
         false
     }
     fn jal(self: &mut Self, rd: u64, imm_j_type: u64) -> bool {
-        println!("JAL");
+        if self.debug_flag{println!("jal");}
         self.x_reg[rd as usize] = self.pc.wrapping_add(0x4); // return address saved in RD
         self.pc = self.pc.wrapping_add(imm_j_type as i64 as u64);
         true
@@ -1786,7 +1799,7 @@ impl CPU {
         false
     }
     fn c_jalr(self: &mut Self, rs1: u64) -> bool {
-        println!("c.JALR");
+        if self.debug_flag{println!("c.JALR");}
         let t = self.pc + 2;
         self.pc = self.x_reg[rs1 as usize];
         self.x_reg[1] = t; // set x0 to ret
@@ -1818,23 +1831,24 @@ impl CPU {
     }
 
     fn addiw(self: &mut Self, rd: u64, rs1: u64, imm: u64) -> bool {
-        println!("ADDIW confirm works");
+        if self.debug_flag{println!("ADDIW confirm works");}
         let rs1__ = self.x_reg[rs1 as usize];
         self.x_reg[rd as usize] = rs1__.wrapping_add(imm) as i64 as u64;
         false
     }
 
-    fn slliw(self: &mut Self, rd: u64, rs1: u64, shamt: u64) -> bool {
+    fn slliw(self: &mut Self, rd: u64, rs1: u64, imm: u64) -> bool {
         if self.debug_flag {
             println!("{:#08X} slliw",self.pc);
         }
-        let shamt =  shamt as u32;
-        self.x_reg[rd as usize] = (left >> right) as u32 as i64 as u64;
+        let left = self.x_reg[rs1 as usize] as i32;
+        let shamt = (imm & 0x1f) as u32;
+        self.x_reg[rd as usize] = (left >> shamt) as i64 as u64;
         false
     }
 
     fn srliw(self: &mut Self, rd: u64, rs1: u64, shamt: u64) -> bool {
-        println!("SRLIW");
+        if self.debug_flag{println!("SRLIW");}
         let left = self.x_reg[rs1 as usize] as u32;
         let right = shamt as u32;
         self.x_reg[rd as usize] = (left << right) as u32 as i64 as u64;
@@ -1875,7 +1889,7 @@ impl CPU {
     }
 
     fn divuw(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
-        println!("DIVUW");
+        if self.debug_flag{println!("DIVUW");}
         let left = self.x_reg[rs1 as usize] as u32;
         let right = self.x_reg[rs2 as usize] as u32;
         let result = if rs2 == 0 {
@@ -1888,7 +1902,7 @@ impl CPU {
     }
 
     fn mulw(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
-        println!("MULW");
+        if self.debug_flag{println!("MULW");}
         let left = self.x_reg[rs1 as usize] as u32;
         let right = self.x_reg[rs2 as usize] as u32;
         let result = left.wrapping_mul(right);
@@ -1896,14 +1910,14 @@ impl CPU {
         false
     }
     fn subw(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
-        println!("SUBW");
+        if self.debug_flag{println!("SUBW");}
         self.x_reg[rd as usize] = (self.x_reg[rs1 as usize] as u32)
             .wrapping_sub(self.x_reg[rs2 as usize] as u32) as i64
             as u64;
         false
     }
     fn addw(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
-        println!("ADDW");
+        if self.debug_flag{println!("ADDW");}
         self.x_reg[rd as usize] = (self.x_reg[rs1 as usize] as u32)
             .wrapping_add(self.x_reg[rs2 as usize] as u32) as i64
             as u64;
@@ -1911,7 +1925,7 @@ impl CPU {
     }
 
     fn divw(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
-        println!("DIVW");
+        if self.debug_flag{println!("DIVW");}
         let left = self.x_reg[rs1 as usize] as i32;
         let right = self.x_reg[rs2 as usize] as i32;
         let result = if rs2 == 0 {
@@ -1923,7 +1937,7 @@ impl CPU {
         false
     }
     fn remw(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
-        println!("REMW");
+        if self.debug_flag{println!("REMW");}
         let left = self.x_reg[rs1 as usize] as i32;
         let right = self.x_reg[rs2 as usize] as i32;
         let result = if rs2 == 0 {
@@ -2023,11 +2037,61 @@ impl CPU {
         let _a3 = self.x_reg[13];
         let _a4 = self.x_reg[14];
         let _a5 = self.x_reg[15];
-        println!("syscall {:#08X}", syscall);
-        let stdin = std::io::stdin();
-        let mut line = String::new();
-        stdin.lock().read_line(&mut line).unwrap();
+        if self.debug_flag{println!("syscall {:#08X}", syscall);}
+        //let stdin = std::io::stdin();
+        //let mut line = String::new();
+        //stdin.lock().read_line(&mut line).unwrap();
         match syscall {
+            0x5E => {
+                // https://man7.org/linux/man-pages/man2/exit_group.2.html
+                let exit_status = _a0;
+                println!("\n=== CoffeePot Exit! {} ===",exit_status as i32);
+                std::process::exit(exit_status as i32);
+            }
+            0x42 => {
+                //https://man7.org/linux/man-pages/man2/writev.2.html
+                let fd = _a0;
+                if fd != 1 {
+                    todo!("Handle writing to a different file descriptor other than stdout");
+                }
+                let iovec_ptr_start = _a1;
+                let iovec_count= _a2;
+                let iovec_struct_size = (std::mem::size_of::<Iovec>() as u64);
+                let total_size = iovec_count * iovec_struct_size;
+                let iovec_ptr_end = _a1 + total_size;
+                //println!("{:#08X}",iovec_ptr_start);
+                //println!("iovec count {:#08X}",iovec_count);
+                //println!("{:#08X}",total_size);
+                // points to where the iovecs start
+                let iovec_buffer = &self.mmu.virtual_memory[iovec_ptr_start as usize..iovec_ptr_end as usize];
+                let mut writev_n = 0;
+                unsafe {
+                    for i in 0..iovec_count {
+                        let offset = i as isize * 0x16 as isize;
+                        let iovec_p: *const Iovec = iovec_buffer.as_ptr().offset(offset) as *const Iovec;
+                        let iovec:&Iovec = &*iovec_p;
+                        //println!("iovec_str {:?}",iovec_p);
+                        //println!("iovec_p {:?}",iovec_p);
+                        if iovec.iov_base == 0 || iovec.iov_len== 0 {
+                            break;
+                        }
+                        //println!("base {:#08X}",iovec.iov_base);
+                        //println!("len {:#08X}",iovec.iov_len);
+                        // read len byes from base and write into fd
+                        let data_buffer = &self.mmu.virtual_memory[iovec.iov_base as usize..iovec.iov_base as usize + iovec.iov_len as usize];
+                        let utf_bytes = core::str::from_utf8_unchecked(data_buffer);
+                        // currently we only write to stdout
+                        print!("{}", utf_bytes);
+                        writev_n += data_buffer.len() as u64;
+                    }
+                }
+                // return value
+                self.x_reg[10] = writev_n;
+            }
+            0x1D => {
+                //https://man7.org/linux/man-pages/man2/ioctl.2.html
+                self.x_reg[10] = 0;
+            }
             0x62 => {
                 // https://man7.org/linux/man-pages/man2/lseek.2.html
                 let fd = _a0;

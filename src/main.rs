@@ -1,4 +1,3 @@
-use std::io::BufRead;
 
 use crate::emulator::Emulator;
 
@@ -6,17 +5,21 @@ mod cpu;
 mod emulator;
 mod loader;
 mod mmu;
+mod data;
 mod tests;
 
 fn main() {
+    let path = "test_relaxed.elf";
     let mut emulator = Emulator::new();
-    let elf_segments = loader::load_elf("test_relaxed.elf");
+    println!("=== CoffeePot Loading {}!  ===",path);
+    let elf_segments = loader::load_elf(&path);
     emulator.load_elf_segments(&elf_segments);
     emulator.cpu.pc = elf_segments.entry_point;
     //emulator.load_raw_instructions("./add.bin").unwrap();
     //print!("{:?}", emulator.cpu.mmu.text_segment);
     let mut counter = 0;
-    let mut debug = false;
+    emulator.cpu.debug_flag = false;
+    println!("=== CoffeePot Elf Loading Complete!  ===",);
     println!("=== CoffeePot Init!  ===");
     loop {
         //println!("{}", emulator.cpu);
@@ -24,10 +27,11 @@ fn main() {
         if !emulator.fetch_instruction() {
             break;
         }
-        print!("CoffeePot Registers: \n{}\n", emulator.cpu);
+        //print!("CoffeePot Registers: \n{}\n", emulator.cpu);
         // Decode && Execute
         emulator.execute_instruction();
         //print!("CoffeePot: \n{}\n", emulator.cpu);
+        /*
         if emulator.cpu.pc == 0x012068 {
             debug = true;
         }
@@ -36,6 +40,7 @@ fn main() {
             let mut line = String::new();
             stdin.lock().read_line(&mut line).unwrap();
         }
+        */
         //print!("coffeepot registers: \n{}\n", emulator.cpu);
         //
         //let stdin = std::io::stdin();
