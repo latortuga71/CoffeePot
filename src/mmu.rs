@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct MMU {
     // Make this one giant array
     pub virtual_memory: Vec<u8>,

@@ -6,7 +6,7 @@ use crate::data;
 use crate::mmu::MMU;
 use crate::data::Iovec;
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct CPU {
     pub pc: u64,
     pub sp: u64,
@@ -17,11 +17,13 @@ pub struct CPU {
     pub current_compressed: bool,
     pub was_last_compressed: bool,
     pub debug_flag: bool,
+    pub exit_called:bool,
+    pub exit_status:i32
 }
 
 // XLEN = u64 arch size
 pub const DRAM_BASE: u64 = 0x8000_0000;
-pub const DRAM_SIZE: u64 = 1024 * 1024 * 1024;
+pub const DRAM_SIZE: u64 = 1024 * 1024; // * 1024;
 // RV64I: base integer instructions
 impl std::fmt::Display for CPU {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -48,7 +50,7 @@ impl CPU {
     pub fn new() -> Self {
         let mut xreg: [u64; 32] = [0; 32];
         let stack_base = 0x0;
-        let sp_start = stack_base + 1024 * 1024;
+        let sp_start = stack_base + 1024; // stack size of 1024
         xreg[2] = sp_start as u64;
         let mut sp = xreg[2];
         let og = sp;
@@ -78,6 +80,8 @@ impl CPU {
             current_compressed: false,
             was_last_compressed: false,
             debug_flag: true,
+            exit_status:0,
+            exit_called: false,
         }
     }
 
@@ -2045,8 +2049,11 @@ impl CPU {
             0x5E => {
                 // https://man7.org/linux/man-pages/man2/exit_group.2.html
                 let exit_status = _a0;
-                println!("\n=== CoffeePot Exit! {} ===",exit_status as i32);
-                std::process::exit(exit_status as i32);
+                //println!("\n=== CoffeePot Exit! {} ===",exit_status as i32);
+                self.exit_called = true;
+                self.exit_status = exit_status as i32;
+                return false;
+                //std::process::exit(exit_status as i32);
             }
             0x42 => {
                 //https://man7.org/linux/man-pages/man2/writev.2.html

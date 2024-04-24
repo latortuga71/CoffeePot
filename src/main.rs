@@ -9,16 +9,20 @@ mod data;
 mod tests;
 
 fn main() {
-    let path = "test_relaxed.elf";
+    //let path = "test_relaxed.elf";
+    let path = "test_new";
     let mut emulator = Emulator::new();
     println!("=== CoffeePot Loading {}!  ===",path);
-    let elf_segments = loader::load_elf(&path);
+    let elf_segments = loader::load_elf(&path,false);
     emulator.load_elf_segments(&elf_segments);
     emulator.cpu.pc = elf_segments.entry_point;
     //emulator.load_raw_instructions("./add.bin").unwrap();
     //print!("{:?}", emulator.cpu.mmu.text_segment);
     let mut counter = 0;
+    let mut executions = 0;
     emulator.cpu.debug_flag = false;
+    // example snapshot?
+    let snapshot = emulator.clone();
     println!("=== CoffeePot Elf Loading Complete!  ===",);
     println!("=== CoffeePot Init!  ===");
     loop {
@@ -29,7 +33,18 @@ fn main() {
         }
         //print!("CoffeePot Registers: \n{}\n", emulator.cpu);
         // Decode && Execute
-        emulator.execute_instruction();
+        if emulator.execute_instruction() {
+            // exit called!
+            //println!("=== CoffeePot Exit! {}  ===",emulator.cpu.exit_status);
+            executions += 1;
+            // reset emulator
+            emulator = snapshot.clone();
+            println!("{} Executions",executions);
+            if executions > 15 {
+                break;
+            }
+            continue;
+        }
         //print!("CoffeePot: \n{}\n", emulator.cpu);
         /*
         if emulator.cpu.pc == 0x012068 {

@@ -47,7 +47,7 @@ pub struct Elf64ProgramHeader {
     pub p_align: u64,
 }
 //https://docs.rs/elf/latest/elf/file/struct.FileHeader.html
-pub fn load_elf(path: &str) -> ElfInformation {
+pub fn load_elf(path: &str,debug: bool) -> ElfInformation {
     let mut segments: Vec<Segment> = Vec::new();
     let mut virtual_memory_minimum_size = 0;
     let file_data = std::fs::read(path).unwrap_or_else(|e| {
@@ -57,9 +57,11 @@ pub fn load_elf(path: &str) -> ElfInformation {
     let file_header: Elf64FileHeader = unsafe { std::ptr::read(file_data.as_ptr() as *const _) };
     let entry_point = file_header.e_entry;
     let program_header_offset = file_header.e_phoff;
-    println!("{:?}", file_header.e_ident);
-    println!("{:#08x}", entry_point);
-    println!("{:?}", program_header_offset);
+    if debug{
+        println!("{:?}", file_header.e_ident);
+        println!("{:#08x}", entry_point);
+        println!("{:?}", program_header_offset);
+    }
     for i in 0..file_header.e_phnum {
         let offset_start = program_header_offset + (file_header.e_phentsize * i) as u64;
         let offset_end = offset_start + file_header.e_phentsize as u64;
@@ -82,11 +84,13 @@ pub fn load_elf(path: &str) -> ElfInformation {
                 virtual_address: program_header.p_vaddr,
             };
             segments.push(segment);
-            println!("Segment type {:#08X}", program_header.p_type);
-            println!("Segment align {:#08X}", program_header.p_align);
-            println!("Segment virtual addr {:#08X}", program_header.p_vaddr);
-            println!("Segment vm size {:#08X}", program_header.p_memsz);
-            println!("Segment raw size {:#08X}", program_header.p_filesz);
+            if debug {
+                println!("Segment type {:#08X}", program_header.p_type);
+                println!("Segment align {:#08X}", program_header.p_align);
+                println!("Segment virtual addr {:#08X}", program_header.p_vaddr);
+                println!("Segment vm size {:#08X}", program_header.p_memsz);
+                println!("Segment raw size {:#08X}", program_header.p_filesz);
+            }
         }
     }
     ElfInformation {

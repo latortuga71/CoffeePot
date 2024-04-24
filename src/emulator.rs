@@ -1,5 +1,8 @@
+use std::clone;
+
 use crate::{cpu::CPU, loader::ElfInformation, mmu::Segment};
 
+#[derive(Clone)]
 pub struct Emulator {
     pub cpu: CPU,
     pub current_instruction: u32,
@@ -39,7 +42,7 @@ impl Emulator {
         self.current_instruction != 0
     }
 
-    pub fn execute_instruction(self: &mut Self) {
+    pub fn execute_instruction(self: &mut Self) -> bool {
         // Here we can check if its a compressed instruction
         if (0x3 & self.current_instruction) != 0x3 {
             // compressed instruction
@@ -58,6 +61,7 @@ impl Emulator {
         self.cpu.sp = self.cpu.x_reg[2];
         // always set x0 to zero
         self.cpu.x_reg[0] = 0x0;
+        self.cpu.exit_called
     }
 
     pub fn load_elf_segments(self: &mut Self, elf: &ElfInformation) {
@@ -70,7 +74,7 @@ impl Emulator {
             // copy raw_data into virtual memory
             self.cpu.mmu.virtual_memory[offset..offset_end].copy_from_slice(&e.raw_data);
         }
-        println!("copied {c} segments");
+        //println!("copied {c} segments");
     }
 
     pub fn load_raw_instructions(self: &mut Self, path: &str) -> Result<(), std::io::Error> {
