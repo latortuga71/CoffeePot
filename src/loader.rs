@@ -1,9 +1,9 @@
-use crate::mmu::Segment;
-use std::process::{self, exit};
+use crate::mmu::{ElfSection};
+use std::{io::Write, process::{self, exit}};
 
 #[derive(Debug)]
 pub struct ElfInformation {
-    pub segments: Vec<Segment>,
+    pub segments: Vec<ElfSection>,
     pub entry_point: u64,
     pub virtual_memory_minimum_size: u64,
     // TODO OTHER STUFF THAT WE NEED?
@@ -46,9 +46,10 @@ pub struct Elf64ProgramHeader {
     pub p_memsz: u64,
     pub p_align: u64,
 }
+
 //https://docs.rs/elf/latest/elf/file/struct.FileHeader.html
 pub fn load_elf(path: &str,debug: bool) -> ElfInformation {
-    let mut segments: Vec<Segment> = Vec::new();
+    let mut segments: Vec<ElfSection> = Vec::new();
     let mut virtual_memory_minimum_size = 0;
     let file_data = std::fs::read(path).unwrap_or_else(|e| {
         eprint!("ERROR: Failed to read {path}: {e}");
@@ -75,7 +76,7 @@ pub fn load_elf(path: &str,debug: bool) -> ElfInformation {
         virtual_memory_minimum_size += program_header.p_memsz;
         virtual_memory_minimum_size += program_header.p_vaddr;
         if program_header.p_type == 0x1 {
-            let segment = Segment {
+            let segment = ElfSection {
                 alignment: program_header.p_align,
                 perms: program_header.p_flags as u64,
                 raw_data_size: program_header.p_filesz,

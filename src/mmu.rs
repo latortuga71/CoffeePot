@@ -1,7 +1,11 @@
+use std::{collections::HashMap};
+
+
+
 #[derive(Debug,Clone)]
 pub struct MMU {
-    // Make this one giant array
     pub virtual_memory: Vec<u8>,
+    pub virtual_memory_new: HashMap<(u64,u64),Segment>
 }
 
 pub const RAM: u64 = 1024 * 1024 * 1024;
@@ -10,12 +14,119 @@ impl MMU {
     pub fn new() -> Self {
         MMU {
             virtual_memory: vec![0; RAM as usize], // 1GB of address space by default
+            virtual_memory_new: HashMap::new(),
         }
+    }
+
+    fn find_segment(&self,address:u64) -> (u64,u64,bool){
+        let mut key:(u64,u64,bool) = (0,0,false);
+        for (k,_segment) in &self.virtual_memory_new {
+            if address >= k.0 && address < k.1 {
+                key.0 = k.0;
+                key.1 = k.1;
+                key.2 = true;
+                break;
+            }
+        }
+        return key;
+    }
+
+    pub fn read(&self, address:u64, size:usize) -> &[u8] {
+        let key = self.find_segment(address);
+        if key.2 == false {
+            todo!("Handle Segmentation Faults! {}",address);
+        }
+        let k:(u64,u64) = (key.0,key.1);
+        let segment = &self.virtual_memory_new[&k];
+        let virtual_address =  address.wrapping_sub(segment.base_address);
+        //let virtual_address =  address;
+        let start = virtual_address as usize;
+        let end = start + size;
+        println!("Virtual {:#08X} Asking {:#08X} Base {:#08X}",virtual_address,address,segment.base_address);
+        println!("{start}");
+        let slice = &self.virtual_memory_new[&k].data[start..end];
+        return slice;
+    }
+    pub fn write(&mut self, address:u64,data:u64, size:u64) -> usize {
+        let key = self.find_segment(address);
+        if key.2 == false {
+            todo!("Handle Segmentation WRITE Faults!");
+        }
+        let k:(u64,u64) = (key.0,key.1);
+        let virtual_address = address as usize + self.virtual_memory_new[&k].base_address as usize;
+        let offset = virtual_address + size as usize;
+        match size {
+            0x1 => {
+                let value_as_bytes = (data as u8).to_le_bytes();
+                self.virtual_memory_new.get_mut(&k).unwrap().data[virtual_address..offset]
+                .copy_from_slice(&value_as_bytes);
+                return 1;
+            }
+            0x2 => {
+                let value_as_bytes = (data as u16).to_le_bytes();
+                self.virtual_memory_new.get_mut(&k).unwrap().data[virtual_address..offset]
+                .copy_from_slice(&value_as_bytes);
+                return 2;
+            }
+            0x4 => {
+                let value_as_bytes = (data as u32).to_le_bytes();
+                self.virtual_memory_new.get_mut(&k).unwrap().data[virtual_address..offset]
+                .copy_from_slice(&value_as_bytes);
+                return 4;
+            }
+            0x8 => {
+                let value_as_bytes = (data as u64).to_le_bytes();
+                self.virtual_memory_new.get_mut(&k).unwrap().data[virtual_address..offset]
+                .copy_from_slice(&value_as_bytes);
+                return 8;
+            
+            }
+            _ => panic!("MMU Invalid Write Size")
+        }
+    }
+
+
+    pub fn alloc(&mut self, base_address: u64, size: usize) -> u64 {
+        // TODO! Find Unused Base Address
+        // TODO! Permissions for bytes dirty bits for segments
+        let segment = Segment{
+            base_address:base_address,
+            data: vec![0;size],
+            data_size:size,
+            grows_up: false,
+            dirty:false,
+            perms: vec![0;size],
+        };
+        let key = (base_address,base_address + size as u64);
+        self.virtual_memory_new.insert(key, segment);
+        return base_address;
     }
 }
 
-#[derive(Debug)]
+
+#[derive(Debug,Clone)]
 pub struct Segment {
+    pub base_address: u64,
+    pub data: Vec<u8>,
+    pub data_size:usize,
+    pub grows_up: bool,
+    pub dirty: bool,
+    pub perms: Vec<u8>
+}
+
+
+// todo in the future
+enum Permisssions {
+    READ,
+    WRITE,
+    EXECUTE,
+    NONE,
+    READWRITE,
+    READEXECUTE,
+}
+
+#[derive(Debug,Clone)]
+pub struct ElfSection{
     pub raw_data: Vec<u8>,
     pub raw_data_size: u64,
     pub virtual_address: u64,

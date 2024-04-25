@@ -1,4 +1,4 @@
-use std::clone;
+use std::{clone, io::Write};
 
 use crate::{cpu::CPU, loader::ElfInformation, mmu::Segment};
 
@@ -34,7 +34,8 @@ impl Emulator {
     pub fn fetch_instruction(self: &mut Self) -> bool {
         let start = self.cpu.pc;
         let end = self.cpu.pc + 0x4;
-        let instruction_bytes = &self.cpu.mmu.virtual_memory[start as usize..end as usize];
+        let instruction_bytes = self.cpu.mmu.read(self.cpu.pc,0x4);
+        //let instruction_bytes = &self.cpu.mmu.virtual_memory[start as usize..end as usize];
         let mut sliced: [u8; 4] = [0, 0, 0, 0];
         sliced.copy_from_slice(instruction_bytes);
         self.current_instruction = Emulator::as_u32_le(&sliced);
@@ -65,9 +66,8 @@ impl Emulator {
     }
 
     pub fn load_elf_segments(self: &mut Self, elf: &ElfInformation) {
-        let mut c = 0;
+        // load elf LOAD sections into 1 memory segment in the mmu
         for e in &elf.segments {
-            c += 1;
             // from offset to end
             let offset = e.virtual_address as usize;
             let offset_end = e.raw_data.len() + offset;
@@ -75,6 +75,18 @@ impl Emulator {
             self.cpu.mmu.virtual_memory[offset..offset_end].copy_from_slice(&e.raw_data);
         }
         //println!("copied {c} segments");
+
+    }
+    pub fn load_elf_segments_into_mmu(self: &mut Self, elf: &ElfInformation) {
+        for e in &elf.segments {
+            let offset = e.virtual_address;
+            let offset_end = e.raw_data.len() as u64 + offset;
+            let k = (offset,offset_end);
+            self.cpu.mmu.alloc(offset, e.raw_data.len().try_into().unwrap());
+            //e.raw_data.copy_from_slice(&self.cpu.mmu.virtual_memory_new.get_mut(&k).unwrap().data[offset as usize..offset_end as usize]);
+            self.cpu.mmu.virtual_memory_new.get_mut(&k).unwrap().data.copy_from_slice(&e.raw_data);
+            //println!("{wrote} base address {:#08X}",offset);
+        }
     }
 
     pub fn load_raw_instructions(self: &mut Self, path: &str) -> Result<(), std::io::Error> {
