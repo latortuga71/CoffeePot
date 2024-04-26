@@ -5,6 +5,7 @@ use std::io::Write;
 use crate::data;
 use crate::mmu::BYTE;
 use crate::mmu::DOUBLE_WORD;
+use crate::mmu::HALF;
 use crate::mmu::MMU;
 use crate::data::Iovec;
 use crate::mmu::WORD;
@@ -533,8 +534,8 @@ impl CPU {
                 0x0 => self.load_byte(rd, rs1, imm),
                 0x1 => self.load_half(rd, rs1, imm),
                 0x2 => self.load_word(rd, rs1, imm),
-                0x4 => self.load_byte_u(rd, rs1, imm),
-                0x5 => self.load_half_u(rd, rs1, imm),
+                0x4 => self.load_byte_u(rd, rs1, imm), // todo write test
+                0x5 => self.load_half_u(rd, rs1, imm), // todo write test
                 0x3 => self.load_double_word(rd, rs1, imm),
                 0x6 => self.load_word_unsigned(rd, rs1, imm),
                 _ => panic!("Invalid funct3"),
@@ -762,21 +763,8 @@ impl CPU {
             println!("{:#08X} c.ld x{rd},{offset},(x{rs1})", self.pc);
         }
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(offset as u64);
-        if self.debug_flag {
-            println!("{:#08X} {:#08X}", _memory_address, offset);
-        }
-        let value0 = self.mmu.virtual_memory[_memory_address as usize] as u8;
-        let value1 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
-        let value2 = self.mmu.virtual_memory[_memory_address as usize + 2] as u8;
-        let value3 = self.mmu.virtual_memory[_memory_address as usize + 3] as u8;
-        let value4 = self.mmu.virtual_memory[_memory_address as usize + 4] as u8;
-        let value5 = self.mmu.virtual_memory[_memory_address as usize + 5] as u8;
-        let value6 = self.mmu.virtual_memory[_memory_address as usize + 6] as u8;
-        let value7 = self.mmu.virtual_memory[_memory_address as usize + 7] as u8;
-        let result = u64::from_le_bytes([
-            value0, value1, value2, value3, value4, value5, value6, value7,
-        ]) as i64 as u64;
-        self.x_reg[rd as usize] = result as i32 as i64 as u64;
+        let result = u64::from_le_bytes(self.mmu.read(_memory_address, DOUBLE_WORD).try_into().unwrap());
+        self.x_reg[rd as usize] = result;
         false
     }
     fn c_fsd(&mut self, rd: u64, rs1: u64, offset: u64) -> bool {
@@ -1071,18 +1059,18 @@ impl CPU {
         let index = rs2 as usize;
         let value = self.x_reg[index] as u64;
         let value_as_bytes = value.to_le_bytes();
+
         self.mmu.virtual_memory[_memory_address as usize.._memory_address as usize + 8]
             .copy_from_slice(&value_as_bytes);
         false
     }
     fn store_word(self: &mut Self, rs2: u64, rs1: u64, imm: u64) -> bool {
-        if self.debug_flag{println!("SW");}
+        if self.debug_flag{
+            println!("{:#08X} sw x{rs2}{imm}(x{rs1})",self.pc);
+        }
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm as u64);
-        let index = rs2 as usize;
-        let value = self.x_reg[index] as u32;
-        let value_as_bytes = value.to_le_bytes();
-        self.mmu.virtual_memory[_memory_address as usize.._memory_address as usize + 4]
-            .copy_from_slice(&value_as_bytes);
+        let value = self.x_reg[rs2 as usize];
+        self.mmu.write(_memory_address, value, WORD);
         false
     }
     fn store_half(self: &mut Self, rs2: u64, rs1: u64, imm: u64) -> bool {
@@ -1109,32 +1097,20 @@ impl CPU {
         false
     }
     fn load_word_unsigned(self: &mut Self, rd: u64, rs1: u64, imm: u64) -> bool {
-        if self.debug_flag {
-            println!("{:#08X} lwu",self.pc);
+        if self.debug_flag{
+            println!("{:#08X} lwu x{rd},{}(x{rs1})",self.pc,imm as i64);
         }
-        let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
-        let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
-        let value2 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
-        let value3 = self.mmu.virtual_memory[_memory_address as usize + 2] as u8;
-        let value4 = self.mmu.virtual_memory[_memory_address as usize + 3] as u8;
-        let result = u32::from_le_bytes([value1, value2, value3, value4]);
+        let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm);
+        let result = u32::from_le_bytes(self.mmu.read(_memory_address,WORD).try_into().unwrap());
         self.x_reg[rd as usize] = result as u64;
         false
     }
     fn load_double_word(self: &mut Self, rd: u64, rs1: u64, imm: u64) -> bool {
-        if self.debug_flag{println!("LD");}
-        let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm as u64);
-        let value0 = self.mmu.virtual_memory[_memory_address as usize] as u8;
-        let value1 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
-        let value2 = self.mmu.virtual_memory[_memory_address as usize + 2] as u8;
-        let value3 = self.mmu.virtual_memory[_memory_address as usize + 3] as u8;
-        let value4 = self.mmu.virtual_memory[_memory_address as usize + 4] as u8;
-        let value5 = self.mmu.virtual_memory[_memory_address as usize + 5] as u8;
-        let value6 = self.mmu.virtual_memory[_memory_address as usize + 6] as u8;
-        let value7 = self.mmu.virtual_memory[_memory_address as usize + 7] as u8;
-        let result = u64::from_le_bytes([
-            value0, value1, value2, value3, value4, value5, value6, value7,
-        ]);
+        if self.debug_flag{
+            println!("{:#08X} ld x{rd},{}(x{rs1})",self.pc,imm as i64);
+        }
+        let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm);
+        let result = u64::from_le_bytes(self.mmu.read(_memory_address,DOUBLE_WORD).try_into().unwrap());
         self.x_reg[rd as usize] = result;
         false
     }
@@ -1575,59 +1551,51 @@ impl CPU {
 
     fn load_word(self: &mut Self, rd: u64, rs1: u64, imm: u64) -> bool {
         if self.debug_flag{
-        println!("{:#08X} lw",self.pc);
+            println!("{:#08X} lw x{rd},{}(x{rs1})",self.pc,imm as i64);
         }
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm);
-        let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
-        let value2 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
-        let value3 = self.mmu.virtual_memory[_memory_address as usize + 2] as u8;
-        let value4 = self.mmu.virtual_memory[_memory_address as usize + 3] as u8;
-        let result = u32::from_le_bytes([value1, value2, value3, value4]) as i32 as i64 as u64;
-        self.x_reg[rd as usize] = result as u64;
+        let result = u32::from_le_bytes(self.mmu.read(_memory_address,WORD).try_into().unwrap()) as i32 as i64 as u64;
+        self.x_reg[rd as usize] = result;
         false
     }
     // load 16 bit value
     fn load_half(self: &mut Self, rd: u64, rs1: u64, imm: u64) -> bool {
-        println!("lh");
-        let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
-        let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
-        let value2 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
-        let result = u16::from_le_bytes([value1, value2]) as i16 as i64 as u64;
-        self.x_reg[rd as usize] = result as u64;
+        if self.debug_flag{
+            println!("{:#08X} lh x{rd},{}(x{rs1})",self.pc,imm as i64);
+        }
+        let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm);
+        let result = u16::from_le_bytes(self.mmu.read(_memory_address,HALF).try_into().unwrap()) as i16 as i64 as u64;
+        self.x_reg[rd as usize] = result;
         false
     }
     // load 8 bit value
     fn load_byte(self: &mut Self, rd: u64, rs1: u64, imm: u64) -> bool {
-        let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
-        let value = self.mmu.virtual_memory[_memory_address as usize] as i8;
-        if self.debug_flag {
-            println!(
-                "{:#08X} LB x{rd} ({:#08X}) {:#08X} -> ({:#08X})",
-                self.pc, self.x_reg[rd as usize], _memory_address, value
-            );
+        if self.debug_flag{
+            println!("{:#08X} lb x{rd},{}(x{rs1})",self.pc,imm as i64);
         }
-
-        self.x_reg[rd as usize] = value as u64;
+        let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm);
+        let result = u8::from_le_bytes(self.mmu.read(_memory_address,BYTE).try_into().unwrap()) as i8 as i64 as u64;
+        self.x_reg[rd as usize] = result;
         false
     }
     // load 16 bit value
     fn load_half_u(self: &mut Self, rd: u64, rs1: u64, imm: u64) -> bool {
-        println!("lhu");
+        if self.debug_flag{
+            println!("{:#08X} luu x{rd},{}(x{rs1})",self.pc,imm as i64);
+        }
         let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
-        let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
-        let value2 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
-        let result = u16::from_le_bytes([value1, value2]);
+        let result = u16::from_le_bytes(self.mmu.read(_memory_address,HALF).try_into().unwrap());
         self.x_reg[rd as usize] = result as u64;
         false
     }
     // load 8 bit value
     fn load_byte_u(self: &mut Self, rd: u64, rs1: u64, imm: u64) -> bool {
-        if self.debug_flag {
-            println!("{:#08X} lbu",self.pc);
+        if self.debug_flag{
+            println!("{:#08X} lbu x{rd},{}(x{rs1})",self.pc,imm as i64);
         }
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm);
-        let value = self.mmu.virtual_memory[_memory_address as usize];
-        self.x_reg[rd as usize] = value as u64;
+        let result = u8::from_le_bytes(self.mmu.read(_memory_address,BYTE).try_into().unwrap());
+        self.x_reg[rd as usize] = result as u64;
         false
     }
     // add immediate

@@ -160,5 +160,83 @@ fn c_sd() {
     let result = u8::from_le_bytes(cpu.mmu.read(0x8, BYTE).try_into().unwrap());
     // store double word from s1 into address sp + 0x8 
     assert_eq!(result, 0x43);
+}
 
+// LOAD FUNCTIONS
+
+
+#[test]
+fn load_word_unsigned() {
+    //0007e703                lwu     a4,0(a5)
+    let mut cpu = cpu::CPU::new();
+    cpu.x_reg[15] = 0x0;
+    cpu.x_reg[14] = 0x0;
+    cpu.mmu.alloc(0x0, 0x100);
+    cpu.mmu.write(0x0, 0x41414141, WORD);
+    cpu.execute(0x0007e703);
+    assert_eq!(cpu.x_reg[14], 0x41414141);
+}
+
+#[test]
+fn load_word() {
+    // 00132883                lw      a7,1(t1)
+    let mut cpu = cpu::CPU::new();
+    cpu.x_reg[6] = 0x0;
+    cpu.x_reg[17] = 0x0;
+    cpu.mmu.alloc(0x0, 0x100);
+    cpu.mmu.write(0x1, 0x41414141, WORD);
+    cpu.execute(0x00132883);
+    assert_eq!(cpu.x_reg[17], 0x41414141);
+}
+
+#[test]
+fn load_byte() {
+    // 00078703                lb      a4,0(a5)
+    let mut cpu = cpu::CPU::new();
+    cpu.x_reg[15] = 0x0;
+    cpu.x_reg[14] = 0x0;
+    cpu.mmu.alloc(0x0, 0x100);
+    cpu.mmu.write(0x0, 0x41, BYTE);
+    cpu.execute(0x00078703);
+    assert_eq!(cpu.x_reg[14], 0x41);
+}
+
+// 
+#[test]
+fn load_double_word() {
+    // 05843903                ld      s2,88(s0)
+    let mut cpu = cpu::CPU::new();
+    cpu.x_reg[8] = 0x0; // s0
+    cpu.x_reg[18] = 0x0; // s2
+    cpu.mmu.alloc(0x0, 0x100);
+    cpu.mmu.write(88, 0x4141414141, DOUBLE_WORD);
+    cpu.execute(0x05843903);
+    assert_eq!(cpu.x_reg[18], 0x4141414141);
+}
+
+#[test]
+fn load_half() {
+    // 00079703                lh      a4,0(a5)
+    let mut cpu = cpu::CPU::new();
+    cpu.x_reg[15] = 0x0;
+    cpu.x_reg[14] = 0x0;
+    cpu.mmu.alloc(0x0, 0x100);
+    cpu.mmu.write(0x0, 0x4141, HALF);
+    cpu.execute(0x00079703);
+    assert_eq!(cpu.x_reg[14], 0x4141);
+}
+
+
+// STORE
+
+#[test]
+fn store_word() {
+    // 0107a423                sw      a6,8(a5)
+    let mut cpu = cpu::CPU::new();
+    cpu.x_reg[15] = 0x0;
+    cpu.x_reg[16] = 0x41414141;
+    cpu.mmu.alloc(0x0, 0x100);
+    cpu.execute(0x0107a423);
+    let value = u32::from_le_bytes(cpu.mmu.read(8, WORD).try_into().unwrap());
+    assert_eq!(value, 0x41414141);
 }
