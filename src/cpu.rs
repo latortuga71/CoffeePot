@@ -1021,7 +1021,7 @@ impl CPU {
     }
 
     fn srl(&mut self, rd: u64, rs1: u64, rs2: u64) -> bool {
-        println!("SRL");
+        if self.debug_flag{println!("{:#08X} srl x{rd}, x{rs1}, x{rs2}",self.pc);}
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize] >> (self.x_reg[rs2 as usize] & 0b11111);
         false
     }

@@ -71,3 +71,48 @@ fn andi() {
     cpu.execute(0xff017113);
     assert_eq!(cpu.x_reg[2], 0x40007ffe70);
 }
+
+
+#[test]
+fn add() {
+    //01c784b3                add     s1,a5,t3
+    let mut cpu = cpu::CPU::new();
+    cpu.x_reg[28] = 0x100; // t3
+    cpu.x_reg[15] = 0x100; // a5
+    cpu.x_reg[9] = 0x0; // s1
+    cpu.execute(0x1c784b3);
+    assert_eq!(cpu.x_reg[9], 0x200);
+}
+
+#[test]
+fn mul() {
+    //039686b3                mul     a3,a3,s9
+    let mut cpu = cpu::CPU::new();
+    cpu.x_reg[25] = 0xFFFFFFFFFFFFFFFF; // s9 -1
+    cpu.x_reg[13] = 0x100; // a5
+    cpu.execute(0x039686b3);
+    assert_eq!(cpu.x_reg[13], 0xFFFFFFFFFFFFFF00);
+}
+
+#[test]
+fn sub() {
+    //41c90e33                sub     t3,s2,t3
+    let mut cpu = cpu::CPU::new();
+    cpu.x_reg[28] = 0xFFFFFFFFFFFFFFFF; // t3 -1
+    cpu.x_reg[18] = 0x100; // s2
+    cpu.execute(0x41c90e33);
+    assert_eq!(cpu.x_reg[28], 0x101);
+
+}
+
+
+#[test]
+fn srl() {
+    //00b4d5b3                srl     a1,s1,a1
+    let mut cpu = cpu::CPU::new();
+    cpu.x_reg[11] = 0x4; // a1
+    cpu.x_reg[9] = 100; //s1
+    cpu.execute(0x00b4d5b3);
+    assert_eq!(cpu.x_reg[11], 0x6);
+
+}

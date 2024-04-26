@@ -5,16 +5,26 @@ use std::{collections::HashMap};
 #[derive(Debug,Clone)]
 pub struct MMU {
     pub virtual_memory: Vec<u8>,
-    pub virtual_memory_new: HashMap<(u64,u64),Segment>
+    pub virtual_memory_new: HashMap<(u64,u64),Segment>,
+    pub next_alloc_base: u64
 }
 
 pub const RAM: u64 = 1024 * 1024 * 1024;
+
+
+pub const BYTE:usize = 0x1;
+pub const HALF:usize = 0x2;
+pub const WORD:usize = 0x4;
+pub const DOUBLE_WORD:usize = 0x8;
+
+
 
 impl MMU {
     pub fn new() -> Self {
         MMU {
             virtual_memory: vec![0; RAM as usize], // 1GB of address space by default
             virtual_memory_new: HashMap::new(),
+            next_alloc_base:0,
         }
     }
 
@@ -87,7 +97,7 @@ impl MMU {
 
 
     pub fn alloc(&mut self, base_address: u64, size: usize) -> u64 {
-        // TODO! Find Unused Base Address
+        // TODO! Find Unused Base Address (use next base)
         // TODO! Permissions for bytes dirty bits for segments
         let segment = Segment{
             base_address:base_address,

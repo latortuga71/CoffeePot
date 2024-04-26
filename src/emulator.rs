@@ -1,6 +1,6 @@
 use std::{clone, io::Write};
 
-use crate::{cpu::CPU, loader::ElfInformation, mmu::Segment};
+use crate::{cpu::CPU, loader::ElfInformation, mmu::{self, Segment}};
 
 #[derive(Clone)]
 pub struct Emulator {
@@ -34,7 +34,7 @@ impl Emulator {
     pub fn fetch_instruction(self: &mut Self) -> bool {
         let start = self.cpu.pc;
         let end = self.cpu.pc + 0x4;
-        let instruction_bytes = self.cpu.mmu.read(self.cpu.pc,0x4);
+        let instruction_bytes = self.cpu.mmu.read(self.cpu.pc,mmu::WORD);
         //let instruction_bytes = &self.cpu.mmu.virtual_memory[start as usize..end as usize];
         let mut sliced: [u8; 4] = [0, 0, 0, 0];
         sliced.copy_from_slice(instruction_bytes);
