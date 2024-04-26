@@ -1,3 +1,5 @@
+use crate::mmu::{BYTE, WORD,DOUBLE_WORD,HALF};
+
 #[cfg(test)]
 // Note this useful idiom: importing names from outer (for mod tests) scope.
 use super::*;
@@ -102,7 +104,15 @@ fn sub() {
     cpu.x_reg[18] = 0x100; // s2
     cpu.execute(0x41c90e33);
     assert_eq!(cpu.x_reg[28], 0x101);
+}
 
+#[test]
+fn c_li() {
+    // 4781                    li      a5,0
+    let mut cpu = cpu::CPU::new();
+    cpu.x_reg[15] = 0x17172;
+    cpu.execute_compressed(0x4781);
+    assert_eq!(cpu.x_reg[15], 0x0);
 }
 
 
@@ -114,5 +124,41 @@ fn srl() {
     cpu.x_reg[9] = 100; //s1
     cpu.execute(0x00b4d5b3);
     assert_eq!(cpu.x_reg[11], 0x6);
+}
+
+
+#[test]
+fn divu() {
+    //02b7d7b3                divu    a5,a5,a1
+    let mut cpu = cpu::CPU::new();
+    cpu.x_reg[11] = 0x4; // a1
+    cpu.x_reg[15] = 100; // a5
+    cpu.execute(0x02b7d7b3);
+    assert_eq!(cpu.x_reg[15], 25);
+}
+
+#[test]
+fn c_lw() {
+    // 410c                    lw      a1,0(a0)
+    let mut cpu = cpu::CPU::new();
+    cpu.mmu.alloc(0x0, 0x100);
+    cpu.mmu.write(0x0, 0x41414141, WORD);
+    cpu.x_reg[10] = 0x0; // a0
+    // load from address 0x0 a 32bit word into a1
+    cpu.execute_compressed(0x410c);
+    assert_eq!(cpu.x_reg[11], 0x41414141);
+}
+
+#[test]
+fn c_sd() {
+    // e426                    sd      s1,8(sp)
+    let mut cpu = cpu::CPU::new();
+    cpu.x_reg[2] = 0x0; // sp
+    cpu.x_reg[9] = 0x41414143; // s1
+    cpu.mmu.alloc(0x0, 0x100);
+    cpu.execute_compressed(0xe426);
+    let result = u8::from_le_bytes(cpu.mmu.read(0x8, BYTE).try_into().unwrap());
+    // store double word from s1 into address sp + 0x8 
+    assert_eq!(result, 0x43);
 
 }

@@ -80,12 +80,13 @@ impl Emulator {
     pub fn load_elf_segments_into_mmu(self: &mut Self, elf: &ElfInformation) {
         for e in &elf.segments {
             let offset = e.virtual_address;
-            let offset_end = e.raw_data.len() as u64 + offset;
+            let len = e.raw_data_size;
+            let offset_end = offset + len;
             let k = (offset,offset_end);
-            self.cpu.mmu.alloc(offset, e.raw_data.len().try_into().unwrap());
-            //e.raw_data.copy_from_slice(&self.cpu.mmu.virtual_memory_new.get_mut(&k).unwrap().data[offset as usize..offset_end as usize]);
+            println!("{:#08X} {:#08X}",k.0,k.1);
+            let actual_address  = self.cpu.mmu.alloc(offset,len as usize);
+            println!("{:#08X}",actual_address);
             self.cpu.mmu.virtual_memory_new.get_mut(&k).unwrap().data.copy_from_slice(&e.raw_data);
-            //println!("{wrote} base address {:#08X}",offset);
         }
     }
 

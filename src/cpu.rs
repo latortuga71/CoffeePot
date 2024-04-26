@@ -3,8 +3,11 @@ use std::io::BufRead;
 use std::io::Write;
 
 use crate::data;
+use crate::mmu::BYTE;
+use crate::mmu::DOUBLE_WORD;
 use crate::mmu::MMU;
 use crate::data::Iovec;
+use crate::mmu::WORD;
 
 #[derive(Debug,Clone)]
 pub struct CPU {
@@ -22,8 +25,6 @@ pub struct CPU {
 }
 
 // XLEN = u64 arch size
-pub const DRAM_BASE: u64 = 0x8000_0000;
-pub const DRAM_SIZE: u64 = 1024 * 1024; // * 1024;
 // RV64I: base integer instructions
 impl std::fmt::Display for CPU {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -49,29 +50,33 @@ impl std::fmt::Display for CPU {
 impl CPU {
     pub fn new() -> Self {
         let mut xreg: [u64; 32] = [0; 32];
-        let stack_base = 0x0;
-        let sp_start = stack_base + 1024; // stack size of 1024
-        xreg[2] = sp_start as u64;
-        let mut sp = xreg[2];
-        let og = sp;
+        //let stack_middle:u64 = 0x01800000;
+        let stack_middle:u64 = 0x07F00000;
+        let stack_base:u64 = stack_middle.wrapping_sub(1024*1024);
+        let stack_end:u64 = stack_middle.wrapping_add(1024*1024);
+        let diff = stack_end.wrapping_sub(stack_base);
+        println!("stack base {:#08X}",stack_base);
+        println!("stack middle {:#08X}",stack_middle);
+        println!("stack end {:#08X}",stack_end);
+        println!("diff {:#08X}",diff);
+        let mut sp = stack_middle;
+        // Stack Initialization With LibC Args
         let mut mmu = MMU::new();
-
-        mmu.virtual_memory[0x99..0x99 + 7].fill(0x41); // set to ascii 'AAAAAAAAA'
-                                                       // setup initial program stack state
-                                                       // Auxp
+        mmu.alloc(stack_base, diff as usize);
+        mmu.write(sp + 0x99, 0x4141414141414141,DOUBLE_WORD);
         let argc = u64::to_le_bytes(0x1);
-        mmu.virtual_memory[sp as usize..sp as usize + 8].copy_from_slice(&argc);
-        sp += 8;
-        let argv0_addr = u64::to_le_bytes(0x99);
-        mmu.virtual_memory[sp as usize..sp as usize + 8].copy_from_slice(&argv0_addr);
-        sp += 8;
-        mmu.virtual_memory[sp as usize..sp as usize + 7].fill(0x0);
-        sp += 8;
-        mmu.virtual_memory[sp as usize..sp as usize + 7].fill(0x0);
-        sp += 8;
-        mmu.virtual_memory[sp as usize..sp as usize + 7].fill(0x0);
+        mmu.write(sp, 0x1, DOUBLE_WORD);
+        sp = sp.wrapping_add(0x8);
+        mmu.write(sp, 0x99, DOUBLE_WORD);
+        sp = sp.wrapping_add(0x8);
+        mmu.write(sp, 0x0, DOUBLE_WORD);
+        sp = sp.wrapping_add(0x8);
+        mmu.write(sp, 0x0, DOUBLE_WORD);
+        sp = sp.wrapping_add(0x8);
+        mmu.write(sp, 0x0, DOUBLE_WORD);
+        xreg[2] = stack_middle;
         CPU {
-            sp: og,
+            sp: stack_middle,
             pc: 0x00000000,
             mmu: mmu,
             x_reg: xreg,
@@ -486,6 +491,7 @@ impl CPU {
                 0x5 => match funct7 {
                     0x0 => self.srl(rd, rs1, rs2),
                     0x1 => self.divu(rd, rs1, rs2),
+                    /////////////////////////////////// ------ Continue Writing Tests Here
                     0x20 => self.sra(rd, rs1, rs2),
                     _ => panic!("Invalid funct7"),
                 },
@@ -691,11 +697,10 @@ impl CPU {
         let _memory_address = self.x_reg[2].wrapping_add(offset as u64);
         let index = rs2 as usize;
         let value = self.x_reg[index] as u64;
-        let value_as_bytes = value.to_le_bytes();
-        self.mmu.virtual_memory[_memory_address as usize.._memory_address as usize + 8]
-            .copy_from_slice(&value_as_bytes);
+        self.mmu.write(_memory_address, value, DOUBLE_WORD);
         false
     }
+
     fn c_swsp(&mut self, rs2: u64, offset: u64) -> bool {
         if self.debug_flag{
             println!("{:#08X} swsp",self.pc);
@@ -748,20 +753,7 @@ impl CPU {
             println!("{:#08X} c.lw x{rd},{offset},(x{rs1})", self.pc);
         }
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(offset as u64);
-        if self.debug_flag {
-            println!("Memory Adress {:#08X}", _memory_address);
-            println!("Dereferenced Memory Adress {:#08X}", _memory_address);
-            println!("{:#08X}", self.mmu.virtual_memory[0x00FFFF])
-        }
-        let value1 = self.mmu.virtual_memory[_memory_address as usize] as u8;
-        let value2 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
-        let value3 = self.mmu.virtual_memory[_memory_address as usize + 2] as u8;
-        let value4 = self.mmu.virtual_memory[_memory_address as usize + 3] as u8;
-        let result = u32::from_le_bytes([value1, value2, value3, value4]) as i64 as u64;
-        if self.debug_flag {
-            println!("Memory Adress {:#08X}", _memory_address);
-            println!("Dereferenced Memory Adress {:#08X}", result);
-        }
+        let result = u32::from_le_bytes(self.mmu.read(_memory_address, WORD).try_into().unwrap());
         self.x_reg[rd as usize] = result as i32 as i64 as u64;
         false
     }
@@ -1641,7 +1633,7 @@ impl CPU {
     // add immediate
     fn addi(self: &mut Self, rd: u64, rs1: u64, imm: u64) -> bool {
         if self.debug_flag {
-            println!("{:#08X} addi x{rd}, x{rs1}, {}", self.pc, imm);
+            println!("{:#08X} addi x{rd}, x{rs1}, {}", self.pc, imm as i64);
         }
         self.x_reg[rd as usize] = self.x_reg[rs1 as usize].wrapping_add(imm);
         false
@@ -1828,7 +1820,7 @@ impl CPU {
     }
     fn auipc(self: &mut Self, rd: u64, imm_u_type: u64) -> bool {
         if self.debug_flag {
-            println!("{:#08X} AUIPC x{} {:#08X}", self.pc, rd, imm_u_type);
+            println!("{:#08X} auipc x{} {:#08X}", self.pc, rd, imm_u_type);
         }
         self.x_reg[rd as usize] = self.pc.wrapping_add(imm_u_type);
         false

@@ -28,10 +28,17 @@ impl MMU {
         }
     }
 
+    pub fn print_segments(&self) {
+        for (k,_segment) in &self.virtual_memory_new {
+            println!("Segment -> {:#08X} {:#08X}",k.0,k.1);
+        }
+    }
+
     fn find_segment(&self,address:u64) -> (u64,u64,bool){
         let mut key:(u64,u64,bool) = (0,0,false);
+        println!("Attempting to find {:#08X}",address);
         for (k,_segment) in &self.virtual_memory_new {
-            if address >= k.0 && address < k.1 {
+            if address >= k.0 && address <= k.1 {
                 key.0 = k.0;
                 key.1 = k.1;
                 key.2 = true;
@@ -42,6 +49,7 @@ impl MMU {
     }
 
     pub fn read(&self, address:u64, size:usize) -> &[u8] {
+        // TODO CHECK PERMS
         let key = self.find_segment(address);
         if key.2 == false {
             todo!("Handle Segmentation Faults! {}",address);
@@ -49,7 +57,6 @@ impl MMU {
         let k:(u64,u64) = (key.0,key.1);
         let segment = &self.virtual_memory_new[&k];
         let virtual_address =  address.wrapping_sub(segment.base_address);
-        //let virtual_address =  address;
         let start = virtual_address as usize;
         let end = start + size;
         println!("Virtual {:#08X} Asking {:#08X} Base {:#08X}",virtual_address,address,segment.base_address);
@@ -57,36 +64,41 @@ impl MMU {
         let slice = &self.virtual_memory_new[&k].data[start..end];
         return slice;
     }
-    pub fn write(&mut self, address:u64,data:u64, size:u64) -> usize {
+    pub fn write(&mut self, address:u64,data:u64, size:usize) -> usize {
+        // TODO CHECK PERMS
         let key = self.find_segment(address);
         if key.2 == false {
-            todo!("Handle Segmentation WRITE Faults!");
+            todo!("Handle Segmentation Faults! {}",address);
         }
         let k:(u64,u64) = (key.0,key.1);
-        let virtual_address = address as usize + self.virtual_memory_new[&k].base_address as usize;
-        let offset = virtual_address + size as usize;
+        let segment = &self.virtual_memory_new[&k];
+        let virtual_address =  address.wrapping_sub(segment.base_address);
+        let start = virtual_address as usize;
+        let end = start + size;
+        println!("Virtual {:#08X} Asking {:#08X} Base {:#08X}",virtual_address,address,segment.base_address);
+        println!("{:#08X}",start);
         match size {
             0x1 => {
                 let value_as_bytes = (data as u8).to_le_bytes();
-                self.virtual_memory_new.get_mut(&k).unwrap().data[virtual_address..offset]
+                self.virtual_memory_new.get_mut(&k).unwrap().data[start..end]
                 .copy_from_slice(&value_as_bytes);
                 return 1;
             }
             0x2 => {
                 let value_as_bytes = (data as u16).to_le_bytes();
-                self.virtual_memory_new.get_mut(&k).unwrap().data[virtual_address..offset]
+                self.virtual_memory_new.get_mut(&k).unwrap().data[start..end]
                 .copy_from_slice(&value_as_bytes);
                 return 2;
             }
             0x4 => {
                 let value_as_bytes = (data as u32).to_le_bytes();
-                self.virtual_memory_new.get_mut(&k).unwrap().data[virtual_address..offset]
+                self.virtual_memory_new.get_mut(&k).unwrap().data[start..end]
                 .copy_from_slice(&value_as_bytes);
                 return 4;
             }
             0x8 => {
                 let value_as_bytes = (data as u64).to_le_bytes();
-                self.virtual_memory_new.get_mut(&k).unwrap().data[virtual_address..offset]
+                self.virtual_memory_new.get_mut(&k).unwrap().data[start..end]
                 .copy_from_slice(&value_as_bytes);
                 return 8;
             
@@ -95,21 +107,25 @@ impl MMU {
         }
     }
 
-
     pub fn alloc(&mut self, base_address: u64, size: usize) -> u64 {
         // TODO! Find Unused Base Address (use next base)
         // TODO! Permissions for bytes dirty bits for segments
+        let inuse = self.find_segment(base_address);
+        if inuse.2 {
+            todo!(" HANDLE Address already in use");
+        }
+        let segment_base = base_address;
         let segment = Segment{
-            base_address:base_address,
+            base_address:segment_base,
             data: vec![0;size],
             data_size:size,
             grows_up: false,
             dirty:false,
             perms: vec![0;size],
         };
-        let key = (base_address,base_address + size as u64);
+        let key = (segment_base,segment_base.wrapping_add(size as u64));
         self.virtual_memory_new.insert(key, segment);
-        return base_address;
+        return segment_base;
     }
 }
 
