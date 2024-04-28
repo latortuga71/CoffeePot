@@ -54,11 +54,10 @@ impl CPU {
         let mut xreg: [u64; 32] = [0; 32];
         // Stack Initialization With LibC Args
         let mut mmu = MMU::new();
-        let stack_base = 0x20000 as u64;
+        let stack_base = 0x0 as u64;
         let heap_base = 0x220000 as u64;
         mmu.alloc(stack_base, 1024 * 1024);
-        mmu.alloc(heap_base, 1024 * 1024);
-        let mut sp = stack_base.wrapping_add(1024 * 1024);
+        let mut sp = stack_base + 1024 * 1024;
         // write A's to the heap
         mmu.memset(heap_base, 0x41, DOUBLE_WORD);
         // AUXP
@@ -716,11 +715,8 @@ impl CPU {
             println!("{:#08X} swsp",self.pc);
         }
         let _memory_address = self.x_reg[2].wrapping_add(offset);
-        let value = self.x_reg[rs2 as usize] as u32;
-        let value_as_bytes = value.to_le_bytes();
-
-        self.mmu.virtual_memory[_memory_address as usize.._memory_address as usize + 4]
-            .copy_from_slice(&value_as_bytes);
+        let value = self.x_reg[rs2 as usize];
+        self.mmu.write(_memory_address,value,WORD);
         false
     }
     fn c_lwsp(&mut self, rd: u64, offset: u64) -> bool {
@@ -734,17 +730,7 @@ impl CPU {
             println!("c.ldsp x{rd} {offset},(x2)");
         }
         let _memory_address = self.x_reg[2].wrapping_add(offset);
-        let value0 = self.mmu.virtual_memory[_memory_address as usize] as u8;
-        let value1 = self.mmu.virtual_memory[_memory_address as usize + 1] as u8;
-        let value2 = self.mmu.virtual_memory[_memory_address as usize + 2] as u8;
-        let value3 = self.mmu.virtual_memory[_memory_address as usize + 3] as u8;
-        let value4 = self.mmu.virtual_memory[_memory_address as usize + 4] as u8;
-        let value5 = self.mmu.virtual_memory[_memory_address as usize + 5] as u8;
-        let value6 = self.mmu.virtual_memory[_memory_address as usize + 6] as u8;
-        let value7 = self.mmu.virtual_memory[_memory_address as usize + 7] as u8;
-        let result = u64::from_le_bytes([
-            value0, value1, value2, value3, value4, value5, value6, value7,
-        ]) as i64 as u64;
+        let result = u64::from_le_bytes(self.mmu.read(_memory_address, DOUBLE_WORD).try_into().unwrap());
         self.x_reg[rd as usize] = result;
         false
     }
@@ -774,7 +760,7 @@ impl CPU {
         }
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(offset as u64);
         let result = u64::from_le_bytes(self.mmu.read(_memory_address, DOUBLE_WORD).try_into().unwrap());
-        self.x_reg[rd as usize] = result;
+        self.x_reg[rd as usize] = result as u32 as u64;
         false
     }
     fn c_fsd(&mut self, rd: u64, rs1: u64, offset: u64) -> bool {

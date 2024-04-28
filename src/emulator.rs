@@ -32,7 +32,7 @@ impl Emulator {
 
     // copies u32 bit instruction from memory into our current instruction
     pub fn fetch_instruction(self: &mut Self) -> bool {
-        // fetch small instructinon
+        // fetch small instructino
         let start = self.cpu.pc;
         let end = self.cpu.pc + 0x4;
         let instruction_bytes = self.cpu.mmu.read_to_exec(self.cpu.pc,mmu::WORD);
@@ -73,25 +73,10 @@ impl Emulator {
             let offset = e.virtual_address as usize;
             let offset_end = e.raw_data.len() + offset;
             // copy raw_data into virtual memory
-            self.cpu.mmu.virtual_memory[offset..offset_end].copy_from_slice(&e.raw_data);
+            self.cpu.mmu.virtual_memory_new[offset..offset_end].copy_from_slice(&e.raw_data);
         }
         //println!("copied {c} segments");
 
-    }
-    pub fn load_elf_segments_into_mmu(self: &mut Self, elf: &ElfInformation) {
-        for e in &elf.segments {
-            let offset = e.virtual_address;
-            let len = e.virtual_memory_size;
-            println!("Segment Memory Size => {:#08X}",e.virtual_memory_size);
-            println!("Start => {:#08X}",offset);
-            println!("End => {:#08X}",offset.wrapping_add(len));
-            let offset_end = offset + len;
-            let k = (offset,offset_end);
-            println!("{:#08X} {:#08X}",k.0,k.1);
-            let actual_address  = self.cpu.mmu.alloc(offset,len as usize);
-            println!("{:#08X}",actual_address);
-            self.cpu.mmu.virtual_memory_new.get_mut(&k).unwrap().data.copy_from_slice(&e.raw_data);
-        }
     }
 
     pub fn load_raw_instructions(self: &mut Self, path: &str) -> Result<(), std::io::Error> {

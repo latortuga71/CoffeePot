@@ -18,16 +18,16 @@ fn main() {
     //////
     let elf_segments = loader::load_elf(&path,false);
     //emulator.load_elf_segments(&elf_segments); old
-    emulator.load_elf_segments_into_mmu(&elf_segments);
+    emulator.load_elf_segments(&elf_segments);
     emulator.cpu.pc = elf_segments.entry_point;
     //emulator.load_raw_instructions("./add.bin").unwrap();
     //print!("{:?}", emulator.cpu.mmu.text_segment);
     emulator.cpu.debug_flag = true;
     // example snapshot?
-    emulator.cpu.mmu.print_segments();
+    //emulator.cpu.mmu.print_segments();
     println!("=== CoffeePot Elf Loading Complete!  ===",);
     println!("=== CoffeePot Init!  ===");
-    let mut debug = false;
+    let mut debug = true;
     loop {
         //println!("{}", emulator.cpu);
         // Fetch
