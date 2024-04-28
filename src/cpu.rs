@@ -1,3 +1,4 @@
+use std::hash::BuildHasherDefault;
 use std::io;
 use std::io::BufRead;
 use std::io::Write;
@@ -51,34 +52,38 @@ impl std::fmt::Display for CPU {
 impl CPU {
     pub fn new() -> Self {
         let mut xreg: [u64; 32] = [0; 32];
-        //let stack_middle:u64 = 0x01800000;
-        let stack_middle:u64 = 0x07F00000;
-        let stack_base:u64 = stack_middle.wrapping_sub(1024*1024);
-        let stack_end:u64 = stack_middle.wrapping_add(1024*1024);
-        let diff = stack_end.wrapping_sub(stack_base);
-        println!("stack base {:#08X}",stack_base);
-        println!("stack middle {:#08X}",stack_middle);
-        println!("stack end {:#08X}",stack_end);
-        println!("diff {:#08X}",diff);
-        let mut sp = stack_middle;
         // Stack Initialization With LibC Args
         let mut mmu = MMU::new();
-        let str_address = sp.wrapping_add(0x99);
-        mmu.alloc_non_x(stack_base, diff as usize);
-        mmu.write(str_address, 0x4141414141414141,DOUBLE_WORD);
-        let argc = u64::to_le_bytes(0x1);
-        mmu.write(sp, 0x1, DOUBLE_WORD);
-        sp = sp.wrapping_add(0x8);
-        mmu.write(sp, str_address, DOUBLE_WORD);
-        sp = sp.wrapping_add(0x8);
-        mmu.write(sp, 0x0, DOUBLE_WORD);
-        sp = sp.wrapping_add(0x8);
-        mmu.write(sp, 0x0, DOUBLE_WORD);
-        sp = sp.wrapping_add(0x8);
-        mmu.write(sp, 0x0, DOUBLE_WORD);
-        xreg[2] = stack_middle;
+        let stack_base = 0x20000 as u64;
+        let heap_base = 0x220000 as u64;
+        mmu.alloc(stack_base, 1024 * 1024);
+        mmu.alloc(heap_base, 1024 * 1024);
+        let mut sp = stack_base.wrapping_add(1024 * 1024);
+        // write A's to the heap
+        mmu.memset(heap_base, 0x41, DOUBLE_WORD);
+        // AUXP
+        sp = sp.wrapping_sub(0x8);
+        mmu.write(sp, 0u64, DOUBLE_WORD);
+        // ENVP
+        sp = sp.wrapping_sub(0x8);
+        mmu.write(sp, 0u64, DOUBLE_WORD);
+        // ARGV END
+        sp = sp.wrapping_sub(0x8);
+        mmu.write(sp, 0u64, DOUBLE_WORD);
+        // ARGV0
+        sp = sp.wrapping_sub(0x8);
+        println!("HEAP BASE {:#08x}",heap_base);
+        mmu.write(sp, heap_base, DOUBLE_WORD);
+        println!("stack heapaddr -> {:?}",mmu.read(sp,8));
+        // ARGC
+        sp = sp.wrapping_sub(0x8);
+        mmu.write(sp, 1u64, DOUBLE_WORD);
+        // argv address
+        xreg[2] = sp;
+        println!("{:?}",mmu.read(heap_base,8));
+        println!("STACK POINTER -> {:#08X}",sp);
         CPU {
-            sp: stack_middle,
+            sp: sp,
             pc: 0x00000000,
             mmu: mmu,
             x_reg: xreg,

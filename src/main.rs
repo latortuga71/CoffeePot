@@ -1,7 +1,7 @@
 
 use std::io::BufRead;
 
-use crate::emulator::Emulator;
+use crate::{emulator::Emulator, mmu::DOUBLE_WORD};
 
 mod cpu;
 mod emulator;
@@ -12,7 +12,7 @@ mod tests;
 
 fn main() {
     //let path = "test_relaxed.elf";
-    let path = "test_new";
+    let path = "test_relaxed.elf";
     let mut emulator = Emulator::new();
     println!("=== CoffeePot Loading {}!  ===",path);
     //////
@@ -27,16 +27,23 @@ fn main() {
     emulator.cpu.mmu.print_segments();
     println!("=== CoffeePot Elf Loading Complete!  ===",);
     println!("=== CoffeePot Init!  ===");
+    let mut debug = true;
     loop {
         //println!("{}", emulator.cpu);
         // Fetch
         if !emulator.fetch_instruction() {
             break;
         }
-        //let stdin = std::io::stdin();
-        //let mut line = String::new();
-        //stdin.lock().read_line(&mut line).unwrap();
-        //print!("CoffeePot Registers: \n{}\n", emulator.cpu);
+        if emulator.cpu.pc == 0x0102AA {
+            debug = true;
+        }
+        if debug {
+
+        let stdin = std::io::stdin();
+        let mut line = String::new();
+        stdin.lock().read_line(&mut line).unwrap();
+        print!("CoffeePot Registers: \n{}\n", emulator.cpu);
+        }
         // Decode && Execute
         if emulator.execute_instruction() {
             // exit called!
