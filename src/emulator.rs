@@ -34,7 +34,7 @@ impl Emulator {
     pub fn fetch_instruction(self: &mut Self) -> bool {
         let start = self.cpu.pc;
         let end = self.cpu.pc + 0x4;
-        let instruction_bytes = self.cpu.mmu.read(self.cpu.pc,mmu::WORD);
+        let instruction_bytes = self.cpu.mmu.read_to_exec(self.cpu.pc,mmu::WORD);
         //let instruction_bytes = &self.cpu.mmu.virtual_memory[start as usize..end as usize];
         let mut sliced: [u8; 4] = [0, 0, 0, 0];
         sliced.copy_from_slice(instruction_bytes);
@@ -80,7 +80,10 @@ impl Emulator {
     pub fn load_elf_segments_into_mmu(self: &mut Self, elf: &ElfInformation) {
         for e in &elf.segments {
             let offset = e.virtual_address;
-            let len = e.raw_data_size;
+            let len = e.virtual_memory_size;
+            println!("Segment Memory Size => {:#08X}",e.virtual_memory_size);
+            println!("Start => {:#08X}",offset);
+            println!("End => {:#08X}",offset.wrapping_add(len));
             let offset_end = offset + len;
             let k = (offset,offset_end);
             println!("{:#08X} {:#08X}",k.0,k.1);

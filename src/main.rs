@@ -33,10 +33,10 @@ fn main() {
         if !emulator.fetch_instruction() {
             break;
         }
-        let stdin = std::io::stdin();
-        let mut line = String::new();
-        stdin.lock().read_line(&mut line).unwrap();
-        print!("CoffeePot Registers: \n{}\n", emulator.cpu);
+        //let stdin = std::io::stdin();
+        //let mut line = String::new();
+        //stdin.lock().read_line(&mut line).unwrap();
+        //print!("CoffeePot Registers: \n{}\n", emulator.cpu);
         // Decode && Execute
         if emulator.execute_instruction() {
             // exit called!

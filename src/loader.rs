@@ -72,7 +72,7 @@ pub fn load_elf(path: &str,debug: bool) -> ElfInformation {
             )
         };
         let segment_start = (program_header.p_offset) as usize;
-        let segment_end = segment_start as usize + program_header.p_filesz as usize;
+        let segment_end = segment_start as usize + program_header.p_memsz as usize;
         virtual_memory_minimum_size += program_header.p_memsz;
         virtual_memory_minimum_size += program_header.p_vaddr;
         if program_header.p_type == 0x1 {
