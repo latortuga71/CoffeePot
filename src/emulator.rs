@@ -32,6 +32,7 @@ impl Emulator {
 
     // copies u32 bit instruction from memory into our current instruction
     pub fn fetch_instruction(self: &mut Self) -> bool {
+        // fetch small instructinon
         let start = self.cpu.pc;
         let end = self.cpu.pc + 0x4;
         let instruction_bytes = self.cpu.mmu.read_to_exec(self.cpu.pc,mmu::WORD);

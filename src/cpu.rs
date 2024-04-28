@@ -64,9 +64,12 @@ impl CPU {
         // AUXP
         sp = sp.wrapping_sub(0x8);
         mmu.write(sp, 0u64, DOUBLE_WORD);
-        // ENVP
+        // ENVP END
         sp = sp.wrapping_sub(0x8);
         mmu.write(sp, 0u64, DOUBLE_WORD);
+        // ENVP
+        sp = sp.wrapping_sub(0x8);
+        mmu.write(sp, heap_base, DOUBLE_WORD);
         // ARGV END
         sp = sp.wrapping_sub(0x8);
         mmu.write(sp, 0u64, DOUBLE_WORD);
@@ -1722,8 +1725,9 @@ impl CPU {
     }
     fn c_bnez(self: &mut Self, rs1: u64, offset: u64) -> bool {
         if self.debug_flag {
-            println!("c.bnez x{rs1},x0,{:#08X}", offset);
+            println!("c.bnez x{rs1}, x0, {:#08X}", offset);
         }
+        println!("OFFSET {offset}");
         if self.x_reg[rs1 as usize] != 0 {
             self.pc = self.pc.wrapping_add(offset as u64);
             return true;
@@ -2005,6 +2009,18 @@ impl CPU {
         let mut line = String::new();
         stdin.lock().read_line(&mut line).unwrap();
         match syscall {
+            0xDE => {
+                let addr = _a0;
+                let length = _a1;
+                let prot = _a2;
+                let flags = _a3;
+                let fd = _a4;
+                let offset = _a5;
+                println!("MMAP CALLED {:#08X} {:#08X} {:#08X} {:#08X} {:#08X} {:#08X}",addr,length,prot,flags,fd,offset);
+                println!("{}",length as u64);
+                self.mmu.alloc(0x440000, 0x0124);
+                self.x_reg[10] = 0x440000;
+            }
             0x5E => {
                 // https://man7.org/linux/man-pages/man2/exit_group.2.html
                 let exit_status = _a0;
