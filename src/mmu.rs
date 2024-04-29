@@ -73,22 +73,64 @@ impl MMU {
         let slice = &self.virtual_memory_new[start..end];
         return slice;
     }
+    pub fn write_byte(&mut self, address:u64,value:u64){
+        self.virtual_memory_new[address as usize] = value as u8;
+    }
+    pub fn write_half(&mut self, address:u64,value:u64){
+        let addr = address as usize;
+        self.virtual_memory_new[addr] = (value & 0xff) as u8;
+        self.virtual_memory_new[addr + 1] = ((value >> 8) & 0xFF) as u8;
+    }
+
+    pub fn write_word(&mut self, address:u64,value:u64){
+        let addr = address as usize;
+        self.virtual_memory_new[addr] = (value & 0xff) as u8;
+        self.virtual_memory_new[addr + 1] = ((value >> 8) & 0xff) as u8;
+        self.virtual_memory_new[addr + 2] = ((value >> 16) & 0xff) as u8;
+        self.virtual_memory_new[addr + 3] = ((value >> 24) & 0xff) as u8;
+    }
+
+    pub fn write_double_word(&mut self, address:u64,value:u64){
+        let addr = address as usize;
+        self.virtual_memory_new[addr] = (value & 0xff) as u8;
+        self.virtual_memory_new[addr + 1] = ((value >> 8) & 0xff) as u8;
+        self.virtual_memory_new[addr + 2] = ((value >> 16) & 0xff) as u8;
+        self.virtual_memory_new[addr + 3] = ((value >> 24) & 0xff) as u8;
+        self.virtual_memory_new[addr + 4] = ((value >> 32) & 0xff) as u8;
+        self.virtual_memory_new[addr + 5] = ((value >> 40) & 0xff) as u8;
+        self.virtual_memory_new[addr + 6] = ((value >> 48) & 0xff) as u8;
+        self.virtual_memory_new[addr + 7] = ((value >> 56) & 0xff) as u8;
+    }
+
+    pub fn read_byte(&self, address:u64) -> u64 {
+        self.virtual_memory_new[address as usize] as u64
+    }
+
+    pub fn read_half(&self, address:u64) -> u64 {
+        let addr = address as usize;
+        return (self.virtual_memory_new[addr] as u64) | ((self.virtual_memory_new[addr + 1] as u64) << 8);
+    }
+    pub fn read_word(&self, address:u64) -> u64 {
+        let addr = address as usize;
+        return (self.virtual_memory_new[addr] as u64) 
+        | ((self.virtual_memory_new[addr + 1] as u64) << 8) 
+        | ((self.virtual_memory_new[addr + 2] as u64) << 16)
+        | ((self.virtual_memory_new[addr + 3] as u64) << 24)
+    }
+
+    pub fn read_double_word(&self, address:u64) -> u64 {
+        let addr = address as usize;
+        return (self.virtual_memory_new[addr] as u64) 
+        | ((self.virtual_memory_new[addr + 1] as u64) << 8) 
+        | ((self.virtual_memory_new[addr + 2] as u64) << 16)
+        | ((self.virtual_memory_new[addr + 3] as u64) << 24)
+        | ((self.virtual_memory_new[addr + 4] as u64) << 32)
+        | ((self.virtual_memory_new[addr + 5] as u64) << 40)
+        | ((self.virtual_memory_new[addr + 6] as u64) << 48)
+        | ((self.virtual_memory_new[addr + 7] as u64) << 56);
+    }
 
     pub fn read(&self, address:u64, size:usize) -> &[u8] {
-        // TODO CHECK PERMS
-        /*
-        let key = self.find_segment(address);
-        if key.2 == false {
-            todo!("Handle Segmentation Faults! {}",address);
-        }
-        let k:(u64,u64) = (key.0,key.1);
-        let segment = &self.virtual_memory_new[&k];
-        let virtual_address =  address.wrapping_sub(segment.base_address);
-        let start = virtual_address as usize;
-        let end = start + size;
-        println!("Virtual {:#08X} Asking {:#08X} Base {:#08X}",virtual_address,address,segment.base_address);
-        //println!("{start}");
-        */
         let start = address as usize;
         let end = start + size;
         let slice = &self.virtual_memory_new[start..end];

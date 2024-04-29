@@ -27,7 +27,7 @@ fn main() {
     //emulator.cpu.mmu.print_segments();
     println!("=== CoffeePot Elf Loading Complete!  ===",);
     println!("=== CoffeePot Init!  ===");
-    let mut debug = true;
+    let mut debug = false;
     loop {
         //println!("{}", emulator.cpu);
         // Fetch
@@ -35,7 +35,7 @@ fn main() {
             break;
         }
         if emulator.cpu.pc == 0x0102AA {
-            debug = true;
+            debug = false;
         }
         if debug {
 

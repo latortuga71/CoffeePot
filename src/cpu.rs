@@ -1,7 +1,9 @@
+use std::fmt::Result;
 use std::hash::BuildHasherDefault;
 use std::io;
 use std::io::BufRead;
 use std::io::Write;
+use std::result;
 
 use crate::data;
 use crate::mmu::BYTE;
@@ -52,40 +54,29 @@ impl std::fmt::Display for CPU {
 impl CPU {
     pub fn new() -> Self {
         let mut xreg: [u64; 32] = [0; 32];
-        // Stack Initialization With LibC Args
         let mut mmu = MMU::new();
-        let stack_base = 0x0 as u64;
-        let heap_base = 0x220000 as u64;
-        mmu.alloc(stack_base, 1024 * 1024);
-        let mut sp = stack_base + 1024 * 1024;
-        // write A's to the heap
-        mmu.memset(heap_base, 0x41, DOUBLE_WORD);
-        // AUXP
-        sp = sp.wrapping_sub(0x8);
-        mmu.write(sp, 0u64, DOUBLE_WORD);
-        // ENVP END
-        sp = sp.wrapping_sub(0x8);
-        mmu.write(sp, 0u64, DOUBLE_WORD);
-        // ENVP
-        sp = sp.wrapping_sub(0x8);
-        mmu.write(sp, heap_base, DOUBLE_WORD);
-        // ARGV END
-        sp = sp.wrapping_sub(0x8);
-        mmu.write(sp, 0u64, DOUBLE_WORD);
-        // ARGV0
-        sp = sp.wrapping_sub(0x8);
-        println!("HEAP BASE {:#08x}",heap_base);
-        mmu.write(sp, heap_base, DOUBLE_WORD);
-        println!("stack heapaddr -> {:?}",mmu.read(sp,8));
+        let stack_base = 0x0;
+        let sp_start = stack_base + 1024 * 1024;
+        xreg[2] = sp_start as u64;
+        let mut sp = sp_start;
+        // write A's to memory somewhere
+        mmu.write_double_word(0x99,0x4141414141414141);
         // ARGC
-        sp = sp.wrapping_sub(0x8);
-        mmu.write(sp, 1u64, DOUBLE_WORD);
-        // argv address
-        xreg[2] = sp;
-        println!("{:?}",mmu.read(heap_base,8));
-        println!("STACK POINTER -> {:#08X}",sp);
+        mmu.write_double_word(sp,1u64);
+        sp += 8;
+        //write argv zero address
+        mmu.write_double_word(sp,0x99);
+        sp += 8;
+        // zeros
+        mmu.write_double_word(sp,0u64);
+        sp += 8;
+        mmu.write_double_word(sp,0u64);
+        sp += 8;
+        mmu.write_double_word(sp,0u64);
+        println!("STACK POINTER -> {:#08X}",xreg[2]);
+        println!("STACK BASE -> {:#08X}",   stack_base);
         CPU {
-            sp: sp,
+            sp: xreg[2],
             pc: 0x00000000,
             mmu: mmu,
             x_reg: xreg,
@@ -704,9 +695,8 @@ impl CPU {
             println!("{:#08X} c.sdsp x{rs2},{offset}(sp)", self.pc);
         }
         let _memory_address = self.x_reg[2].wrapping_add(offset as u64);
-        let index = rs2 as usize;
-        let value = self.x_reg[index] as u64;
-        self.mmu.write(_memory_address, value, DOUBLE_WORD);
+        let value = self.x_reg[rs2 as usize];
+        self.mmu.write_double_word(_memory_address, value);
         false
     }
 
@@ -716,21 +706,22 @@ impl CPU {
         }
         let _memory_address = self.x_reg[2].wrapping_add(offset);
         let value = self.x_reg[rs2 as usize];
-        self.mmu.write(_memory_address,value,WORD);
+        self.mmu.write_word(_memory_address, value);
         false
     }
     fn c_lwsp(&mut self, rd: u64, offset: u64) -> bool {
         if self.debug_flag{println!("lwsp");}
-        let value = self.x_reg[2].wrapping_add(offset as u64) as i32 as i64 as u64;
-        self.x_reg[rd as usize] = value;
+        let address = self.x_reg[2].wrapping_add(offset);
+        let result = self.mmu.read_word(address);
+        self.x_reg[rd as usize] = result as i32 as i64 as u64;
         false
     }
     fn c_ldsp(&mut self, rd: u64, offset: u64) -> bool {
         if self.debug_flag {
             println!("c.ldsp x{rd} {offset},(x2)");
         }
-        let _memory_address = self.x_reg[2].wrapping_add(offset);
-        let result = u64::from_le_bytes(self.mmu.read(_memory_address, DOUBLE_WORD).try_into().unwrap());
+        let address = self.x_reg[2].wrapping_add(offset);
+        let result = self.mmu.read_double_word(address);
         self.x_reg[rd as usize] = result;
         false
     }
@@ -750,7 +741,8 @@ impl CPU {
             println!("{:#08X} c.lw x{rd},{offset},(x{rs1})", self.pc);
         }
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(offset as u64);
-        let result = u32::from_le_bytes(self.mmu.read(_memory_address, WORD).try_into().unwrap());
+        //let result = u32::from_le_bytes(self.mmu.read(_memory_address, WORD).try_into().unwrap());
+        let result = self.mmu.read_word(_memory_address);
         self.x_reg[rd as usize] = result as i32 as i64 as u64;
         false
     }
@@ -759,8 +751,9 @@ impl CPU {
             println!("{:#08X} c.ld x{rd},{offset},(x{rs1})", self.pc);
         }
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(offset as u64);
-        let result = u64::from_le_bytes(self.mmu.read(_memory_address, DOUBLE_WORD).try_into().unwrap());
-        self.x_reg[rd as usize] = result as u32 as u64;
+        //let result = u64::from_le_bytes(self.mmu.read(_memory_address, DOUBLE_WORD).try_into().unwrap());
+        let result = self.mmu.read_double_word(_memory_address);
+        self.x_reg[rd as usize] = result;
         false
     }
     fn c_fsd(&mut self, rd: u64, rs1: u64, offset: u64) -> bool {
@@ -783,7 +776,8 @@ impl CPU {
         }
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(offset as u64);
         let value = self.x_reg[rs2 as usize];
-        self.mmu.write(_memory_address, value, DOUBLE_WORD);
+        //self.mmu.write(_memory_address, value, DOUBLE_WORD);
+        self.mmu.write_double_word(_memory_address, value);
         false
     }
 
@@ -1051,7 +1045,8 @@ impl CPU {
         }
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm as u64);
         let value = self.x_reg[rs2 as usize];
-        self.mmu.write(_memory_address, value, DOUBLE_WORD);
+        //self.mmu.write(_memory_address, value, DOUBLE_WORD);
+        self.mmu.write_double_word(_memory_address, value);
         false
     }
 
@@ -1061,7 +1056,8 @@ impl CPU {
         }
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm as u64);
         let value = self.x_reg[rs2 as usize];
-        self.mmu.write(_memory_address, value, WORD);
+        //self.mmu.write(_memory_address, value, WORD);
+        self.mmu.write_word(_memory_address, value);
         false
     }
 
@@ -1071,17 +1067,19 @@ impl CPU {
         }
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm as u64);
         let value = self.x_reg[rs2 as usize];
-        self.mmu.write(_memory_address, value, HALF);
+        //self.mmu.write(_memory_address, value, HALF);
+        self.mmu.write_half(_memory_address, value);
         false
     }
 
     fn store_byte(self: &mut Self, rs2: u64, rs1: u64, imm: u64) -> bool {
         if self.debug_flag{
-            println!("{:#08X} sb x{rs2}{imm}(x{rs1})",self.pc);
+            println!("{:#08X} sb x{rs2},{} (x{rs1})", imm as i64, self.pc);
         }
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm as u64);
         let value = self.x_reg[rs2 as usize];
-        self.mmu.write(_memory_address, value, BYTE);
+        //self.mmu.write(_memory_address, value, BYTE);
+        self.mmu.write_byte(_memory_address, value);
         false
     }
     fn load_word_unsigned(self: &mut Self, rd: u64, rs1: u64, imm: u64) -> bool {
@@ -1089,8 +1087,9 @@ impl CPU {
             println!("{:#08X} lwu x{rd},{}(x{rs1})",self.pc,imm as i64);
         }
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm);
-        let result = u32::from_le_bytes(self.mmu.read(_memory_address,WORD).try_into().unwrap());
-        self.x_reg[rd as usize] = result as u64;
+        //let result = u32::from_le_bytes(self.mmu.read(_memory_address,WORD).try_into().unwrap());
+        let result = self.mmu.read_word(_memory_address);
+        self.x_reg[rd as usize] = result;
         false
     }
     fn load_double_word(self: &mut Self, rd: u64, rs1: u64, imm: u64) -> bool {
@@ -1098,7 +1097,8 @@ impl CPU {
             println!("{:#08X} ld x{rd},{}(x{rs1})",self.pc,imm as i64);
         }
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm);
-        let result = u64::from_le_bytes(self.mmu.read(_memory_address,DOUBLE_WORD).try_into().unwrap());
+        //let result = u64::from_le_bytes(self.mmu.read(_memory_address,DOUBLE_WORD).try_into().unwrap());
+        let result = self.mmu.read_double_word(_memory_address);
         self.x_reg[rd as usize] = result;
         false
     }
@@ -1542,7 +1542,8 @@ impl CPU {
             println!("{:#08X} lw x{rd},{}(x{rs1})",self.pc,imm as i64);
         }
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm);
-        let result = u32::from_le_bytes(self.mmu.read(_memory_address,WORD).try_into().unwrap()) as i32 as i64 as u64;
+        let result = self.mmu.read_word(_memory_address) as i32 as i64 as u64;
+        //let result = u32::from_le_bytes(self.mmu.read(_memory_address,WORD).try_into().unwrap()) as i32 as i64 as u64;
         self.x_reg[rd as usize] = result;
         false
     }
@@ -1552,7 +1553,8 @@ impl CPU {
             println!("{:#08X} lh x{rd},{}(x{rs1})",self.pc,imm as i64);
         }
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm);
-        let result = u16::from_le_bytes(self.mmu.read(_memory_address,HALF).try_into().unwrap()) as i16 as i64 as u64;
+        let result = self.mmu.read_half(_memory_address) as i16 as i64 as u64;
+        //let result = u16::from_le_bytes(self.mmu.read(_memory_address,HALF).try_into().unwrap()) as i16 as i64 as u64;
         self.x_reg[rd as usize] = result;
         false
     }
@@ -1562,7 +1564,8 @@ impl CPU {
             println!("{:#08X} lb x{rd},{}(x{rs1})",self.pc,imm as i64);
         }
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm);
-        let result = u8::from_le_bytes(self.mmu.read(_memory_address,BYTE).try_into().unwrap()) as i8 as i64 as u64;
+        let result = self.mmu.read_byte(_memory_address) as i8 as i64 as u64;
+        //let result = u8::from_le_bytes(self.mmu.read(_memory_address,BYTE).try_into().unwrap()) as i8 as i64 as u64;
         self.x_reg[rd as usize] = result;
         false
     }
@@ -1571,9 +1574,10 @@ impl CPU {
         if self.debug_flag{
             println!("{:#08X} luu x{rd},{}(x{rs1})",self.pc,imm as i64);
         }
-        let _memory_address = self.x_reg[rs1 as usize] + imm as u64;
-        let result = u16::from_le_bytes(self.mmu.read(_memory_address,HALF).try_into().unwrap());
-        self.x_reg[rd as usize] = result as u64;
+        let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm);
+        let result = self.mmu.read_half(_memory_address);
+        //let result = u16::from_le_bytes(self.mmu.read(_memory_address,HALF).try_into().unwrap());
+        self.x_reg[rd as usize] = result;
         false
     }
     // load 8 bit value
@@ -1582,8 +1586,9 @@ impl CPU {
             println!("{:#08X} lbu x{rd},{}(x{rs1})",self.pc,imm as i64);
         }
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm);
-        let result = u8::from_le_bytes(self.mmu.read(_memory_address,BYTE).try_into().unwrap());
-        self.x_reg[rd as usize] = result as u64;
+        //let result = u8::from_le_bytes(self.mmu.read(_memory_address,BYTE).try_into().unwrap());
+        let result = self.mmu.read_byte(_memory_address);
+        self.x_reg[rd as usize] = result;
         false
     }
     // add immediate
@@ -2031,8 +2036,8 @@ impl CPU {
                 //println!("iovec count {:#08X}",iovec_count);
                 //println!("{:#08X}",total_size);
                 // points to where the iovecs start
-                let iovec_buffer = &self.mmu.read(iovec_ptr_start,total_size as usize);
-                //let iovec_buffer = &self.mmu.virtual_memory[iovec_ptr_start as usize..iovec_ptr_end as usize];
+                //let iovec_buffer = &self.mmu.read(iovec_ptr_start,total_size as usize);
+                let iovec_buffer = &self.mmu.virtual_memory_new[iovec_ptr_start as usize..iovec_ptr_end as usize];
                 let mut writev_n = 0;
                 unsafe {
                     for i in 0..iovec_count {
@@ -2047,8 +2052,8 @@ impl CPU {
                         //println!("base {:#08X}",iovec.iov_base);
                         //println!("len {:#08X}",iovec.iov_len);
                         // read len byes from base and write into fd
-                        //let data_buffer = &self.mmu.virtual_memory[iovec.iov_base as usize..iovec.iov_base as usize + iovec.iov_len as usize];
-                        let data_buffer = self.mmu.read(iovec.iov_base,iovec.iov_len as usize);
+                        let data_buffer = &self.mmu.virtual_memory_new[iovec.iov_base as usize..iovec.iov_base as usize + iovec.iov_len as usize];
+                        //let data_buffer = self.mmu.read(iovec.iov_base,iovec.iov_len as usize);
                         let utf_bytes = core::str::from_utf8_unchecked(data_buffer);
                         // currently we only write to stdout
                         print!("{}", utf_bytes);
@@ -2081,6 +2086,7 @@ impl CPU {
                 let fd = _a0;
                 let end = _a1 + _a2;
                 let raw_bytes = &self.mmu.read(_a1,_a2 as usize);
+                let raw_bytes = &self.mmu.virtual_memory[_a1 as usize.. _a1 as usize + _a2 as usize];
                 unsafe {
                     let utf_bytes = core::str::from_utf8_unchecked(raw_bytes);
                     //let utf_bytes = core::str::from_utf8(raw_bytes).unwrap();
