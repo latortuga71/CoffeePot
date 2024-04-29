@@ -22,7 +22,7 @@ fn main() {
     emulator.cpu.pc = elf_segments.entry_point;
     //emulator.load_raw_instructions("./add.bin").unwrap();
     //print!("{:?}", emulator.cpu.mmu.text_segment);
-    emulator.cpu.debug_flag = true;
+    emulator.cpu.debug_flag = false;
     // example snapshot?
     //emulator.cpu.mmu.print_segments();
     println!("=== CoffeePot Elf Loading Complete!  ===",);

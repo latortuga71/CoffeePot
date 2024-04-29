@@ -56,25 +56,25 @@ impl CPU {
         let mut xreg: [u64; 32] = [0; 32];
         let mut mmu = MMU::new();
         let stack_base = 0x0;
-        let sp_start = stack_base + 1024 * 1024;
+        let sp_start = stack_base + 0x4090;
         xreg[2] = sp_start as u64;
         let mut sp = sp_start;
         // write A's to memory somewhere
         mmu.write_double_word(0x99,0x4141414141414141);
         // ARGC
         mmu.write_double_word(sp,1u64);
-        sp += 8;
+        sp -= 8;
         //write argv zero address
         mmu.write_double_word(sp,0x99);
-        sp += 8;
+        sp -= 8;
         // zeros
         mmu.write_double_word(sp,0u64);
-        sp += 8;
+        sp -= 8;
         mmu.write_double_word(sp,0u64);
-        sp += 8;
+        sp -= 8;
         mmu.write_double_word(sp,0u64);
+        println!("STACK -> {:#08X} {:#08X}",stack_base,sp_start);
         println!("STACK POINTER -> {:#08X}",xreg[2]);
-        println!("STACK BASE -> {:#08X}",   stack_base);
         CPU {
             sp: xreg[2],
             pc: 0x00000000,
@@ -767,7 +767,7 @@ impl CPU {
         }
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(offset as u64);
         let value = self.x_reg[rs2 as usize];
-        self.mmu.write(_memory_address, value, WORD);
+        self.mmu.write_word(_memory_address, value);
         false
     }
     fn c_sd(&mut self, rs2: u64, rs1: u64, offset: u64) -> bool {
@@ -1718,7 +1718,6 @@ impl CPU {
         if self.debug_flag {
             println!("c.bnez x{rs1}, x0, {:#08X}", offset);
         }
-        println!("OFFSET {offset}");
         if self.x_reg[rs1 as usize] != 0 {
             self.pc = self.pc.wrapping_add(offset as u64);
             return true;
@@ -1996,9 +1995,11 @@ impl CPU {
         let _a4 = self.x_reg[14];
         let _a5 = self.x_reg[15];
         if self.debug_flag{println!("syscall {:#08X}", syscall);}
+        /* 
         let stdin = std::io::stdin();
         let mut line = String::new();
         stdin.lock().read_line(&mut line).unwrap();
+        */
         match syscall {
             0xDE => {
                 let addr = _a0;
@@ -2085,8 +2086,8 @@ impl CPU {
             0x40 => {
                 let fd = _a0;
                 let end = _a1 + _a2;
-                let raw_bytes = &self.mmu.read(_a1,_a2 as usize);
-                let raw_bytes = &self.mmu.virtual_memory[_a1 as usize.. _a1 as usize + _a2 as usize];
+                //let raw_bytes = &self.mmu.read(_a1,_a2 as usize);
+                let raw_bytes = &self.mmu.virtual_memory_new[_a1 as usize.. _a1 as usize + _a2 as usize];
                 unsafe {
                     let utf_bytes = core::str::from_utf8_unchecked(raw_bytes);
                     //let utf_bytes = core::str::from_utf8(raw_bytes).unwrap();

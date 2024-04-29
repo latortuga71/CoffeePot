@@ -35,11 +35,11 @@ impl Emulator {
         // fetch small instructino
         let start = self.cpu.pc;
         let end = self.cpu.pc + 0x4;
-        let instruction_bytes = self.cpu.mmu.read_to_exec(self.cpu.pc,mmu::WORD);
-        //let instruction_bytes = &self.cpu.mmu.virtual_memory[start as usize..end as usize];
-        let mut sliced: [u8; 4] = [0, 0, 0, 0];
-        sliced.copy_from_slice(instruction_bytes);
-        self.current_instruction = Emulator::as_u32_le(&sliced);
+        //let instruction_bytes = self.cpu.mmu.read_to_exec(self.cpu.pc,mmu::WORD);
+        let instruction_bytes = self.cpu.mmu.read_word(self.cpu.pc);
+        //let mut sliced: [u8; 4] = [0, 0, 0, 0];
+        //sliced.copy_from_slice(instruction_bytes);
+        self.current_instruction = instruction_bytes as u32;
         // return false if the next instruction points to nothing
         self.current_instruction != 0
     }
@@ -74,9 +74,9 @@ impl Emulator {
             let offset_end = e.raw_data.len() + offset;
             // copy raw_data into virtual memory
             self.cpu.mmu.virtual_memory_new[offset..offset_end].copy_from_slice(&e.raw_data);
+            println!("CODE SECTION -> {:#08X} {:#08X}",offset,offset_end)
         }
         //println!("copied {c} segments");
-
     }
 
     pub fn load_raw_instructions(self: &mut Self, path: &str) -> Result<(), std::io::Error> {
