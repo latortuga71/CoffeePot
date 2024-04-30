@@ -42,42 +42,12 @@ impl std::fmt::Display for CPU {
             }
         }
         display_string.push_str("\n");
-        /*
-                let stack_slice = &self.mmu.virtual_memory[self.sp as usize..self.sp as usize + 32];
-                let stack_format = format!("{:#08X?}\n", stack_slice);
-                display_string.push_str(&stack_format);
-        */
         write!(f, "{}", display_string)
     }
 }
 
 impl CPU {
     pub fn new() -> Self {
-        // stack initalized in main
-        /*
-        let mut xreg: [u64; 32] = [0; 32];
-        let mut mmu = MMU::new();
-        let stack_base = 0x0;
-        let sp_start = stack_base + 0x4090;
-        xreg[2] = sp_start as u64;
-        let mut sp = sp_start;
-        // write A's to memory somewhere
-        mmu.write_double_word(0x99,0x4141414141414141);
-        // ARGC
-        mmu.write_double_word(sp,1u64);
-        sp -= 8;
-        //write argv zero address
-        mmu.write_double_word(sp,0x99);
-        sp -= 8;
-        // zeros
-        mmu.write_double_word(sp,0u64);
-        sp -= 8;
-        mmu.write_double_word(sp,0u64);
-        sp -= 8;
-        mmu.write_double_word(sp,0u64);
-        println!("STACK -> {:#08X} {:#08X}",stack_base,sp_start);
-        println!("STACK POINTER -> {:#08X}",xreg[2]);
-        */
         let mmu = MMU::new();
         let xreg: [u64; 32] = [0; 32];
         CPU {
@@ -496,7 +466,6 @@ impl CPU {
                 0x5 => match funct7 {
                     0x0 => self.srl(rd, rs1, rs2),
                     0x1 => self.divu(rd, rs1, rs2),
-                    /////////////////////////////////// ------ Continue Writing Tests Here
                     0x20 => self.sra(rd, rs1, rs2),
                     _ => panic!("Invalid funct7"),
                 },
@@ -1643,10 +1612,8 @@ impl CPU {
 
     fn ebreak(&self) -> bool {
         loop {
-            println!("DEBUG BREAK");
-            break;
+            todo!("DEBUG EBREAK");
         }
-        false
     }
 
     fn ecall(self: &mut Self) -> bool {
@@ -1664,11 +1631,6 @@ impl CPU {
         let _a4 = self.x_reg[14];
         let _a5 = self.x_reg[15];
         if self.debug_flag{println!("syscall {:#08X}", syscall);}
-        /* 
-        let stdin = std::io::stdin();
-        let mut line = String::new();
-        stdin.lock().read_line(&mut line).unwrap();
-        */
         match syscall {
             0xDE => {
                 let addr = _a0;
@@ -1679,64 +1641,43 @@ impl CPU {
                 let offset = _a5;
                 println!("MMAP CALLED {:#08X} {:#08X} {:#08X} {:#08X} {:#08X} {:#08X}",addr,length,prot,flags,fd,offset);
                 println!("{}",length as u64);
+                todo!("MMAP SYSCALL");
                 self.mmu.alloc(0x440000, 0x0124);
                 self.x_reg[10] = 0x440000;
             }
             0x5E => {
                 // https://man7.org/linux/man-pages/man2/exit_group.2.html
                 let exit_status = _a0;
-                //println!("\n=== CoffeePot Exit! {} ===",exit_status as i32);
                 self.exit_called = true;
                 self.exit_status = exit_status as i32;
                 return false;
-                //std::process::exit(exit_status as i32);
             }
             0x42 => {
                 //https://man7.org/linux/man-pages/man2/writev.2.html
                 let fd = _a0;
                 if fd != 1 {
-                    todo!("Handle writing to a different file descriptor other than stdout");
+                    todo!("HANDLE FILE DESCRIPTORS");
                 }
                 let iovec_ptr_start = _a1;
                 let iovec_count= _a2;
-                let iovec_struct_size = (std::mem::size_of::<Iovec>() as u64);
+                let iovec_struct_size = std::mem::size_of::<Iovec>() as u64;
                 let total_size = iovec_count * iovec_struct_size;
-                let iovec_ptr_end = _a1 + total_size;
-                //println!("{:#08X}",iovec_ptr_start);
-                //println!("iovec count {:#08X}",iovec_count);
-                //println!("{:#08X}",total_size);
-                // points to where the iovecs start
-                //let iovec_buffer = &self.mmu.read(iovec_ptr_start,total_size as usize);
-                //let segment =  self.mmu.get_segment(iovec_ptr_start).unwrap();
                 let iovec_buffer = self.mmu.get_segment_bytes(iovec_ptr_start,total_size).unwrap();
-                //let start = iovec_ptr_start.wrapping_sub(segment.base_address) as usize;
-                //let end = start.wrapping_add(total_size as usize) as usize;
-                //let iovec_buffer = &segment.data[start..end];
-                //let iovec_buffer = &self.mmu.virtual_memory_new[iovec_ptr_start as usize..iovec_ptr_end as usize];
                 let mut writev_n = 0;
                 unsafe {
                     for i in 0..iovec_count {
                         let offset = i as isize * 0x16 as isize;
                         let iovec_p: *const Iovec = iovec_buffer.as_ptr().offset(offset) as *const Iovec;
                         let iovec:&Iovec = &*iovec_p;
-                        //println!("iovec_str {:?}",iovec_p);
-                        //println!("iovec_p {:?}",iovec_p);
                         if iovec.iov_base == 0 || iovec.iov_len== 0 {
                             break;
                         }
-                        //println!("base {:#08X}",iovec.iov_base);
-                        //println!("len {:#08X}",iovec.iov_len);
-                        // read len byes from base and write into fd
-                        //let data_buffer = &self.mmu.virtual_memory_new[iovec.iov_base as usize..iovec.iov_base as usize + iovec.iov_len as usize];
                         let data_buffer = self.mmu.get_segment_bytes(iovec.iov_base,iovec.iov_len).unwrap();
-                        //let data_buffer = self.mmu.read(iovec.iov_base,iovec.iov_len as usize);
                         let utf_bytes = core::str::from_utf8_unchecked(data_buffer);
-                        // currently we only write to stdout
                         print!("{}", utf_bytes);
                         writev_n += data_buffer.len() as u64;
                     }
                 }
-                // return value
                 self.x_reg[10] = writev_n;
             }
             0x1D => {
@@ -1750,28 +1691,20 @@ impl CPU {
                 let whence = _a2;
                 println!("{:#08X} {:#08X} {:#08X}", fd, offset, whence);
                 self.x_reg[10] = fd;
-                todo!("lseek");
+                todo!("LSEEK SYSCALL");
             }
             0x60 => {
                 // https://man7.org/linux/man-pages/man2/set_tid_address.2.html
-                let tidptr = _a0;
-                // return value set current pid as value
+                // return value set current pid as value, we dont support threading.
                 self.x_reg[10] = std::process::id() as u64;
             }
             0x40 => {
                 let fd = _a0;
-                let end = _a1 + _a2;
-                //let raw_bytes = &self.mmu.read(_a1,_a2 as usize);
-                //let raw_bytes = &self.mmu.virtual_memory_new[_a1 as usize.. _a1 as usize + _a2 as usize];
                 let raw_bytes = self.mmu.get_segment_bytes(_a1,_a2).unwrap();
                 unsafe {
                     let utf_bytes = core::str::from_utf8_unchecked(raw_bytes);
-                    //let utf_bytes = core::str::from_utf8(raw_bytes).unwrap();
-                    // currently only can handle stdout or stderr
                     if fd == 1 || fd == 2 {
-                        // print bytes
                         print!("{}", utf_bytes);
-                        // set return value
                         self.x_reg[10] = _a2;
                     } else {
                         panic!("Handle other file descriptors");
