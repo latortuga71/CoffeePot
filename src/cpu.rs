@@ -1,5 +1,7 @@
 use crate::mmu::MMU;
 use crate::data::Iovec;
+use crate::data::File;
+use std::{collections::HashMap};
 
 
 #[derive(Debug,Clone)]
@@ -10,6 +12,7 @@ pub struct CPU {
     pub x_reg: [u64; 32],
     pub f_reg: [u64; 32],
     pub csr_reg: [u64; 4096],
+    pub file_descriptors: HashMap<u64,File>,
     pub current_compressed: bool,
     pub was_last_compressed: bool,
     pub debug_flag: bool,
@@ -38,6 +41,10 @@ impl std::fmt::Display for CPU {
 impl CPU {
     pub fn new() -> Self {
         let mmu = MMU::new();
+        let mut fds:[i32;1024] = [-1;1024];
+        fds[0] = 0;
+        fds[1] = 1;
+        fds[2] = 2;
         let xreg: [u64; 32] = [0; 32];
         CPU {
             sp: 0,
@@ -46,6 +53,7 @@ impl CPU {
             x_reg: xreg,
             f_reg: [0; 32],
             csr_reg: [0; 4096],
+            file_descriptors: HashMap::new(),
             current_compressed: false,
             was_last_compressed: false,
             debug_flag: true,
@@ -1683,6 +1691,7 @@ impl CPU {
                 self.x_reg[10] = std::process::id() as u64;
             }
             0x40 => {
+                // write syscall
                 let fd = _a0;
                 let raw_bytes = self.mmu.get_segment_bytes(_a1,_a2).unwrap();
                 unsafe {
