@@ -9,13 +9,6 @@ pub struct ElfInformation {
     pub entry_point: u64,
 }
 
-impl ElfInformation {
-    pub fn load_segments(self: &Self) -> bool {
-        todo!("For Each Section Load Sections Into Memory");
-        true
-    }
-}
-
 // https://ics.uci.edu/~aburtsev/238P/hw/hw3-elf/hw3-elf.html
 #[repr(C)]
 pub struct Elf64FileHeader {

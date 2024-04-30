@@ -1,5 +1,3 @@
-use crate::mmu::{BYTE, WORD,DOUBLE_WORD,HALF};
-
 #[cfg(test)]
 // Note this useful idiom: importing names from outer (for mod tests) scope.
 use super::*;
@@ -142,7 +140,7 @@ fn c_lw() {
     // 410c                    lw      a1,0(a0)
     let mut cpu = cpu::CPU::new();
     cpu.mmu.alloc(0x0, 0x100);
-    cpu.mmu.write_word_new(0x0, 0x41414141);
+    cpu.mmu.write_word(0x0, 0x41414141);
     cpu.x_reg[10] = 0x0; // a0
     // load from address 0x0 a 32bit word into a1
     cpu.execute_compressed(0x410c);
@@ -157,7 +155,7 @@ fn c_sd() {
     cpu.x_reg[9] = 0x41414143; // s1
     cpu.mmu.alloc(0x0, 0x100);
     cpu.execute_compressed(0xe426);
-    let result = cpu.mmu.read_double_word_new(0x8) as u8;
+    let result = cpu.mmu.read_double_word(0x8) as u8;
     // store double word from s1 into address sp + 0x8 
     assert_eq!(result, 0x43);
 }
@@ -172,7 +170,7 @@ fn load_word_unsigned() {
     cpu.x_reg[15] = 0x0;
     cpu.x_reg[14] = 0x0;
     cpu.mmu.alloc(0x0, 0x100);
-    cpu.mmu.write_word_new(0x0, 0x41414141);
+    cpu.mmu.write_word(0x0, 0x41414141);
     cpu.execute(0x0007e703);
     assert_eq!(cpu.x_reg[14], 0x41414141);
 }
@@ -184,7 +182,7 @@ fn load_word() {
     cpu.x_reg[6] = 0x0;
     cpu.x_reg[17] = 0x0;
     cpu.mmu.alloc(0x0, 0x100);
-    cpu.mmu.write_word_new(0x1, 0x41414141);
+    cpu.mmu.write_word(0x1, 0x41414141);
     cpu.execute(0x00132883);
     assert_eq!(cpu.x_reg[17], 0x41414141);
 }
@@ -196,7 +194,7 @@ fn load_byte() {
     cpu.x_reg[15] = 0x0;
     cpu.x_reg[14] = 0x0;
     cpu.mmu.alloc(0x0, 0x100);
-    cpu.mmu.write_byte_new(0x0, 0x41);
+    cpu.mmu.write_byte(0x0, 0x41);
     cpu.execute(0x00078703);
     assert_eq!(cpu.x_reg[14], 0x41);
 }
@@ -209,7 +207,7 @@ fn load_double_word() {
     cpu.x_reg[8] = 0x0; // s0
     cpu.x_reg[18] = 0x0; // s2
     cpu.mmu.alloc(0x0, 0x100);
-    cpu.mmu.write_double_word_new(88, 0x4141414141);
+    cpu.mmu.write_double_word(88, 0x4141414141);
     cpu.execute(0x05843903);
     assert_eq!(cpu.x_reg[18], 0x4141414141);
 }
@@ -221,7 +219,7 @@ fn load_half() {
     cpu.x_reg[15] = 0x0;
     cpu.x_reg[14] = 0x0;
     cpu.mmu.alloc(0x0, 0x100);
-    cpu.mmu.write_half_new(0x0, 0x4141);
+    cpu.mmu.write_half(0x0, 0x4141);
     cpu.execute(0x00079703);
     assert_eq!(cpu.x_reg[14], 0x4141);
 }
@@ -237,7 +235,7 @@ fn store_word() {
     cpu.x_reg[16] = 0x41414141;
     cpu.mmu.alloc(0x0, 0x100);
     cpu.execute(0x0107a423);
-    let value = cpu.mmu.read_word_new(8) as u32;
+    let value = cpu.mmu.read_word(8) as u32;
     assert_eq!(value, 0x41414141);
 }
 
@@ -251,7 +249,7 @@ fn store_double_word() {
     cpu.x_reg[15] = 0x4141414141414141; // 15
     cpu.mmu.alloc(0x0, 0x100);
     cpu.execute(0x02f9b423);
-    let value = cpu.mmu.read_double_word_new(40);
+    let value = cpu.mmu.read_double_word(40);
     assert_eq!(value, 0x4141414141414141);
 }
 
@@ -264,7 +262,7 @@ fn store_half() {
     cpu.x_reg[21] = 0x4141;
     cpu.mmu.alloc(0x0, 0x100);
     cpu.execute(0x01579023);
-    let value = cpu.mmu.read_half_new(0x0);
+    let value = cpu.mmu.read_half(0x0);
     assert_eq!(value, 0x4141);
 }
 
@@ -276,7 +274,7 @@ fn store_byte() {
     cpu.x_reg[15] = 0x41414141;
     cpu.mmu.alloc(0x0, 0x100);
     cpu.execute(0x00f50023);
-    let value = cpu.mmu.read_byte_new(0x0);
+    let value = cpu.mmu.read_byte(0x0);
     //let value = u32::from_le_bytes(cpu.mmu.read(8, WORD).try_into().unwrap());
     assert_eq!(value, 0x41);
 }
@@ -289,7 +287,7 @@ fn c_sw() {
     cpu.x_reg[13] = 0x41414141;
     cpu.mmu.alloc(0x0, 0x100);
     cpu.execute_compressed(0xc7d4);
-    let value = cpu.mmu.read_word_new(12);
+    let value = cpu.mmu.read_word(12);
     assert_eq!(value, 0x41414141);
     //let value = u32::from_le_bytes(cpu.mmu.read(8, WORD).try_into().unwrap());
 }

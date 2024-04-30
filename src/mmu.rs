@@ -1,7 +1,5 @@
 use std::{collections::HashMap, error::Error,fmt};
 
-
-
 // Error for mmu
 #[derive(Debug)]
 pub struct MMUError{
@@ -30,25 +28,13 @@ impl Error for MMUError {
 #[derive(Debug,Clone)]
 pub struct MMU {
     pub virtual_memory: HashMap<(u64,u64),Segment>,
-    pub virtual_memory_new: Vec<u8>,
     pub next_alloc_base: u64
 }
-
-pub const RAM: u64 = 1024 * 1024; // 1MB 
-
-
-pub const BYTE:usize = 0x1;
-pub const HALF:usize = 0x2;
-pub const WORD:usize = 0x4;
-pub const DOUBLE_WORD:usize = 0x8;
-
-
 
 impl MMU {
     pub fn new() -> Self {
         MMU {
             virtual_memory: HashMap::new(),
-            virtual_memory_new: vec![0; RAM as usize], // 1GB of address space by default
             next_alloc_base:0x0,
         }
     }
@@ -89,11 +75,10 @@ impl MMU {
         }
         return false;
     }
-    /// NEW MMU FUNCTIONS
-    pub fn write_double_word_new(&mut self, address:u64, value:u64){
+
+    pub fn write_double_word(&mut self, address:u64, value:u64){
         let segment = self.get_segment(address).unwrap();
         let addr = address.wrapping_sub(segment.base_address) as usize;
-        //println!("address {:#08X} base {:#08X} index {:#08X}",address,segment.base_address,addr);
         segment.data[addr] = (value & 0xff) as u8;
         segment.data[addr + 1] = ((value >> 8) & 0xff) as u8;
         segment.data[addr + 2] = ((value >> 16) & 0xff) as u8;
@@ -104,7 +89,7 @@ impl MMU {
         segment.data[addr + 7] = ((value >> 56) & 0xff) as u8;
     }
 
-    pub fn write_word_new(&mut self, address:u64, value:u64){
+    pub fn write_word(&mut self, address:u64, value:u64){
         let segment = self.get_segment(address).unwrap();
         let addr = address.wrapping_sub(segment.base_address) as usize;
         segment.data[addr] = (value & 0xff) as u8;
@@ -113,20 +98,20 @@ impl MMU {
         segment.data[addr + 3] = ((value >> 24) & 0xff) as u8;
     }
 
-    pub fn write_half_new(&mut self, address:u64, value:u64){
+    pub fn write_half(&mut self, address:u64, value:u64){
         let segment = self.get_segment(address).unwrap();
         let addr = address.wrapping_sub(segment.base_address) as usize;
         segment.data[addr] = (value & 0xff) as u8;
         segment.data[addr + 1] = ((value >> 8) & 0xff) as u8;
     }
 
-    pub fn write_byte_new(&mut self, address:u64, value:u64){
+    pub fn write_byte(&mut self, address:u64, value:u64){
         let segment = self.get_segment(address).unwrap();
         let addr = address.wrapping_sub(segment.base_address) as usize;
         segment.data[addr] = value as u8;
     }
 
-    pub fn read_double_word_new(&mut self, address:u64) -> u64 {
+    pub fn read_double_word(&mut self, address:u64) -> u64 {
         let segment = self.get_segment(address).unwrap();
         let addr = address.wrapping_sub(segment.base_address) as usize;
         return (segment.data[addr] as u64) 
@@ -139,7 +124,7 @@ impl MMU {
         | ((segment.data[addr + 7] as u64) << 56);
     }
 
-    pub fn read_word_new(&mut self, address:u64) -> u64 {
+    pub fn read_word(&mut self, address:u64) -> u64 {
         let segment = self.get_segment(address).unwrap();
         let addr = address.wrapping_sub(segment.base_address) as usize;
         return (segment.data[addr] as u64) 
@@ -148,83 +133,21 @@ impl MMU {
         | ((segment.data[addr + 3] as u64) << 24)
     }
 
-    pub fn read_half_new(&mut self, address:u64) -> u64 {
+    pub fn read_half(&mut self, address:u64) -> u64 {
         let segment = self.get_segment(address).unwrap();
         let addr = address.wrapping_sub(segment.base_address) as usize;
         return (segment.data[addr] as u64) 
         | ((segment.data[addr + 1] as u64) << 8) 
     }
 
-    pub fn read_byte_new(&mut self, address:u64) -> u64 {
+    pub fn read_byte(&mut self, address:u64) -> u64 {
         let segment = self.get_segment(address).unwrap();
         let addr = address.wrapping_sub(segment.base_address) as usize;
         return segment.data[addr] as u64;
     }
 
-
-    /// OLD MMU FUNCTIONS
-    pub fn write_byte(&mut self, address:u64,value:u64){
-        self.virtual_memory_new[address as usize] = value as u8;
-    }
-
-    pub fn write_half(&mut self, address:u64,value:u64){
-        let addr = address as usize;
-        self.virtual_memory_new[addr] = (value & 0xff) as u8;
-        self.virtual_memory_new[addr + 1] = ((value >> 8) & 0xFF) as u8;
-    }
-
-    pub fn write_word(&mut self, address:u64,value:u64){
-        let addr = address as usize;
-        self.virtual_memory_new[addr] = (value & 0xff) as u8;
-        self.virtual_memory_new[addr + 1] = ((value >> 8) & 0xff) as u8;
-        self.virtual_memory_new[addr + 2] = ((value >> 16) & 0xff) as u8;
-        self.virtual_memory_new[addr + 3] = ((value >> 24) & 0xff) as u8;
-    }
-
-
-
-    pub fn write_double_word(&mut self, address:u64,value:u64){
-        let addr = address as usize;
-        self.virtual_memory_new[addr] = (value & 0xff) as u8;
-        self.virtual_memory_new[addr + 1] = ((value >> 8) & 0xff) as u8;
-        self.virtual_memory_new[addr + 2] = ((value >> 16) & 0xff) as u8;
-        self.virtual_memory_new[addr + 3] = ((value >> 24) & 0xff) as u8;
-        self.virtual_memory_new[addr + 4] = ((value >> 32) & 0xff) as u8;
-        self.virtual_memory_new[addr + 5] = ((value >> 40) & 0xff) as u8;
-        self.virtual_memory_new[addr + 6] = ((value >> 48) & 0xff) as u8;
-        self.virtual_memory_new[addr + 7] = ((value >> 56) & 0xff) as u8;
-    }
-
-    pub fn read_byte(&self, address:u64) -> u64 {
-        self.virtual_memory_new[address as usize] as u64
-    }
-
-    pub fn read_half(&self, address:u64) -> u64 {
-        let addr = address as usize;
-        return (self.virtual_memory_new[addr] as u64) | ((self.virtual_memory_new[addr + 1] as u64) << 8);
-    }
-    pub fn read_word(&self, address:u64) -> u64 {
-        let addr = address as usize;
-        return (self.virtual_memory_new[addr] as u64) 
-        | ((self.virtual_memory_new[addr + 1] as u64) << 8) 
-        | ((self.virtual_memory_new[addr + 2] as u64) << 16)
-        | ((self.virtual_memory_new[addr + 3] as u64) << 24)
-    }
-
-    pub fn read_double_word(&self, address:u64) -> u64 {
-        let addr = address as usize;
-        return (self.virtual_memory_new[addr] as u64) 
-        | ((self.virtual_memory_new[addr + 1] as u64) << 8) 
-        | ((self.virtual_memory_new[addr + 2] as u64) << 16)
-        | ((self.virtual_memory_new[addr + 3] as u64) << 24)
-        | ((self.virtual_memory_new[addr + 4] as u64) << 32)
-        | ((self.virtual_memory_new[addr + 5] as u64) << 40)
-        | ((self.virtual_memory_new[addr + 6] as u64) << 48)
-        | ((self.virtual_memory_new[addr + 7] as u64) << 56);
-    }
-
     pub fn alloc(&mut self, base_address: u64, size: usize) -> u64 {
-        let mut segment_base;
+        let segment_base;
         let mut seg = Segment::new();
         if base_address != 0 {
             segment_base = base_address;
