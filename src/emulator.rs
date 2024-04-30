@@ -86,8 +86,8 @@ impl Emulator {
         };
         // Load bytes Into Flat Memory Space For Now
         //self.cpu.mmu.text_segment = bytes;
-        self.cpu.mmu.virtual_memory.resize(bytes.len(), 0);
-        self.cpu.mmu.virtual_memory.copy_from_slice(&bytes);
+        self.cpu.mmu.virtual_memory_new.resize(bytes.len(), 0);
+        self.cpu.mmu.virtual_memory_new.copy_from_slice(&bytes);
         // Set PC at start of bytes
         self.cpu.pc = 0x0000000;
         Ok(())

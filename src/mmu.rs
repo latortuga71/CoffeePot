@@ -1,16 +1,40 @@
-use std::{collections::HashMap};
+use std::{collections::HashMap, error::Error,fmt};
 
 
+
+// Error for mmu
+#[derive(Debug)]
+pub struct MMUError{
+    error_msg: String,
+}
+
+impl MMUError {
+    fn new(msg:&str ) -> MMUError {
+        MMUError{
+            error_msg:msg.to_string()
+        }
+    }
+}
+impl fmt::Display for MMUError {
+    fn fmt(&self,f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f,"{}",self.error_msg)
+    }
+}
+
+impl Error for MMUError {
+    fn description(&self) -> &str {
+        &self.error_msg
+    }
+}
 
 #[derive(Debug,Clone)]
 pub struct MMU {
-    pub virtual_memory: Vec<u8>,
-    //pub virtual_memory_new: HashMap<(u64,u64),Segment>,
+    pub virtual_memory: HashMap<(u64,u64),Segment>,
     pub virtual_memory_new: Vec<u8>,
     pub next_alloc_base: u64
 }
 
-pub const RAM: u64 = 1024 * 1024 * 1024;
+pub const RAM: u64 = 1024 * 1024; // 1MB 
 
 
 pub const BYTE:usize = 0x1;
@@ -23,24 +47,44 @@ pub const DOUBLE_WORD:usize = 0x8;
 impl MMU {
     pub fn new() -> Self {
         MMU {
-            virtual_memory: vec![0;0], // 1GB of address space by default
-            //virtual_memory_new: HashMap::new(),
+            virtual_memory: HashMap::new(),
             virtual_memory_new: vec![0; RAM as usize], // 1GB of address space by default
-            next_alloc_base:0,
+            next_alloc_base:0x0,
         }
     }
-    /*
     pub fn print_segments(&self) {
-        for (k,_segment) in &self.virtual_memory_new {
+        for (k,_segment) in &self.virtual_memory {
             println!("Segment -> {:#08X} {:#08X}",k.0,k.1);
         }
     }
-    */
+
+    fn get_segment(&mut self,address:u64) -> Result<&mut Segment,MMUError> {
+        println!("Attempting to find {:#08X}",address);
+        for (k,_segment) in self.virtual_memory.iter_mut() {
+            if address >= k.0 && address <= k.1 {
+                return Ok(_segment);
+            }
+        }
+        let error = format!("Segmentation fault attempting to access {:#08X}",address);
+        return Err(MMUError::new(&error));
+    }
+
+    fn segment_taken(&self,address:u64) -> bool {
+        println!("Attempting to find {:#08X}",address);
+        for (k,_segment) in self.virtual_memory.iter() {
+            if address >= k.0 && address <= k.1 {
+                return true;
+            }
+        }
+        return false;
+    }
+
+
     /*
     fn find_segment(&self,address:u64) -> (u64,u64,bool){
         let mut key:(u64,u64,bool) = (0,0,false);
         println!("Attempting to find {:#08X}",address);
-        for (k,_segment) in &self.virtual_memory_new {
+        for (k,_segment) in &self.virtual_memory {
             if address >= k.0 && address <= k.1 {
                 key.0 = k.0;
                 key.1 = k.1;
@@ -110,28 +154,33 @@ impl MMU {
     }
 
     pub fn alloc(&mut self, base_address: u64, size: usize) -> u64 {
-        /*
-        // TODO! Find Unused Base Address (use next base)
-        // TODO! Permissions for bytes dirty bits for segments
-        println!("Attempting to alloc {:#08X} to {:#08X}",base_address,base_address.wrapping_add(size as u64));
-        let inuse = self.find_segment(base_address);
-        if inuse.2 {
-            todo!(" HANDLE Address already in use");
+        let mut segment_base = 0u64;
+        let mut seg = Segment::new();
+        if base_address != 0 {
+            println!("Attempting to alloc {:#08X} to {:#08X}",base_address,base_address.wrapping_add(size as u64));
+            segment_base = base_address;
+            seg = Segment{
+                base_address:segment_base,
+                data: vec![0;size],
+                data_size: size,
+                dirty:false,
+                perms: vec![0;size],
+            };
+        } else {
+            println!("Attempting to alloc using next base {:#08X} to {:#08X}",self.next_alloc_base,self.next_alloc_base.wrapping_add(size as u64));
+            segment_base = self.next_alloc_base;
+            seg = Segment{
+                base_address:segment_base,
+                data: vec![0;size],
+                data_size: size,
+                dirty:false,
+                perms: vec![0;size],
+            };
         }
-        let segment_base = base_address;
-        let segment = Segment{
-            base_address:segment_base,
-            data: vec![0;size],
-            data_size:size,
-            grows_up: false,
-            dirty:false,
-            executable:true,
-            perms: vec![0;size],
-        };
         let key = (segment_base,segment_base.wrapping_add(size as u64));
-        self.virtual_memory_new.insert(key, segment);
-        */
-        return base_address;
+        self.virtual_memory.insert(key, seg);
+        self.next_alloc_base = key.1; 
+        return segment_base;
     }
 
 }
@@ -142,10 +191,20 @@ pub struct Segment {
     pub base_address: u64,
     pub data: Vec<u8>,
     pub data_size:usize,
-    pub grows_up: bool,
     pub dirty: bool,
-    pub executable:bool,
     pub perms: Vec<u8>
+}
+
+impl Segment {
+    fn new() -> Segment {
+        Segment{
+                base_address:0,
+                data: vec![0;0],
+                data_size: 0,
+                dirty:false,
+                perms: vec![0;0],
+        }
+    }
 }
 
 
