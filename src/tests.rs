@@ -245,50 +245,52 @@ fn store_word() {
 
 #[test]
 fn store_double_word() {
-    panic!("TODO");
+    //02f9b423                sd      a5,40(s3)
     let mut cpu = cpu::CPU::new();
-    cpu.x_reg[15] = 0x0;
-    cpu.x_reg[16] = 0x41414141;
+    cpu.x_reg[19] = 0x0; // s3
+    cpu.x_reg[15] = 0x4141414141414141; // 15
     cpu.mmu.alloc(0x0, 0x100);
-    cpu.execute(0x0107a423);
-    //let value = u32::from_le_bytes(cpu.mmu.read(8, WORD).try_into().unwrap());
-    //assert_eq!(value, 0x41414141);
+    cpu.execute(0x02f9b423);
+    let value = cpu.mmu.read_double_word_new(40);
+    assert_eq!(value, 0x4141414141414141);
 }
 
 
 #[test]
 fn store_half() {
-    panic!("TODO");
+    // 01579023                sh      s5,0(a5)
     let mut cpu = cpu::CPU::new();
     cpu.x_reg[15] = 0x0;
-    cpu.x_reg[16] = 0x41414141;
+    cpu.x_reg[21] = 0x4141;
     cpu.mmu.alloc(0x0, 0x100);
-    cpu.execute(0x0107a423);
-    //let value = u32::from_le_bytes(cpu.mmu.read(8, WORD).try_into().unwrap());
-    //assert_eq!(value, 0x41414141);
+    cpu.execute(0x01579023);
+    let value = cpu.mmu.read_half_new(0x0);
+    assert_eq!(value, 0x4141);
 }
 
 #[test]
 fn store_byte() {
-    panic!("TODO");
+    //00f50023                sb      a5,0(a0)
     let mut cpu = cpu::CPU::new();
-    cpu.x_reg[15] = 0x0;
-    cpu.x_reg[16] = 0x41414141;
+    cpu.x_reg[10] = 0x0;
+    cpu.x_reg[15] = 0x41414141;
     cpu.mmu.alloc(0x0, 0x100);
-    cpu.execute(0x0107a423);
+    cpu.execute(0x00f50023);
+    let value = cpu.mmu.read_byte_new(0x0);
     //let value = u32::from_le_bytes(cpu.mmu.read(8, WORD).try_into().unwrap());
-    //assert_eq!(value, 0x41414141);
+    assert_eq!(value, 0x41);
 }
 
 #[test]
 fn c_sw() {
-    panic!("TODO");
+    // c.sw c7d4                    sw      a3,12(a5)
     let mut cpu = cpu::CPU::new();
     cpu.x_reg[15] = 0x0;
-    cpu.x_reg[16] = 0x41414141;
+    cpu.x_reg[13] = 0x41414141;
     cpu.mmu.alloc(0x0, 0x100);
-    cpu.execute(0x0107a423);
+    cpu.execute_compressed(0xc7d4);
+    let value = cpu.mmu.read_word_new(12);
+    assert_eq!(value, 0x41414141);
     //let value = u32::from_le_bytes(cpu.mmu.read(8, WORD).try_into().unwrap());
-    //assert_eq!(value, 0x41414141);
 }
 
