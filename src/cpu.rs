@@ -53,6 +53,8 @@ impl std::fmt::Display for CPU {
 
 impl CPU {
     pub fn new() -> Self {
+        // stack initalized in main
+        /*
         let mut xreg: [u64; 32] = [0; 32];
         let mut mmu = MMU::new();
         let stack_base = 0x0;
@@ -75,8 +77,11 @@ impl CPU {
         mmu.write_double_word(sp,0u64);
         println!("STACK -> {:#08X} {:#08X}",stack_base,sp_start);
         println!("STACK POINTER -> {:#08X}",xreg[2]);
+        */
+        let mmu = MMU::new();
+        let xreg: [u64; 32] = [0; 32];
         CPU {
-            sp: xreg[2],
+            sp: 0,
             pc: 0x00000000,
             mmu: mmu,
             x_reg: xreg,
@@ -1702,7 +1707,12 @@ impl CPU {
                 //println!("{:#08X}",total_size);
                 // points to where the iovecs start
                 //let iovec_buffer = &self.mmu.read(iovec_ptr_start,total_size as usize);
-                let iovec_buffer = &self.mmu.virtual_memory_new[iovec_ptr_start as usize..iovec_ptr_end as usize];
+                //let segment =  self.mmu.get_segment(iovec_ptr_start).unwrap();
+                let iovec_buffer = self.mmu.get_segment_bytes(iovec_ptr_start,total_size).unwrap();
+                //let start = iovec_ptr_start.wrapping_sub(segment.base_address) as usize;
+                //let end = start.wrapping_add(total_size as usize) as usize;
+                //let iovec_buffer = &segment.data[start..end];
+                //let iovec_buffer = &self.mmu.virtual_memory_new[iovec_ptr_start as usize..iovec_ptr_end as usize];
                 let mut writev_n = 0;
                 unsafe {
                     for i in 0..iovec_count {
@@ -1717,7 +1727,8 @@ impl CPU {
                         //println!("base {:#08X}",iovec.iov_base);
                         //println!("len {:#08X}",iovec.iov_len);
                         // read len byes from base and write into fd
-                        let data_buffer = &self.mmu.virtual_memory_new[iovec.iov_base as usize..iovec.iov_base as usize + iovec.iov_len as usize];
+                        //let data_buffer = &self.mmu.virtual_memory_new[iovec.iov_base as usize..iovec.iov_base as usize + iovec.iov_len as usize];
+                        let data_buffer = self.mmu.get_segment_bytes(iovec.iov_base,iovec.iov_len).unwrap();
                         //let data_buffer = self.mmu.read(iovec.iov_base,iovec.iov_len as usize);
                         let utf_bytes = core::str::from_utf8_unchecked(data_buffer);
                         // currently we only write to stdout
@@ -1751,7 +1762,8 @@ impl CPU {
                 let fd = _a0;
                 let end = _a1 + _a2;
                 //let raw_bytes = &self.mmu.read(_a1,_a2 as usize);
-                let raw_bytes = &self.mmu.virtual_memory_new[_a1 as usize.. _a1 as usize + _a2 as usize];
+                //let raw_bytes = &self.mmu.virtual_memory_new[_a1 as usize.. _a1 as usize + _a2 as usize];
+                let raw_bytes = self.mmu.get_segment_bytes(_a1,_a2).unwrap();
                 unsafe {
                     let utf_bytes = core::str::from_utf8_unchecked(raw_bytes);
                     //let utf_bytes = core::str::from_utf8(raw_bytes).unwrap();

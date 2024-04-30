@@ -20,7 +20,8 @@ fn main() {
     //emulator.load_elf_segments(&elf_segments); old
     emulator.load_elf_segments(&elf_segments);
     emulator.load_elf_segments_new(&elf_segments);
-    emulator.initialize_stack_libc(1u64, "AAAAAAAA".to_string());
+    // Initalize Stack And Set Stack Pointer Register
+    emulator.cpu.sp  = emulator.initialize_stack_libc(1u64, "AAAAAAAA".to_string());
     emulator.cpu.mmu.print_segments(); 
 
     emulator.cpu.pc = elf_segments.entry_point;
@@ -32,13 +33,8 @@ fn main() {
     println!("=== CoffeePot Init!  ===");
     let mut debug = false;
     loop {
-        //println!("{}", emulator.cpu);
-        // Fetch
         if !emulator.fetch_instruction() {
             break;
-        }
-        if emulator.cpu.pc == 0x0102AA {
-            debug = false;
         }
         if debug {
 
@@ -47,12 +43,8 @@ fn main() {
         stdin.lock().read_line(&mut line).unwrap();
         print!("CoffeePot Registers: \n{}\n", emulator.cpu);
         }
-        // Decode && Execute
         if emulator.execute_instruction() {
-            // exit called!
-            //println!("=== CoffeePot Exit! {}  ===",emulator.cpu.exit_status);
             break;
         }
-        //println!("=== CoffeePot Exit! {}  ===", emulator.cpu.exit_status);
     }
 }

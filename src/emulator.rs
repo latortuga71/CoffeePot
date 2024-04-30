@@ -36,7 +36,7 @@ impl Emulator {
         let start = self.cpu.pc;
         let end = self.cpu.pc + 0x4;
         //let instruction_bytes = self.cpu.mmu.read_to_exec(self.cpu.pc,mmu::WORD);
-        let instruction_bytes = self.cpu.mmu.read_word(self.cpu.pc);
+        let instruction_bytes = self.cpu.mmu.read_word_new(self.cpu.pc);
         //let mut sliced: [u8; 4] = [0, 0, 0, 0];
         //sliced.copy_from_slice(instruction_bytes);
         self.current_instruction = instruction_bytes as u32;
