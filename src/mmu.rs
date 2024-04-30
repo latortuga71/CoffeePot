@@ -69,7 +69,7 @@ impl MMU {
     }
 
     pub fn get_segment_bytes(&self,address:u64,length:u64) -> Result<&[u8],MMUError> {
-        for (k,_segment) in self.virtual_memory.iter_mut() {
+        for (k,_segment) in self.virtual_memory.iter() {
             if address >= k.0 && address < k.1 {
                 // get offsets and return slice
                 let start= address.wrapping_sub(_segment.base_address) as usize;
@@ -246,7 +246,6 @@ impl MMU {
             };
         }
         let key = (segment_base,segment_base.wrapping_add(size as u64));
-        println!("Allocated {:#08X} to {:#08X}",key.0,key.1);
         self.virtual_memory.insert(key, seg);
         self.next_alloc_base = key.1; 
         return segment_base;

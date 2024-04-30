@@ -3,10 +3,10 @@ use std::{io::Write, process::{self, exit}};
 
 #[derive(Debug)]
 pub struct ElfInformation {
+    pub code_segment_start: u64,
+    pub code_segment_size: u64,
     pub segments: Vec<ElfSection>,
     pub entry_point: u64,
-    pub virtual_memory_minimum_size: u64,
-    // TODO OTHER STUFF THAT WE NEED?
 }
 
 impl ElfInformation {
@@ -49,8 +49,10 @@ pub struct Elf64ProgramHeader {
 
 //https://docs.rs/elf/latest/elf/file/struct.FileHeader.html
 pub fn load_elf(path: &str,debug: bool) -> ElfInformation {
+    // TODO FIX THE ISSUE WITH OVERALLOCATING THE CODE SECTION SIZE SLIGHTLY
     let mut segments: Vec<ElfSection> = Vec::new();
     let mut virtual_memory_minimum_size = 0;
+    let mut previous_segment_end = 0x0;
     let file_data = std::fs::read(path).unwrap_or_else(|e| {
         eprint!("ERROR: Failed to read {path}: {e}");
         exit(1);
@@ -71,10 +73,15 @@ pub fn load_elf(path: &str,debug: bool) -> ElfInformation {
                 file_data[offset_start as usize..offset_end as usize].as_ptr() as *const _,
             )
         };
+
         let segment_start = (program_header.p_offset) as usize;
-        let segment_end = segment_start as usize + program_header.p_filesz as usize; // has to be p_filesz
-        virtual_memory_minimum_size += program_header.p_memsz;
-        virtual_memory_minimum_size += program_header.p_vaddr;
+        let mut segment_end = segment_start as usize + program_header.p_filesz as usize; // has to be filesz
+        let segment_size = segment_end.wrapping_sub(segment_start);
+        if previous_segment_end != 0 {
+            virtual_memory_minimum_size = (virtual_memory_minimum_size as u64).wrapping_add(program_header.p_vaddr.wrapping_sub(previous_segment_end));
+        }
+        previous_segment_end = program_header.p_vaddr + program_header.p_memsz;
+        virtual_memory_minimum_size += program_header.p_vaddr - program_header.p_memsz;
         if program_header.p_type == 0x1 {
             let segment = ElfSection {
                 alignment: program_header.p_align,
@@ -85,18 +92,13 @@ pub fn load_elf(path: &str,debug: bool) -> ElfInformation {
                 virtual_address: program_header.p_vaddr,
             };
             segments.push(segment);
-            if debug {
-                println!("Segment type {:#08X}", program_header.p_type);
-                println!("Segment align {:#08X}", program_header.p_align);
-                println!("Segment virtual addr {:#08X}", program_header.p_vaddr);
-                println!("Segment vm size {:#08X}", program_header.p_memsz);
-                println!("Segment raw size {:#08X}", program_header.p_filesz);
-            }
         }
     }
+    let code_start = segments.clone().get(0).unwrap().virtual_address;
     ElfInformation {
         segments,
         entry_point,
-        virtual_memory_minimum_size,
+        code_segment_start: code_start,
+        code_segment_size:virtual_memory_minimum_size
     }
 }

@@ -701,7 +701,7 @@ impl CPU {
         }
         let _memory_address = self.x_reg[2].wrapping_add(offset as u64);
         let value = self.x_reg[rs2 as usize];
-        self.mmu.write_double_word(_memory_address, value);
+        self.mmu.write_double_word_new(_memory_address, value);
         false
     }
 
@@ -711,13 +711,13 @@ impl CPU {
         }
         let _memory_address = self.x_reg[2].wrapping_add(offset);
         let value = self.x_reg[rs2 as usize];
-        self.mmu.write_word(_memory_address, value);
+        self.mmu.write_word_new(_memory_address, value);
         false
     }
     fn c_lwsp(&mut self, rd: u64, offset: u64) -> bool {
         if self.debug_flag{println!("lwsp");}
         let address = self.x_reg[2].wrapping_add(offset);
-        let result = self.mmu.read_word(address);
+        let result = self.mmu.read_word_new(address);
         self.x_reg[rd as usize] = result as i32 as i64 as u64;
         false
     }
@@ -726,7 +726,7 @@ impl CPU {
             println!("c.ldsp x{rd} {offset},(x2)");
         }
         let address = self.x_reg[2].wrapping_add(offset);
-        let result = self.mmu.read_double_word(address);
+        let result = self.mmu.read_double_word_new(address);
         self.x_reg[rd as usize] = result;
         false
     }
@@ -747,7 +747,7 @@ impl CPU {
         }
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(offset as u64);
         //let result = u32::from_le_bytes(self.mmu.read(_memory_address, WORD).try_into().unwrap());
-        let result = self.mmu.read_word(_memory_address);
+        let result = self.mmu.read_word_new(_memory_address);
         self.x_reg[rd as usize] = result as i32 as i64 as u64;
         false
     }
@@ -757,7 +757,7 @@ impl CPU {
         }
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(offset as u64);
         //let result = u64::from_le_bytes(self.mmu.read(_memory_address, DOUBLE_WORD).try_into().unwrap());
-        let result = self.mmu.read_double_word(_memory_address);
+        let result = self.mmu.read_double_word_new(_memory_address);
         self.x_reg[rd as usize] = result;
         false
     }
@@ -772,7 +772,7 @@ impl CPU {
         }
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(offset as u64);
         let value = self.x_reg[rs2 as usize];
-        self.mmu.write_word(_memory_address, value);
+        self.mmu.write_word_new(_memory_address, value);
         false
     }
     fn c_sd(&mut self, rs2: u64, rs1: u64, offset: u64) -> bool {
@@ -782,7 +782,7 @@ impl CPU {
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(offset as u64);
         let value = self.x_reg[rs2 as usize];
         //self.mmu.write(_memory_address, value, DOUBLE_WORD);
-        self.mmu.write_double_word(_memory_address, value);
+        self.mmu.write_double_word_new(_memory_address, value);
         false
     }
 
@@ -1051,7 +1051,7 @@ impl CPU {
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm as u64);
         let value = self.x_reg[rs2 as usize];
         //self.mmu.write(_memory_address, value, DOUBLE_WORD);
-        self.mmu.write_double_word(_memory_address, value);
+        self.mmu.write_double_word_new(_memory_address, value);
         false
     }
 
@@ -1062,7 +1062,7 @@ impl CPU {
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm as u64);
         let value = self.x_reg[rs2 as usize];
         //self.mmu.write(_memory_address, value, WORD);
-        self.mmu.write_word(_memory_address, value);
+        self.mmu.write_word_new(_memory_address, value);
         false
     }
 
@@ -1073,7 +1073,7 @@ impl CPU {
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm as u64);
         let value = self.x_reg[rs2 as usize];
         //self.mmu.write(_memory_address, value, HALF);
-        self.mmu.write_half(_memory_address, value);
+        self.mmu.write_half_new(_memory_address, value);
         false
     }
 
@@ -1084,7 +1084,7 @@ impl CPU {
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm as u64);
         let value = self.x_reg[rs2 as usize];
         //self.mmu.write(_memory_address, value, BYTE);
-        self.mmu.write_byte(_memory_address, value);
+        self.mmu.write_byte_new(_memory_address, value);
         false
     }
     fn load_word_unsigned(self: &mut Self, rd: u64, rs1: u64, imm: u64) -> bool {
@@ -1093,7 +1093,7 @@ impl CPU {
         }
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm);
         //let result = u32::from_le_bytes(self.mmu.read(_memory_address,WORD).try_into().unwrap());
-        let result = self.mmu.read_word(_memory_address);
+        let result = self.mmu.read_word_new(_memory_address);
         self.x_reg[rd as usize] = result;
         false
     }
@@ -1103,7 +1103,7 @@ impl CPU {
         }
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm);
         //let result = u64::from_le_bytes(self.mmu.read(_memory_address,DOUBLE_WORD).try_into().unwrap());
-        let result = self.mmu.read_double_word(_memory_address);
+        let result = self.mmu.read_double_word_new(_memory_address);
         self.x_reg[rd as usize] = result;
         false
     }
@@ -1211,7 +1211,7 @@ impl CPU {
             println!("{:#08X} lw x{rd},{}(x{rs1})",self.pc,imm as i64);
         }
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm);
-        let result = self.mmu.read_word(_memory_address) as i32 as i64 as u64;
+        let result = self.mmu.read_word_new(_memory_address) as i32 as i64 as u64;
         //let result = u32::from_le_bytes(self.mmu.read(_memory_address,WORD).try_into().unwrap()) as i32 as i64 as u64;
         self.x_reg[rd as usize] = result;
         false
@@ -1222,7 +1222,7 @@ impl CPU {
             println!("{:#08X} lh x{rd},{}(x{rs1})",self.pc,imm as i64);
         }
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm);
-        let result = self.mmu.read_half(_memory_address) as i16 as i64 as u64;
+        let result = self.mmu.read_half_new(_memory_address) as i16 as i64 as u64;
         //let result = u16::from_le_bytes(self.mmu.read(_memory_address,HALF).try_into().unwrap()) as i16 as i64 as u64;
         self.x_reg[rd as usize] = result;
         false
@@ -1233,7 +1233,7 @@ impl CPU {
             println!("{:#08X} lb x{rd},{}(x{rs1})",self.pc,imm as i64);
         }
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm);
-        let result = self.mmu.read_byte(_memory_address) as i8 as i64 as u64;
+        let result = self.mmu.read_byte_new(_memory_address) as i8 as i64 as u64;
         //let result = u8::from_le_bytes(self.mmu.read(_memory_address,BYTE).try_into().unwrap()) as i8 as i64 as u64;
         self.x_reg[rd as usize] = result;
         false
@@ -1244,7 +1244,7 @@ impl CPU {
             println!("{:#08X} luu x{rd},{}(x{rs1})",self.pc,imm as i64);
         }
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm);
-        let result = self.mmu.read_half(_memory_address);
+        let result = self.mmu.read_half_new(_memory_address);
         //let result = u16::from_le_bytes(self.mmu.read(_memory_address,HALF).try_into().unwrap());
         self.x_reg[rd as usize] = result;
         false
@@ -1256,7 +1256,7 @@ impl CPU {
         }
         let _memory_address = self.x_reg[rs1 as usize].wrapping_add(imm);
         //let result = u8::from_le_bytes(self.mmu.read(_memory_address,BYTE).try_into().unwrap());
-        let result = self.mmu.read_byte(_memory_address);
+        let result = self.mmu.read_byte_new(_memory_address);
         self.x_reg[rd as usize] = result;
         false
     }

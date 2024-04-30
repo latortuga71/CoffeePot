@@ -67,29 +67,27 @@ impl Emulator {
     }
 
     pub fn load_elf_segments(self: &mut Self, elf: &ElfInformation) {
-        // load elf LOAD sections into 1 memory segment in the mmu
         for e in &elf.segments {
-            // from offset to end
             let offset = e.virtual_address as usize;
             let offset_end = e.raw_data.len() + offset;
-            // copy raw_data into virtual memory
             self.cpu.mmu.virtual_memory_new[offset..offset_end].copy_from_slice(&e.raw_data);
-            //println!("CODE SECTION -> {:#08X} {:#08X}",offset,offset_end)
         }
-        //println!("copied {c} segments");
     }
 
     pub fn load_elf_segments_new(self: &mut Self, elf: &ElfInformation) {
+        self.cpu.mmu.alloc(elf.code_segment_start,elf.code_segment_size as usize);
         for e in &elf.segments {
-            let offset = e.virtual_address as usize;
-            self.cpu.mmu.alloc(e.virtual_address,e.raw_data.len());
-            self.cpu.mmu.get_segment(e.virtual_address).unwrap().data.copy_from_slice(&e.raw_data);
+            let s = self.cpu.mmu.get_segment(e.virtual_address).unwrap();
+            let offset = e.virtual_address.wrapping_sub(s.base_address) as usize;
+            let offset_end = offset.wrapping_add(e.raw_data.len());
+            s.data[offset..offset_end].copy_from_slice(&e.raw_data);
         }
     }
-    pub fn initialize_stack_libc(self: &mut Self, argc:u64, argv0: String) ->u64 { 
+
+    pub fn initialize_stack_libc(self: &mut Self, argc:u64, argv0: String) -> u64 { 
         // TODO ACTUALLY USE ARGC AND LOOP OVER ARGV0
-        let stack_base:u64 = 0x020000;
-        let stack_end:u64 = stack_base.wrapping_add(1024 * 1024);
+        let stack_base: u64 = 0x020000;
+        let stack_end: u64 = stack_base.wrapping_add(1024 * 1024);
         let mut sp = stack_end;
         self.cpu.mmu.alloc(stack_base, 1024*1024);
         let allocation_address = self.cpu.mmu.alloc(0, 0x1024); 
@@ -108,15 +106,13 @@ impl Emulator {
     }
 
     pub fn load_raw_instructions(self: &mut Self, path: &str) -> Result<(), std::io::Error> {
+        // TODO MOVE TO NEW MMU
         let bytes = match std::fs::read(path) {
             Ok(bytes) => bytes,
             Err(e) => return Err(e),
         };
-        // Load bytes Into Flat Memory Space For Now
-        //self.cpu.mmu.text_segment = bytes;
         self.cpu.mmu.virtual_memory_new.resize(bytes.len(), 0);
         self.cpu.mmu.virtual_memory_new.copy_from_slice(&bytes);
-        // Set PC at start of bytes
         self.cpu.pc = 0x0000000;
         Ok(())
     }
