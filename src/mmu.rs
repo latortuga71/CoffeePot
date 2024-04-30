@@ -53,15 +53,13 @@ impl MMU {
         }
     }
     pub fn print_segments(&self) {
-        for (k,_segment) in &self.virtual_memory {
+        for (k,_segment) in self.virtual_memory.iter() {
             println!("Segment -> {:#08X} {:#08X}",k.0,k.1);
         }
     }
-
-    fn get_segment(&mut self,address:u64) -> Result<&mut Segment,MMUError> {
-        println!("Attempting to find {:#08X}",address);
+    pub fn get_segment(&mut self,address:u64) -> Result<&mut Segment,MMUError> {
         for (k,_segment) in self.virtual_memory.iter_mut() {
-            if address >= k.0 && address <= k.1 {
+            if address >= k.0 && address < k.1 {
                 return Ok(_segment);
             }
         }
@@ -70,7 +68,6 @@ impl MMU {
     }
 
     fn segment_taken(&self,address:u64) -> bool {
-        println!("Attempting to find {:#08X}",address);
         for (k,_segment) in self.virtual_memory.iter() {
             if address >= k.0 && address <= k.1 {
                 return true;
@@ -79,26 +76,10 @@ impl MMU {
         return false;
     }
 
-
-    /*
-    fn find_segment(&self,address:u64) -> (u64,u64,bool){
-        let mut key:(u64,u64,bool) = (0,0,false);
-        println!("Attempting to find {:#08X}",address);
-        for (k,_segment) in &self.virtual_memory {
-            if address >= k.0 && address <= k.1 {
-                key.0 = k.0;
-                key.1 = k.1;
-                key.2 = true;
-                break;
-            }
-        }
-        return key;
-    }
-    */
-
     pub fn write_byte(&mut self, address:u64,value:u64){
         self.virtual_memory_new[address as usize] = value as u8;
     }
+
     pub fn write_half(&mut self, address:u64,value:u64){
         let addr = address as usize;
         self.virtual_memory_new[addr] = (value & 0xff) as u8;
@@ -111,6 +92,20 @@ impl MMU {
         self.virtual_memory_new[addr + 1] = ((value >> 8) & 0xff) as u8;
         self.virtual_memory_new[addr + 2] = ((value >> 16) & 0xff) as u8;
         self.virtual_memory_new[addr + 3] = ((value >> 24) & 0xff) as u8;
+    }
+
+    pub fn write_double_word_new(&mut self, address:u64, value:u64){
+        let segment = self.get_segment(address).unwrap();
+        let addr = address.wrapping_sub(segment.base_address) as usize;
+        //println!("address {:#08X} base {:#08X} index {:#08X}",address,segment.base_address,addr);
+        segment.data[addr] = (value & 0xff) as u8;
+        segment.data[addr + 1] = ((value >> 8) & 0xff) as u8;
+        segment.data[addr + 2] = ((value >> 16) & 0xff) as u8;
+        segment.data[addr + 3] = ((value >> 24) & 0xff) as u8;
+        segment.data[addr + 4] = ((value >> 32) & 0xff) as u8;
+        segment.data[addr + 5] = ((value >> 40) & 0xff) as u8;
+        segment.data[addr + 6] = ((value >> 48) & 0xff) as u8;
+        segment.data[addr + 7] = ((value >> 56) & 0xff) as u8;
     }
 
     pub fn write_double_word(&mut self, address:u64,value:u64){
@@ -154,10 +149,9 @@ impl MMU {
     }
 
     pub fn alloc(&mut self, base_address: u64, size: usize) -> u64 {
-        let mut segment_base = 0u64;
+        let mut segment_base;
         let mut seg = Segment::new();
         if base_address != 0 {
-            println!("Attempting to alloc {:#08X} to {:#08X}",base_address,base_address.wrapping_add(size as u64));
             segment_base = base_address;
             seg = Segment{
                 base_address:segment_base,
@@ -167,7 +161,6 @@ impl MMU {
                 perms: vec![0;size],
             };
         } else {
-            println!("Attempting to alloc using next base {:#08X} to {:#08X}",self.next_alloc_base,self.next_alloc_base.wrapping_add(size as u64));
             segment_base = self.next_alloc_base;
             seg = Segment{
                 base_address:segment_base,
@@ -178,6 +171,7 @@ impl MMU {
             };
         }
         let key = (segment_base,segment_base.wrapping_add(size as u64));
+        println!("Allocated {:#08X} to {:#08X}",key.0,key.1);
         self.virtual_memory.insert(key, seg);
         self.next_alloc_base = key.1; 
         return segment_base;

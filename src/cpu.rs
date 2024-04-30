@@ -1108,7 +1108,6 @@ impl CPU {
     }
     fn store_double_word_atomic(self: &mut Self, rd: u64, rs1: u64, rs2: u64) -> bool {
         println!("SC.D");
-
         false
     }
     fn load_word_atomic(self: &mut Self, rd: u64, rs1: u64) -> bool {

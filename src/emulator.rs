@@ -1,6 +1,6 @@
 use std::{clone, io::Write};
 
-use crate::{cpu::CPU, loader::ElfInformation, mmu::{self, Segment}};
+use crate::{cpu::CPU, data, loader::ElfInformation, mmu::{self, Segment}};
 
 #[derive(Clone)]
 pub struct Emulator {
@@ -74,9 +74,37 @@ impl Emulator {
             let offset_end = e.raw_data.len() + offset;
             // copy raw_data into virtual memory
             self.cpu.mmu.virtual_memory_new[offset..offset_end].copy_from_slice(&e.raw_data);
-            println!("CODE SECTION -> {:#08X} {:#08X}",offset,offset_end)
+            //println!("CODE SECTION -> {:#08X} {:#08X}",offset,offset_end)
         }
         //println!("copied {c} segments");
+    }
+
+    pub fn load_elf_segments_new(self: &mut Self, elf: &ElfInformation) {
+        for e in &elf.segments {
+            let offset = e.virtual_address as usize;
+            self.cpu.mmu.alloc(e.virtual_address,e.raw_data.len());
+            self.cpu.mmu.get_segment(e.virtual_address).unwrap().data.copy_from_slice(&e.raw_data);
+        }
+    }
+    pub fn initialize_stack_libc(self: &mut Self, argc:u64, argv0: String) ->u64 { 
+        // TODO ACTUALLY USE ARGC AND LOOP OVER ARGV0
+        let stack_base:u64 = 0x020000;
+        let stack_end:u64 = stack_base.wrapping_add(1024 * 1024);
+        let mut sp = stack_end;
+        self.cpu.mmu.alloc(stack_base, 1024*1024);
+        let allocation_address = self.cpu.mmu.alloc(0, 0x1024); 
+        self.cpu.mmu.write_double_word_new(allocation_address, 0x4141414141414141);
+        self.cpu.mmu.write_double_word_new(sp,1u64);
+        sp -= 8;
+        self.cpu.mmu.write_double_word_new(sp,0x99);
+        sp -= 8;
+        // zeros
+        self.cpu.mmu.write_double_word_new(sp,0u64);
+        sp -= 8;
+        self.cpu.mmu.write_double_word_new(sp,0u64);
+        sp -= 8;
+        self.cpu.mmu.write_double_word_new(sp,0u64);
+        sp
     }
 
     pub fn load_raw_instructions(self: &mut Self, path: &str) -> Result<(), std::io::Error> {
