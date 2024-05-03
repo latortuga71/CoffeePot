@@ -42,7 +42,7 @@ fn main() {
 
     });
     // create threads per core
-    let cores = 3;
+    let cores = 8;
     for threads in 0..cores {
         let emulator_clone = emulator.snapshot();
         let iterations = iterations.clone();
@@ -58,14 +58,16 @@ fn main() {
 
 fn fuzz(mut emulator: Emulator,thread_id:i32, iterations:std::sync::Arc<std::sync::Mutex<f64>>) {
     let mut base_state = emulator.snapshot();
-    let mut snapshot_taken = false;
+    let mut snapshot_taken = true;
     let mut debug = false;
     loop {
+        /* 
         if emulator.cpu.pc == 0x10274 && !snapshot_taken {
             base_state = emulator.snapshot(); // snapshot at MAIN
             snapshot_taken = true;
             //println!("TOOK SNAPSHOT AT {:#08X}",emulator.cpu.pc);
         }
+        */
         if !emulator.fetch_instruction() {
             break;
         }
@@ -75,6 +77,7 @@ fn fuzz(mut emulator: Emulator,thread_id:i32, iterations:std::sync::Arc<std::syn
             stdin.lock().read_line(&mut line).unwrap();
             print!("CoffeePot Registers: \n{}\n", emulator.cpu);
         }
+        /*
         if emulator.cpu.pc == 0x1029A && snapshot_taken {
             emulator.restore(&base_state);
             let mut c = iterations.lock().unwrap();
@@ -82,8 +85,12 @@ fn fuzz(mut emulator: Emulator,thread_id:i32, iterations:std::sync::Arc<std::syn
             //println!("RESTORED!");
             //println!("RUNNING AGAIN? -> {:#08X}",emulator.cpu.pc);
         }
+        */
         if emulator.execute_instruction() {
-            println!("Exiting.\n");
+            emulator.restore(&base_state);
+            let mut c = iterations.lock().unwrap();
+            *c += 1.0;
+            //println!("Exiting.\n");
         }
     }
 }
