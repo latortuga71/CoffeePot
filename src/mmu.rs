@@ -48,6 +48,17 @@ impl MMU {
         }
     }
 
+    pub fn get_dirty_segments(&mut self) -> Vec<(u64,u64)> {
+        let mut dirty_segments:Vec<(u64,u64)> = Vec::new();
+        for (k,_segment) in self.virtual_memory.iter_mut() {
+            if _segment.dirty {
+                let end = _segment.base_address.wrapping_add(_segment.data_size as u64);
+                dirty_segments.push((_segment.base_address,end));
+            }
+        }
+        dirty_segments
+    }
+
     pub fn get_segment(&mut self,address:u64) -> Result<&mut Segment,MMUError> {
         for (k,_segment) in self.virtual_memory.iter_mut() {
             if address >= k.0 && address < k.1 {
@@ -81,6 +92,7 @@ impl MMU {
 
     pub fn write_double_word(&mut self, address:u64, value:u64){
         let segment = self.get_segment(address).unwrap();
+        segment.dirty = true;
         if !segment.writable() {
             todo!("LOG INVALID MEMORY PERM ACCESS {:#08X} {:#08X}", address,segment.base_address)
         }
@@ -97,6 +109,7 @@ impl MMU {
 
     pub fn write_word(&mut self, address:u64, value:u64){
         let segment = self.get_segment(address).unwrap();
+        segment.dirty = true;
         if !segment.writable() {
             todo!("LOG INVALID MEMORY PERM ACCESS")
         }
@@ -109,6 +122,7 @@ impl MMU {
 
     pub fn write_half(&mut self, address:u64, value:u64){
         let segment = self.get_segment(address).unwrap();
+        segment.dirty = true;
         if !segment.writable() {
             todo!("LOG INVALID MEMORY PERM ACCESS")
         }
@@ -119,6 +133,7 @@ impl MMU {
 
     pub fn write_byte(&mut self, address:u64, value:u64){
         let segment = self.get_segment(address).unwrap();
+        segment.dirty = true;
         if !segment.writable() {
             todo!("LOG INVALID MEMORY PERM ACCESS")
         }
@@ -243,6 +258,9 @@ impl Segment {
     }
     pub fn writable(&self) -> bool {
         self.writable
+    }
+    pub fn dirty(&self) -> bool {
+        self.dirty
     }
 }
 

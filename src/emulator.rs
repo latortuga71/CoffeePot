@@ -14,9 +14,29 @@ impl Emulator {
         }
     }
 
+    pub fn snapshot(&self) -> Emulator {
+        self.clone()
+    }
+
+    pub fn restore (&mut self, original:&Emulator){
+        // restore registers
+        self.cpu.x_reg = original.cpu.x_reg;
+        self.cpu.pc = original.cpu.pc;
+        self.cpu.sp = original.cpu.sp;
+        self.cpu.exit_status = 0;
+        self.cpu.exit_called = false; // reset this everytime
+        // restore fd
+        //self.cpu.file_descriptors = original.cpu.file_descriptors.clone();
+        // restore dirty memory
+        // get dirty segments and change the mout
+        for address in self.cpu.mmu.get_dirty_segments() {
+            self.cpu.mmu.get_segment(address.0).unwrap().data.copy_from_slice(&original.cpu.mmu.virtual_memory.get(&address).unwrap().data);
+        }
+    }
+
     pub fn fetch_instruction(self: &mut Self) -> bool {
         // check if can execute
-        if !self.cpu.mmu.get_segment(self.cpu.pc).unwrap().executable {
+        if !self.cpu.mmu.get_segment(self.cpu.pc).unwrap().executable() {
             todo!("TODO LOG invalid execution")
         }
         let instruction_bytes = self.cpu.mmu.read_word(self.cpu.pc);
@@ -49,7 +69,7 @@ impl Emulator {
             let offset = e.virtual_address.wrapping_sub(s.base_address) as usize;
             let offset_end = offset.wrapping_add(e.raw_data.len());
             s.data[offset..offset_end].copy_from_slice(&e.raw_data);
-            //s.writable = false; // code shouldn't be writable after first load
+            //s.writable = false; // code shouldn't be writable after first load? libc issues?
         }
     }
 
