@@ -1,3 +1,4 @@
+use crate::data;
 use crate::mmu::MMU;
 use crate::data::Iovec;
 use crate::data::File;
@@ -1634,7 +1635,7 @@ impl CPU {
                 println!("MMAP CALLED {:#08X} {:#08X} {:#08X} {:#08X} {:#08X} {:#08X}",addr,length,prot,flags,fd,offset);
                 println!("{}",length as u64);
                 todo!("MMAP SYSCALL");
-                self.mmu.alloc(0x440000, 0x0124);
+                self.mmu.alloc(0x440000, 0x0124,false,false,false);
                 self.x_reg[10] = 0x440000;
             }
             0x5E => {
@@ -1658,7 +1659,7 @@ impl CPU {
                 let mut writev_n = 0;
                 unsafe {
                     for i in 0..iovec_count {
-                        let offset = i as isize * 0x16 as isize;
+                        let offset = i as isize * 16;
                         let iovec_p: *const Iovec = iovec_buffer.as_ptr().offset(offset) as *const Iovec;
                         let iovec:&Iovec = &*iovec_p;
                         if iovec.iov_base == 0 || iovec.iov_len== 0 {

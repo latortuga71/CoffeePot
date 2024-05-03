@@ -11,7 +11,7 @@ mod data;
 mod tests;
 
 fn main() {
-    let path = "global";
+    let path = "invalid_ref_ok";
     let mut emulator = Emulator::new();
     println!("=== CoffeePot Loading {}!  ===",path);
     let elf_segments = loader::load_elf(&path,false);
@@ -22,7 +22,6 @@ fn main() {
     emulator.cpu.pc = elf_segments.entry_point;
     emulator.cpu.debug_flag = false;
     println!("=== CoffeePot Elf Loading Complete!  ===",);
-    println!("=== CoffeePot Init!  ===");
     let mut debug = false;
     loop {
         if !emulator.fetch_instruction() {

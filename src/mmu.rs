@@ -1,4 +1,4 @@
-use std::{collections::HashMap, error::Error,fmt};
+use std::{collections::HashMap, error::Error, f32::consts::E, fmt, fs::read, thread::panicking};
 
 // Error for mmu
 #[derive(Debug)]
@@ -40,7 +40,11 @@ impl MMU {
     }
     pub fn print_segments(&self) {
         for (k,_segment) in self.virtual_memory.iter() {
-            println!("Segment -> {:#08X} {:#08X}",k.0,k.1);
+            print!("Segment -> {:#08X} {:#08X} ",k.0,k.1);
+            if _segment.readable {print!("R")}
+            if _segment.writable{print!("W")}
+            if _segment.executable{print!("X")}
+            println!();
         }
     }
 
@@ -50,14 +54,13 @@ impl MMU {
                 return Ok(_segment);
             }
         }
-        let error = format!("Segmentation fault attempting to access {:#08X}",address);
+        let error = format!("TODO! log these Segmentation fault attempting to access {:#08X}",address);
         return Err(MMUError::new(&error));
     }
 
     pub fn get_segment_bytes(&self,address:u64,length:u64) -> Result<&[u8],MMUError> {
         for (k,_segment) in self.virtual_memory.iter() {
             if address >= k.0 && address < k.1 {
-                // get offsets and return slice
                 let start= address.wrapping_sub(_segment.base_address) as usize;
                 let end = start.wrapping_add(length as usize) as usize;
                 return Ok(&_segment.data[start..end])
@@ -78,6 +81,9 @@ impl MMU {
 
     pub fn write_double_word(&mut self, address:u64, value:u64){
         let segment = self.get_segment(address).unwrap();
+        if !segment.writable() {
+            todo!("LOG INVALID MEMORY PERM ACCESS {:#08X} {:#08X}", address,segment.base_address)
+        }
         let addr = address.wrapping_sub(segment.base_address) as usize;
         segment.data[addr] = (value & 0xff) as u8;
         segment.data[addr + 1] = ((value >> 8) & 0xff) as u8;
@@ -91,6 +97,9 @@ impl MMU {
 
     pub fn write_word(&mut self, address:u64, value:u64){
         let segment = self.get_segment(address).unwrap();
+        if !segment.writable() {
+            todo!("LOG INVALID MEMORY PERM ACCESS")
+        }
         let addr = address.wrapping_sub(segment.base_address) as usize;
         segment.data[addr] = (value & 0xff) as u8;
         segment.data[addr + 1] = ((value >> 8) & 0xff) as u8;
@@ -100,6 +109,9 @@ impl MMU {
 
     pub fn write_half(&mut self, address:u64, value:u64){
         let segment = self.get_segment(address).unwrap();
+        if !segment.writable() {
+            todo!("LOG INVALID MEMORY PERM ACCESS")
+        }
         let addr = address.wrapping_sub(segment.base_address) as usize;
         segment.data[addr] = (value & 0xff) as u8;
         segment.data[addr + 1] = ((value >> 8) & 0xff) as u8;
@@ -107,12 +119,18 @@ impl MMU {
 
     pub fn write_byte(&mut self, address:u64, value:u64){
         let segment = self.get_segment(address).unwrap();
+        if !segment.writable() {
+            todo!("LOG INVALID MEMORY PERM ACCESS")
+        }
         let addr = address.wrapping_sub(segment.base_address) as usize;
         segment.data[addr] = value as u8;
     }
 
     pub fn read_double_word(&mut self, address:u64) -> u64 {
         let segment = self.get_segment(address).unwrap();
+        if !segment.readable() {
+            todo!("LOG INVALID MEMORY PERM ACCESS")
+        }
         let addr = address.wrapping_sub(segment.base_address) as usize;
         return (segment.data[addr] as u64) 
         | ((segment.data[addr + 1] as u64) << 8) 
@@ -126,6 +144,9 @@ impl MMU {
 
     pub fn read_word(&mut self, address:u64) -> u64 {
         let segment = self.get_segment(address).unwrap();
+        if !segment.readable() {
+            todo!("LOG INVALID MEMORY PERM ACCESS")
+        }
         let addr = address.wrapping_sub(segment.base_address) as usize;
         return (segment.data[addr] as u64) 
         | ((segment.data[addr + 1] as u64) << 8) 
@@ -135,6 +156,9 @@ impl MMU {
 
     pub fn read_half(&mut self, address:u64) -> u64 {
         let segment = self.get_segment(address).unwrap();
+        if !segment.readable() {
+            todo!("LOG INVALID MEMORY PERM ACCESS")
+        }
         let addr = address.wrapping_sub(segment.base_address) as usize;
         return (segment.data[addr] as u64) 
         | ((segment.data[addr + 1] as u64) << 8) 
@@ -142,13 +166,16 @@ impl MMU {
 
     pub fn read_byte(&mut self, address:u64) -> u64 {
         let segment = self.get_segment(address).unwrap();
+        if !segment.readable() {
+            todo!("LOG INVALID MEMORY PERM ACCESS")
+        }
         let addr = address.wrapping_sub(segment.base_address) as usize;
         return segment.data[addr] as u64;
     }
 
-    pub fn alloc(&mut self, base_address: u64, size: usize) -> u64 {
+    pub fn alloc(&mut self, base_address: u64, size: usize,readable:bool,writeable:bool,executable:bool) -> u64 {
         let segment_base;
-        let mut seg = Segment::new();
+        let mut seg: Segment;
         if base_address != 0 {
             segment_base = base_address;
             seg = Segment{
@@ -156,7 +183,10 @@ impl MMU {
                 data: vec![0;size],
                 data_size: size,
                 dirty:false,
-                perms: vec![0;size],
+                perms: vec![Permissions::NONE;0],
+                readable:readable,
+                writable:writeable,
+                executable:executable,
             };
         } else {
             segment_base = self.next_alloc_base;
@@ -165,7 +195,10 @@ impl MMU {
                 data: vec![0;size],
                 data_size: size,
                 dirty:false,
-                perms: vec![0;size],
+                perms: vec![Permissions::NONE;0],
+                readable:readable,
+                writable:writeable,
+                executable:executable
             };
         }
         let key = (segment_base,segment_base.wrapping_add(size as u64));
@@ -183,7 +216,10 @@ pub struct Segment {
     pub data: Vec<u8>,
     pub data_size:usize,
     pub dirty: bool,
-    pub perms: Vec<u8>
+    pub executable: bool,
+    pub writable: bool,
+    pub readable: bool,
+    pub perms: Vec<Permissions>
 }
 
 impl Segment {
@@ -193,14 +229,26 @@ impl Segment {
                 data: vec![0;0],
                 data_size: 0,
                 dirty:false,
-                perms: vec![0;0],
+                readable:false,
+                writable:false,
+                executable:false,
+                perms: vec![Permissions::NONE;0],
         }
+    }
+    pub fn executable(&self) -> bool {
+        self.executable
+    }
+    pub fn readable(&self) -> bool {
+        self.readable
+    }
+    pub fn writable(&self) -> bool {
+        self.writable
     }
 }
 
 
-// todo in the future
-enum Permisssions {
+#[derive(Debug,Clone)]
+enum Permissions {
     READ,
     WRITE,
     EXECUTE,

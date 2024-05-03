@@ -15,6 +15,10 @@ impl Emulator {
     }
 
     pub fn fetch_instruction(self: &mut Self) -> bool {
+        // check if can execute
+        if !self.cpu.mmu.get_segment(self.cpu.pc).unwrap().executable {
+            todo!("TODO LOG invalid execution")
+        }
         let instruction_bytes = self.cpu.mmu.read_word(self.cpu.pc);
         self.current_instruction = instruction_bytes as u32;
         self.current_instruction != 0
@@ -39,12 +43,13 @@ impl Emulator {
 
 
     pub fn load_elf_segments(self: &mut Self, elf: &ElfInformation) {
-        self.cpu.mmu.alloc(elf.code_segment_start,elf.code_segment_size as usize);
+        self.cpu.mmu.alloc(elf.code_segment_start,elf.code_segment_size as usize,true,true,true);
         for e in &elf.segments {
             let s = self.cpu.mmu.get_segment(e.virtual_address).unwrap();
             let offset = e.virtual_address.wrapping_sub(s.base_address) as usize;
             let offset_end = offset.wrapping_add(e.raw_data.len());
             s.data[offset..offset_end].copy_from_slice(&e.raw_data);
+            //s.writable = false; // code shouldn't be writable after first load
         }
     }
 
@@ -53,8 +58,8 @@ impl Emulator {
         let stack_base: u64 = 0x020000;
         let stack_end: u64 = stack_base.wrapping_add(1024 * 1024);
         let mut sp = stack_end;
-        self.cpu.mmu.alloc(stack_base, 1024*1024);
-        let allocation_address = self.cpu.mmu.alloc(0, 0x1024); 
+        self.cpu.mmu.alloc(stack_base, 1024*1024,true,true,false);
+        let allocation_address = self.cpu.mmu.alloc(0, 0x1024,true,true,false); 
         self.cpu.mmu.write_double_word(allocation_address, 0x4141414141414141);
         self.cpu.mmu.write_double_word(sp,1u64);
         sp -= 8;
