@@ -1667,7 +1667,7 @@ impl CPU {
                         }
                         let data_buffer = self.mmu.get_segment_bytes(iovec.iov_base,iovec.iov_len).unwrap();
                         let utf_bytes = core::str::from_utf8_unchecked(data_buffer);
-                        print!("{}", utf_bytes);
+                        //print!("{}", utf_bytes);
                         writev_n += data_buffer.len() as u64;
                     }
                 }
@@ -1698,7 +1698,7 @@ impl CPU {
                 unsafe {
                     let utf_bytes = core::str::from_utf8_unchecked(raw_bytes);
                     if fd == 1 || fd == 2 {
-                        print!("{}", utf_bytes);
+                        //print!("{}", utf_bytes);
                         self.x_reg[10] = _a2;
                     } else {
                         panic!("Handle other file descriptors");

@@ -1,5 +1,5 @@
 
-use std::io::BufRead;
+use std::{clone, io::BufRead, time::Duration};
 
 use crate::{emulator::Emulator};
 
@@ -26,15 +26,45 @@ fn main() {
     // snapshotting ?
     let mut base_state: Emulator = emulator.snapshot();
     let mut snapshot_taken = false;
-    let mut iterations:u64 = 0;
+    // create thread for monitoring cases/crashes/etc{}
+    let iterations = std::sync::Arc::new(std::sync::Mutex::new(0.0));
+    let iter_reader = std::sync::Arc::clone(&iterations);
+    std::thread::spawn(move || {
+        let start = std::time::Instant::now();
+        let mut last_time = std::time::Instant::now();
+        loop {
+            let elapsed = start.elapsed().as_secs_f64();
+            let count = iter_reader.lock().unwrap();
+            if *count % 10000.0 == 0.0 {
+                println!("{:10} iterations {:4} cases per second",count, *count / elapsed);
+            }
+        }
+
+    });
+    // create threads per core
+    let cores = 3;
+    for threads in 0..cores {
+        let emulator_clone = emulator.snapshot();
+        let iterations = iterations.clone();
+        std::thread::spawn(move || {
+            fuzz(emulator_clone, threads, iterations);
+        });
+    }
+    loop {
+        std::thread::sleep(Duration::from_millis(5000));
+    }
+}
+
+
+fn fuzz(mut emulator: Emulator,thread_id:i32, iterations:std::sync::Arc<std::sync::Mutex<f64>>) {
+    let mut base_state = emulator.snapshot();
+    let mut snapshot_taken = false;
+    let mut debug = false;
     loop {
         if emulator.cpu.pc == 0x10274 && !snapshot_taken {
             base_state = emulator.snapshot(); // snapshot at MAIN
             snapshot_taken = true;
-            println!("TOOK SNAPSHOT AT {:#08X}",emulator.cpu.pc);
-            let stdin = std::io::stdin();
-            let mut line = String::new();
-            stdin.lock().read_line(&mut line).unwrap();
+            //println!("TOOK SNAPSHOT AT {:#08X}",emulator.cpu.pc);
         }
         if !emulator.fetch_instruction() {
             break;
@@ -46,9 +76,9 @@ fn main() {
             print!("CoffeePot Registers: \n{}\n", emulator.cpu);
         }
         if emulator.cpu.pc == 0x1029A && snapshot_taken {
-            iterations +=1;
             emulator.restore(&base_state);
-            println!("{iterations} Iterations\n");
+            let mut c = iterations.lock().unwrap();
+            *c += 1.0;
             //println!("RESTORED!");
             //println!("RUNNING AGAIN? -> {:#08X}",emulator.cpu.pc);
         }
