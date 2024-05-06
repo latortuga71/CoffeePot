@@ -1,4 +1,4 @@
-use std::{collections::HashMap, error::Error, f32::consts::E, fmt, fs::read, thread::panicking};
+use std::{collections::HashMap, error::Error, f32::consts::E, fmt, fs::read, io::Write, thread::panicking};
 
 // Error for mmu
 #[derive(Debug)]
@@ -47,6 +47,14 @@ impl MMU {
             println!();
         }
     }
+    pub fn get_segments(&mut self) -> Vec<(u64,u64)> {
+        let mut dirty_segments:Vec<(u64,u64)> = Vec::new();
+        for (k,_segment) in self.virtual_memory.iter_mut() {
+                let end = _segment.base_address.wrapping_add(_segment.data_size as u64);
+                dirty_segments.push((_segment.base_address,end));
+        }
+        dirty_segments
+    }
 
     pub fn get_dirty_segments(&mut self) -> Vec<(u64,u64)> {
         let mut dirty_segments:Vec<(u64,u64)> = Vec::new();
@@ -57,6 +65,16 @@ impl MMU {
             }
         }
         dirty_segments
+    }
+
+    pub fn get_segment_immut(&self, address:u64) -> Result<&Segment,MMUError> {
+        for (k,_segment) in self.virtual_memory.iter() {
+            if address >= k.0 && address < k.1 {
+                return Ok(_segment);
+            }
+        }
+        let error = format!("TODO! log these Segmentation fault attempting to access {:#08X}",address);
+        return Err(MMUError::new(&error));
     }
 
     pub fn get_segment(&mut self,address:u64) -> Result<&mut Segment,MMUError> {
@@ -88,6 +106,19 @@ impl MMU {
             }
         }
         return false;
+    }
+
+
+
+    pub fn write_string(&mut self, address:u64,value:&String){
+        let segment = self.get_segment(address).unwrap();
+        segment.dirty = true;
+        if !segment.writable() {
+            todo!("LOG INVALID MEMORY PERM ACCESS {:#08X} {:#08X}", address,segment.base_address)
+        }
+        let start= address.wrapping_sub(segment.base_address) as usize;
+        let end = start + value.as_bytes().len();
+        segment.data[start..end].copy_from_slice(value.as_bytes());
     }
 
     pub fn write_double_word(&mut self, address:u64, value:u64){
@@ -189,6 +220,7 @@ impl MMU {
     }
 
     pub fn alloc(&mut self, base_address: u64, size: usize,readable:bool,writeable:bool,executable:bool) -> u64 {
+        // TODO FORCE ALIGNMENT
         let segment_base;
         let mut seg: Segment;
         if base_address != 0 {

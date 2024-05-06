@@ -290,3 +290,9 @@ fn c_sw() {
     assert_eq!(value, 0x41414141);
 }
 
+
+
+#[test]
+fn libc_stack_inbit() {
+    panic!("TODO!");
+}

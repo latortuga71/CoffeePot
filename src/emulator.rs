@@ -1,3 +1,4 @@
+
 use crate::{cpu::CPU, loader::ElfInformation};
 
 #[derive(Clone)]
@@ -18,19 +19,20 @@ impl Emulator {
         self.clone()
     }
 
-    pub fn restore (&mut self, original:&Emulator){
+    pub fn restore(&mut self, original:&Emulator){
         // restore registers
         self.cpu.x_reg = original.cpu.x_reg;
         self.cpu.pc = original.cpu.pc;
         self.cpu.sp = original.cpu.sp;
         self.cpu.exit_status = 0;
         self.cpu.exit_called = false; // reset this everytime
-        // restore fd
-        //self.cpu.file_descriptors = original.cpu.file_descriptors.clone();
-        // restore dirty memory
-        // get dirty segments and change the mout
         for address in self.cpu.mmu.get_dirty_segments() {
-            self.cpu.mmu.get_segment(address.0).unwrap().data.copy_from_slice(&original.cpu.mmu.virtual_memory.get(&address).unwrap().data);
+            let original_buffer = original.cpu.mmu.get_segment_immut(address.0).unwrap();
+            let our_buffer = self.cpu.mmu.get_segment(address.0).unwrap();
+            our_buffer.data.copy_from_slice(&original_buffer.data);
+            our_buffer.readable = original_buffer.readable;
+            our_buffer.writable = original_buffer.writable;
+            our_buffer.executable = original_buffer.executable;
         }
     }
 
@@ -69,28 +71,32 @@ impl Emulator {
             let offset = e.virtual_address.wrapping_sub(s.base_address) as usize;
             let offset_end = offset.wrapping_add(e.raw_data.len());
             s.data[offset..offset_end].copy_from_slice(&e.raw_data);
-            //s.writable = false; // code shouldn't be writable after first load? libc issues?
         }
     }
 
-    pub fn initialize_stack_libc(self: &mut Self, argc:u64, argv0: String) -> u64 { 
-        // TODO ACTUALLY USE ARGC AND LOOP OVER ARGV0
+    pub fn initialize_stack_libc(self: &mut Self, argc:u64, argv: Vec<String>) -> u64 { 
+        // Allocate Stack
         let stack_base: u64 = 0x020000;
         let stack_end: u64 = stack_base.wrapping_add(1024 * 1024);
         let mut sp = stack_end;
+        // STACK NX
         self.cpu.mmu.alloc(stack_base, 1024*1024,true,true,false);
-        let allocation_address = self.cpu.mmu.alloc(0, 0x1024,true,true,false); 
-        self.cpu.mmu.write_double_word(allocation_address, 0x4141414141414141);
-        self.cpu.mmu.write_double_word(sp,1u64);
-        sp -= 8;
-        self.cpu.mmu.write_double_word(sp,0x99);
-        sp -= 8;
-        // zeros
+        // Auxp Envp Argv end
+        sp -= 8; 
         self.cpu.mmu.write_double_word(sp,0u64);
         sp -= 8;
         self.cpu.mmu.write_double_word(sp,0u64);
         sp -= 8;
         self.cpu.mmu.write_double_word(sp,0u64);
+        for arg in argv.iter() {
+            let string_address = self.cpu.mmu.alloc(0, 0x1024,true,true,false); 
+            self.cpu.mmu.write_string(string_address, arg);
+            sp -= 8;
+            self.cpu.mmu.write_double_word(sp,string_address);
+        }
+        sp -= 8;
+        self.cpu.mmu.write_double_word(sp,argc);
         sp
     }
+
 }
