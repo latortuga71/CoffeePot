@@ -9,6 +9,7 @@ use std::{collections::HashMap};
 pub struct CPU {
     pub pc: u64,
     pub sp: u64,
+    pub call_stack:Vec<u64>,
     pub mmu: MMU,
     pub x_reg: [u64; 32],
     pub f_reg: [u64; 32],
@@ -35,6 +36,11 @@ impl std::fmt::Display for CPU {
             }
         }
         display_string.push_str("\n");
+        display_string.push_str("CALL STACK\n");
+        for (i,item) in self.call_stack.iter().enumerate() {
+            let s = format!("{i} {:#08X}\n",item);
+            display_string.push_str(&s);
+        }
         write!(f, "{}", display_string)
     }
 }
@@ -50,6 +56,7 @@ impl CPU {
         CPU {
             sp: 0,
             pc: 0x00000000,
+            call_stack:vec![0;0],
             mmu: mmu,
             x_reg: xreg,
             f_reg: [0; 32],
@@ -1330,8 +1337,17 @@ impl CPU {
         false
     }
     fn jal(self: &mut Self, rd: u64, imm_j_type: u64) -> bool {
-        if self.debug_flag{println!("jal");}
+        if self.debug_flag{println!("jal {:#08X}",self.pc.wrapping_add(0x4));}
         self.x_reg[rd as usize] = self.pc.wrapping_add(0x4); // return address saved in RD
+        let t = self.pc.wrapping_add(imm_j_type as i64 as u64);
+        // check if jumping to return address
+        if self.x_reg[1] == t {
+            self.call_stack.pop();
+        } else {
+            let i = self.call_stack.len() - 1;
+            self.call_stack[i] = self.pc.wrapping_add(0x4);
+            self.call_stack.push(self.pc.wrapping_add(0x4));
+        }
         self.pc = self.pc.wrapping_add(imm_j_type as i64 as u64);
         true
     }
@@ -1389,13 +1405,29 @@ impl CPU {
     fn c_jalr(self: &mut Self, rs1: u64) -> bool {
         if self.debug_flag{println!("c.JALR");}
         let t = self.pc + 2;
+        if self.x_reg[1] == t {
+            self.call_stack.pop();
+        } else {
+            let i = self.call_stack.len() - 1;
+            self.call_stack[i] = self.pc.wrapping_add(t);
+            self.call_stack.push(self.pc.wrapping_add(t));
+        }
         self.pc = self.x_reg[rs1 as usize];
-        self.x_reg[1] = t; // set x0 to ret
+        self.x_reg[1] = t; // set x1 to ret
         true
     }
+
     fn jalr(self: &mut Self, rd: u64, rs1: u64, imm: u64) -> bool {
         let t = self.pc.wrapping_add(4);
         let target = ((self.x_reg[rs1 as usize] as i64).wrapping_add(imm as i64)) & !1;
+        // check if target is return address
+        if self.x_reg[1] == t {
+            self.call_stack.pop();
+        } else {
+            let i = self.call_stack.len() - 1;
+            self.call_stack[i] = self.pc.wrapping_add(t);
+            self.call_stack.push(self.pc.wrapping_add(t));
+        }
         self.pc = target as u64;
         self.x_reg[rd as usize] = t;
         if self.debug_flag {

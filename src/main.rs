@@ -11,7 +11,7 @@ mod data;
 mod tests;
 
 fn main() {
-    let path = "stack";
+    let path = "test";
     let mut emulator = Emulator::new();
     println!("=== CoffeePot Loading {}!  ===",path);
     let elf_segments = loader::load_elf(&path,false);
@@ -20,12 +20,14 @@ fn main() {
     let argv:Vec<String> = env::args().rev().collect();
     emulator.cpu.x_reg[2]  = emulator.initialize_stack_libc(argv.len() as u64 ,argv);
     emulator.cpu.pc = elf_segments.entry_point;
+    emulator.cpu.call_stack.push(emulator.cpu.pc);
     emulator.cpu.debug_flag = false;
     println!("=== CoffeePot Elf Loading Complete!  ===",);
     let mut debug = false;
     // create thread for monitoring cases/crashes/etc{}
     let iterations = std::sync::Arc::new(std::sync::Mutex::new(0.0));
     let iter_reader = std::sync::Arc::clone(&iterations);
+    /*
     std::thread::spawn(move || {
         let start = std::time::Instant::now();
         let mut last_time = std::time::Instant::now();
@@ -38,8 +40,9 @@ fn main() {
         }
 
     });
+    */
     // create threads per core
-    let cores = 8;
+    let cores = 1;
     for threads in 0..cores {
         let emulator_clone = emulator.snapshot();
         let iterations = iterations.clone();
@@ -56,8 +59,8 @@ fn main() {
 fn fuzz(mut emulator: Emulator,thread_id:i32, iterations:std::sync::Arc<std::sync::Mutex<f64>>) {
     let mut base_state = emulator.snapshot();
     let mut snapshot_taken = false;
-    let debug = false;
-    emulator.cpu.debug_flag = false;
+    let debug = true;
+    emulator.cpu.debug_flag = true;
     loop {
         if !emulator.fetch_instruction() {
             println!("fetch failed pc => {:#08X} {:08X}",emulator.cpu.pc,emulator.current_instruction);

@@ -47,14 +47,17 @@ impl Emulator {
     }
 
     pub fn execute_instruction(self: &mut Self) -> bool {
+        let current_frame = self.cpu.call_stack.len() - 1;
         if (0x3 & self.current_instruction) != 0x3 {
             if !self.cpu.execute_compressed(self.current_instruction as u64) {
                 self.cpu.pc += 0x2;
+                self.cpu.call_stack[current_frame] = self.cpu.pc;
             }
             self.cpu.was_last_compressed = true;
         } else {
             if !self.cpu.execute(self.current_instruction as u64) {
                 self.cpu.pc += 0x4;
+                self.cpu.call_stack[current_frame] = self.cpu.pc;
             }
             self.cpu.was_last_compressed = false;
         }
