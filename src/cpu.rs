@@ -1,8 +1,8 @@
 use crate::data;
 use crate::mmu::MMU;
 use crate::data::Iovec;
-use crate::data::File;
-use std::{collections::HashMap};
+use std::{collections::HashMap, os::fd::AsRawFd};
+
 
 
 #[derive(Debug,Clone)]
@@ -14,7 +14,7 @@ pub struct CPU {
     pub x_reg: [u64; 32],
     pub f_reg: [u64; 32],
     pub csr_reg: [u64; 4096],
-    pub file_descriptors: HashMap<u64,File>,
+    pub file_descriptors: HashMap<u64,std::os::fd::RawFd>,
     pub current_compressed: bool,
     pub was_last_compressed: bool,
     pub debug_flag: bool,
@@ -36,11 +36,13 @@ impl std::fmt::Display for CPU {
             }
         }
         display_string.push_str("\n");
-        display_string.push_str("CALL STACK\n");
+        display_string.push_str("TODO FIX CALL STACK\n");
+        /*
         for (i,item) in self.call_stack.iter().enumerate() {
             let s = format!("{i} {:#08X}\n",item);
             display_string.push_str(&s);
         }
+        */
         write!(f, "{}", display_string)
     }
 }
@@ -1740,6 +1742,20 @@ impl CPU {
             0x5D => {
                 println!("\n=== CoffeePot ExitSycall! ===");
                 std::process::exit(_a0 as i32);
+            }
+            0x38 => {
+                let dirfd = _a0;
+                let pathname = _a1;
+                let open_how = _a2;
+                let size = _a3;
+                println!("openat syscall {:#08X} {:#08X} {open_how} {size}",dirfd,pathname);
+                // create a a file descriptor and return it.
+                //let pathname_string = self.mmu.get_segment_bytes(pathname, size);
+                let pathname_string = self.mmu.read_string(dirfd);
+                let file = std::fs::File::open(pathname_string).unwrap().as_raw_fd();
+                // add to file descriptors
+                self.file_descriptors.insert(5,file);
+                self.x_reg[10] = file as u64;
             }
             _ => {
                 panic!("Unimplemented syscall -> {:#08X}", syscall);

@@ -71,9 +71,11 @@ fn fuzz(mut emulator: Emulator,thread_id:i32, iterations:std::sync::Arc<std::syn
             snapshot_taken = true;
         }
         if debug {
+            /* 
             let stdin = std::io::stdin();
             let mut line = String::new();
             stdin.lock().read_line(&mut line).unwrap();
+            */
             print!("CoffeePot Registers: \n{}\n", emulator.cpu);
         }
         if emulator.execute_instruction() {

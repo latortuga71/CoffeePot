@@ -172,6 +172,24 @@ impl MMU {
         segment.data[addr] = value as u8;
     }
 
+    pub fn read_string(&mut self, address:u64) -> String {
+        let segment = self.get_segment(address).unwrap();
+        if !segment.readable() {
+            todo!("LOG INVALID MEMORY PERM ACCESS")
+        }
+        let addr = address.wrapping_sub(segment.base_address) as usize;
+        let mut i = 0;
+        let mut string_bytes:Vec<u8> = vec![0;0];
+        loop {
+            if segment.data[addr + i] == 0x0 {
+                break;
+            }
+            string_bytes.push(segment.data[addr + i]);
+            i += 1;
+        }
+        std::str::from_utf8(&string_bytes).unwrap().to_string()
+    }
+
     pub fn read_double_word(&mut self, address:u64) -> u64 {
         let segment = self.get_segment(address).unwrap();
         if !segment.readable() {
