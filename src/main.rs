@@ -11,7 +11,7 @@ mod data;
 mod tests;
 
 fn main() {
-    let path = "test";
+    let path = "test_args";
     let mut emulator = Emulator::new();
     println!("=== CoffeePot Loading {}!  ===",path);
     let elf_segments = loader::load_elf(&path,false);
@@ -20,7 +20,7 @@ fn main() {
     let argv:Vec<String> = env::args().rev().collect();
     emulator.cpu.x_reg[2]  = emulator.initialize_stack_libc(argv.len() as u64 ,argv);
     emulator.cpu.pc = elf_segments.entry_point;
-    emulator.cpu.call_stack.push(emulator.cpu.pc);
+    //emulator.cpu.call_stack.push(emulator.cpu.pc);
     emulator.cpu.debug_flag = false;
     println!("=== CoffeePot Elf Loading Complete!  ===",);
     let mut debug = false;
@@ -59,8 +59,8 @@ fn main() {
 fn fuzz(mut emulator: Emulator,thread_id:i32, iterations:std::sync::Arc<std::sync::Mutex<f64>>) {
     let mut base_state = emulator.snapshot();
     let mut snapshot_taken = false;
-    let debug = true;
-    emulator.cpu.debug_flag = true;
+    let debug = false;
+    emulator.cpu.debug_flag = false;
     loop {
         if !emulator.fetch_instruction() {
             println!("fetch failed pc => {:#08X} {:08X}",emulator.cpu.pc,emulator.current_instruction);
@@ -71,11 +71,9 @@ fn fuzz(mut emulator: Emulator,thread_id:i32, iterations:std::sync::Arc<std::syn
             snapshot_taken = true;
         }
         if debug {
-            /* 
             let stdin = std::io::stdin();
             let mut line = String::new();
             stdin.lock().read_line(&mut line).unwrap();
-            */
             print!("CoffeePot Registers: \n{}\n", emulator.cpu);
         }
         if emulator.execute_instruction() {
