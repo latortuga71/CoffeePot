@@ -1,9 +1,31 @@
 
 use crate::{cpu::CPU, loader::ElfInformation};
 
+
+
+#[derive(Clone)]
+pub struct FuzzState {
+    pub corpus:Vec<Vec<u8>>,
+    pub cases:u64,
+    pub branches_hit:u64,
+    pub instructions_ran:u64,
+}
+
+impl FuzzState {
+    pub fn new() -> Self {
+        FuzzState {
+            cases:0,
+            branches_hit:0,
+            instructions_ran:0,
+            corpus:vec![vec![0]]
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct Emulator {
     pub cpu: CPU,
+    pub fuzz_state: FuzzState,
     pub current_instruction: u32,
 }
 
@@ -11,6 +33,7 @@ impl Emulator {
     pub fn new() -> Self {
         Emulator {
             cpu: CPU::new(),
+            fuzz_state:FuzzState::new(),
             current_instruction: 0,
         }
     }
@@ -26,6 +49,7 @@ impl Emulator {
         self.cpu.sp = original.cpu.sp;
         self.cpu.exit_status = 0;
         self.cpu.exit_called = false; // reset this everytime
+        self.cpu.new_coverage_found = false;
         for address in self.cpu.mmu.get_dirty_segments() {
             let original_buffer = original.cpu.mmu.get_segment_immut(address.0).unwrap();
             let our_buffer = self.cpu.mmu.get_segment(address.0).unwrap();
@@ -61,6 +85,7 @@ impl Emulator {
             }
             self.cpu.was_last_compressed = false;
         }
+        self.fuzz_state.instructions_ran += 1;
         self.cpu.sp = self.cpu.x_reg[2];
         self.cpu.x_reg[0] = 0x0;
         self.cpu.exit_called

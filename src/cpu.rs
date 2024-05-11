@@ -1,7 +1,7 @@
 use crate::data;
 use crate::mmu::MMU;
 use crate::data::Iovec;
-use std::{collections::HashMap, os::fd::AsRawFd, thread::panicking};
+use std::{collections::HashMap, collections::HashSet, hash::Hash, os::fd::AsRawFd, thread::panicking};
 
 const MAX_CALL_STACK:u64 = 1024;
 
@@ -9,6 +9,9 @@ const MAX_CALL_STACK:u64 = 1024;
 pub struct CPU {
     pub pc: u64,
     pub sp: u64,
+    pub fuzz_case:Vec<u8>,
+    pub coverage_map:HashMap<u64,HashSet<u64>>,
+    pub new_coverage_found: bool,
     pub call_stack:[u64;1024],
     pub call_entry:usize,
     pub mmu: MMU,
@@ -57,6 +60,9 @@ impl CPU {
         CPU {
             sp: 0,
             pc: 0x00000000,
+            fuzz_case:vec![0;0],
+            coverage_map:HashMap::new(),
+            new_coverage_found: false,
             call_stack:[0;1024],
             call_entry:0,
             mmu: mmu,
@@ -69,6 +75,29 @@ impl CPU {
             debug_flag: true,
             exit_status:0,
             exit_called: false,
+        }
+    }
+
+    fn store_coverage(&mut self,pc:u64,target:u64) -> bool {
+        let targets = self.coverage_map.get_mut(&pc);
+        match targets {
+            None => {
+                let mut addrs = HashSet::new();
+                addrs.insert(target);
+                self.coverage_map.insert(pc, addrs);
+                // new brach return true
+                return true; 
+            },
+            Some(set_of_targets) => {
+                if set_of_targets.contains(&target) {
+                    // we already hit this branch target its not new coverage
+                    return false;
+                } else {
+                    // new branch target found return true
+                    set_of_targets.insert(target);
+                    return true;
+                }
+            } 
         }
     }
 
@@ -1279,26 +1308,32 @@ impl CPU {
     fn bgeu(self: &mut Self, rs1: u64, rs2: u64, imm_b_type: u64) -> bool {
         if self.debug_flag{println!("BGEU");}
         if (self.x_reg[rs1 as usize] as u64) >= (self.x_reg[rs2 as usize] as u64) {
+            self.new_coverage_found = self.store_coverage(self.pc, self.pc.wrapping_add(imm_b_type as i64 as u64));
             self.pc = self.pc.wrapping_add(imm_b_type as i64 as u64);
             return true;
         }
+        self.store_coverage(self.pc, self.pc.wrapping_add(0x4));
         false
     }
     fn bltu(self: &mut Self, rs1: u64, rs2: u64, imm_b_type: u64) -> bool {
         if self.debug_flag{println!("bltu");}
         if (self.x_reg[rs1 as usize] as u64) < (self.x_reg[rs2 as usize] as u64) {
+            self.new_coverage_found = self.store_coverage(self.pc, self.pc.wrapping_add(imm_b_type as i64 as u64));
             self.pc = self.pc.wrapping_add(imm_b_type as i64 as u64);
             return true;
         }
+        self.new_coverage_found = self.store_coverage(self.pc, self.pc.wrapping_add(0x4));
         false
     }
 
     fn bge(self: &mut Self, rs1: u64, rs2: u64, imm_b_type: u64) -> bool {
         if self.debug_flag{println!("bge");}
         if (self.x_reg[rs1 as usize] as i64) >= (self.x_reg[rs2 as usize] as i64) {
+            self.new_coverage_found = self.store_coverage(self.pc, self.pc.wrapping_add(imm_b_type as u64));
             self.pc = self.pc.wrapping_add(imm_b_type as u64);
             return true;
         }
+        self.new_coverage_found = self.store_coverage(self.pc, self.pc.wrapping_add(0x4));
         false
     }
 
@@ -1311,18 +1346,22 @@ impl CPU {
             );
         }
         if (self.x_reg[rs1 as usize] as i64) < (self.x_reg[rs2 as usize] as i64) {
+            self.new_coverage_found = self.store_coverage(self.pc, self.pc.wrapping_add(imm_b_type as u64));
             self.pc = self.pc.wrapping_add(imm_b_type);
             return true;
         }
+        self.new_coverage_found = self.store_coverage(self.pc, self.pc.wrapping_add(0x4));
         false
     }
 
     fn bne(self: &mut Self, rs1: u64, rs2: u64, imm_b_type: u64) -> bool {
         if self.debug_flag{println!("bne");}
         if self.x_reg[rs1 as usize] != self.x_reg[rs2 as usize] {
+            self.new_coverage_found = self.store_coverage(self.pc, self.pc.wrapping_add(imm_b_type as u64));
             self.pc = self.pc.wrapping_add(imm_b_type as u64);
             return true;
         }
+        self.new_coverage_found = self.store_coverage(self.pc, self.pc.wrapping_add(0x4));
         false
     }
     fn beq(self: &mut Self, rs1: u64, rs2: u64, imm_b_type: u64) -> bool {
@@ -1333,9 +1372,11 @@ impl CPU {
             );
         }
         if self.x_reg[rs1 as usize] == self.x_reg[rs2 as usize] {
+            self.new_coverage_found = self.store_coverage(self.pc, self.pc.wrapping_add(imm_b_type as u64));
             self.pc = self.pc.wrapping_add(imm_b_type as u64);
             return true;
         }
+        self.new_coverage_found = self.store_coverage(self.pc, self.pc.wrapping_add(0x4));
         false
     }
     fn jal(self: &mut Self, rd: u64, imm_j_type: u64) -> bool {

@@ -2,6 +2,7 @@
 use std::{clone, env, io::BufRead, time::Duration};
 
 use crate::{emulator::Emulator};
+use rand::Rng;
 
 mod cpu;
 mod emulator;
@@ -11,7 +12,7 @@ mod data;
 mod tests;
 
 fn main() {
-    let path = "test_args";
+    let path = "hello";
     let mut emulator = Emulator::new();
     println!("=== CoffeePot Loading {}!  ===",path);
     let elf_segments = loader::load_elf(&path,false);
@@ -61,6 +62,10 @@ fn fuzz(mut emulator: Emulator,thread_id:i32, iterations:std::sync::Arc<std::syn
     let mut snapshot_taken = false;
     let debug = false;
     emulator.cpu.debug_flag = false;
+    // Set First Fuzz Case Example
+    emulator.fuzz_state.corpus.push(vec![0x41;512]);
+    emulator.cpu.fuzz_case = vec![0x41;512];
+    //
     loop {
         if !emulator.fetch_instruction() {
             println!("fetch failed pc => {:#08X} {:08X}",emulator.cpu.pc,emulator.current_instruction);
@@ -77,7 +82,26 @@ fn fuzz(mut emulator: Emulator,thread_id:i32, iterations:std::sync::Arc<std::syn
             print!("CoffeePot Registers: \n{}\n", emulator.cpu);
         }
         if emulator.execute_instruction() {
+            println!("Instructions Executed {}",emulator.fuzz_state.instructions_ran);
+            println!("Branches Encountered {}",emulator.cpu.coverage_map.len());
+            println!("New Coverage -> {}",emulator.cpu.new_coverage_found);
+            emulator.fuzz_state.branches_hit = emulator.cpu.coverage_map.len() as u64;
+            emulator.fuzz_state.cases += 1;
+            // reset instructions ran
+            emulator.fuzz_state.instructions_ran = 0;
+            // if new coverage save mutated fuzz case into corpus
+            emulator.fuzz_state.corpus.push(vec![0;0]);
+            let stdin = std::io::stdin();
+            let mut line = String::new();
+            stdin.lock().read_line(&mut line).unwrap();
             emulator.restore(&base_state);
+            // Pick something from corpus
+            let index = rand::thread_rng().gen_range(0..emulator.fuzz_state.corpus.len());
+            let case = emulator.fuzz_state.corpus[index].clone();
+            // Mutate in place
+            //....
+            // Then Run Again
+            emulator.cpu.fuzz_case = case;
             let mut c = iterations.lock().unwrap();
             *c += 1.0;
         }
