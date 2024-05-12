@@ -32,21 +32,22 @@ int main(int argc, char **argv) {
   Emulator* emu = new_emulator();
   load_code_segments_into_virtual_memory(emu,code_segment);
   printf("Code Loaded At 0x%x\n",code_segment->base_address);
+  init_stack_virtual_memory(emu); 
   free(code_segment->raw_data);
   free(code_segment);
-  vm_print(&emu->mmu);
   //
+  vm_print(&emu->mmu);
+  ///
   free_emulator(emu);
-
+  // TODO....
   //.....
-  // Copy Segments Into Memory
-  // Set Memory Permissions
-  // Set EntryPoint
-  // Fetch
-  // Decode
-  // Execute
-  // Snapshot
-  // Restore
+  // Set Memory Permissions Function
+  // Set EntryPoint On CPU
+  // Fetch Function
+  // Decode Function
+  // Execute Function
+  // Snapshot Function
+  // Restore Function
   // Enable Memory Swapping For FuzzCases
   return 0;
 }

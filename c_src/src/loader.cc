@@ -18,12 +18,16 @@ CodeSegment* parse_elf_segments(char *elf_data,size_t file_size) {
   for (int i = 0; i < file_header->e_phnum; i++){
     int offset = file_header->e_phoff + (i * file_header->e_phentsize);
     program_header_entry = (ElfProgHdr*)((char*)file_header + offset);
-    printf("type 0x%x \n",program_header_entry->p_type);
-    printf("Virtual Address 0x%x \n",program_header_entry->p_addr);
     if (program_header_entry->p_type != 1)
       continue;
+    /*
+    printf("type 0x%x \n",program_header_entry->p_type);
+    printf("Virtual Address 0x%x \n",program_header_entry->p_addr);
+    printf("Size 0x%x\n",program_header_entry->p_memsz);
+    printf("File Sz 0x%x\n",program_header_entry->p_filesz);
+    */
     // handle copying the data to 1 buffer this will be our text section in memory;
-    code_segment_info->total_size += program_header_entry->p_filesz;
+    code_segment_info->total_size += program_header_entry->p_memsz; // <- look here if you have issues
     int start = program_header_entry->p_offset;
     int end = start + program_header_entry->p_filesz;
     int off = end - start;

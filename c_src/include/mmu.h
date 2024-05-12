@@ -8,6 +8,11 @@
 #include <map>
 #include <tuple>
 
+const uint32_t READ = 1;
+const uint32_t WRITE = 2;
+const uint32_t EXEC = 4;
+//#define EXEC 8
+
 typedef struct segment_range_t {
     uint64_t start;
     uint64_t end;
@@ -17,8 +22,7 @@ typedef struct memory_segment_t {
     uint8_t* data;
     size_t data_size;
     SegmentRange range;
-    //... permissions etc
-    //.. total_size size 
+    uint32_t perms;
 } Segment;
 
 typedef struct mmu_t {
