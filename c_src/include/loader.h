@@ -37,6 +37,7 @@ typedef struct elf_program_hdr_t {
 } ElfProgHdr;
 
 typedef struct code_segment_t {
+  uint64_t entry_point;
   uint64_t base_address;
   uint64_t total_size;
   char* raw_data;

@@ -12,6 +12,7 @@ CodeSegment* parse_elf_segments(char *elf_data,size_t file_size) {
   ElfProgHdr* program_header_entry = NULL;
   // Prepare buffer that will contain all the code including padding
   CodeSegment* code_segment_info = (CodeSegment*)calloc(1,sizeof(CodeSegment));
+  code_segment_info->entry_point = file_header->e_entry;
   code_segment_info->raw_data = (char*)calloc(1,file_size);
   code_segment_info->total_size = 0x0;
   code_segment_info->base_address = 0x0;
@@ -37,6 +38,7 @@ CodeSegment* parse_elf_segments(char *elf_data,size_t file_size) {
     memcpy(code_segment_info->raw_data,&elf_data[start],off);
   }
   // add values to struct
+  printf("Code Segment Entry 0x%x\n",code_segment_info->entry_point);
   printf("Code Segment Info Base Address 0x%x\n",code_segment_info->base_address);
   printf("Code Segment Info Size %d\n",code_segment_info->total_size);
   return code_segment_info;

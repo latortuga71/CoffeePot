@@ -32,12 +32,24 @@ int main(int argc, char **argv) {
   Emulator* emu = new_emulator();
   load_code_segments_into_virtual_memory(emu,code_segment);
   printf("Code Loaded At 0x%x\n",code_segment->base_address);
-  init_stack_virtual_memory(emu); 
+  // INITALIZE CPU REGISTERS
+  emu->cpu.pc = code_segment->entry_point;
+  emu->cpu.stack_pointer = init_stack_virtual_memory(emu,1,NULL); 
+  /// FREE ELF SEGMENTS
   free(code_segment->raw_data);
   free(code_segment);
-  //
+  // PRINT SEGMENTS
   vm_print(&emu->mmu);
-  ///
+  /// Emulator Basic Loop
+  int t = 0;
+  for (;;) {
+    uint32_t instruction = fetch(emu);
+    execute_instruction(emu,instruction);
+    t++;
+    if (t > 5)
+      break;
+  }
+
   free_emulator(emu);
   // TODO....
   //.....
