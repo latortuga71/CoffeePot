@@ -3,9 +3,9 @@
 
 CodeSegment* parse_elf_segments(char *elf_data,size_t file_size) {
   ElfFileHdr *file_header = (ElfFileHdr *)elf_data;
-  printf("ELF Header -> %s\n", file_header->e_ident);
-  printf("ELF Entry -> 0x%x\n", file_header->e_entry);
-  printf("ELF LOAD SEGMENTS -> %d\n", file_header->e_phnum);
+  //printf("ELF Header -> %s\n", file_header->e_ident);
+  //printf("ELF Entry -> 0x%x\n", file_header->e_entry);
+  //printf("ELF LOAD SEGMENTS -> %d\n", file_header->e_phnum);
   uint64_t ph_offset = file_header->e_phoff;
   uint64_t ph_size = file_header->e_phentsize;
   int offset = 0;
@@ -38,8 +38,8 @@ CodeSegment* parse_elf_segments(char *elf_data,size_t file_size) {
     memcpy(code_segment_info->raw_data,&elf_data[start],off);
   }
   // add values to struct
-  printf("Code Segment Entry 0x%x\n",code_segment_info->entry_point);
-  printf("Code Segment Info Base Address 0x%x\n",code_segment_info->base_address);
-  printf("Code Segment Info Size %d\n",code_segment_info->total_size);
+  //printf("Code Segment Entry 0x%x\n",code_segment_info->entry_point);
+  //printf("Code Segment Info Base Address 0x%x\n",code_segment_info->base_address);
+  //printf("Code Segment Info Size %d\n",code_segment_info->total_size);
   return code_segment_info;
 }

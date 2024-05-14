@@ -21,12 +21,12 @@ void free_emulator(Emulator* emu){
 
 void vm_print(MMU* mmu){
     for (int i = 0; i < mmu->segment_count; i++){
-        fprintf(stderr,"[%d] DEBUG SEGMENT: 0x%x - 0x%x sz 0x%0x perms 0x%x\n",i,mmu->virtual_memory[i].range.start,mmu->virtual_memory[i].range.end,mmu->virtual_memory[i].data_size,mmu->virtual_memory[i].perms);
+        fprintf(stderr,"[%d] DEBUG SEGMENT: 0x%x-0x%x size 0x%0x perms 0x%x\n",i,mmu->virtual_memory[i].range.start,mmu->virtual_memory[i].range.end,mmu->virtual_memory[i].data_size,mmu->virtual_memory[i].perms);
     }
 }
 
 Segment* vm_get_segment(MMU* mmu, uint64_t address){
-    fprintf(stderr,"DEBUG: GETTING SEGMENT 0x%x\n",address);
+    //fprintf(stderr,"DEBUG: GETTING SEGMENT 0x%x\n",address);
     for (int i = 0; i < mmu->segment_count; i++){
         if (address >= mmu->virtual_memory[i].range.start && address < mmu->virtual_memory[i].range.end){
             return &mmu->virtual_memory[i];
@@ -48,7 +48,7 @@ uint64_t vm_alloc(MMU* mmu, uint64_t base_address, size_t size, uint32_t perms) 
     if (base_address == 0){
         uint64_t base = mmu->next_allocation_base + 0x1024;
         uint64_t end = base + size;
-        fprintf(stderr,"DEBUG: ALLOC AT 0x%x\n",base);
+        //fprintf(stderr,"DEBUG: ALLOC AT 0x%x\n",base);
         if (mmu->segment_count + 1 > mmu->segment_capacity){
             // realloc
             assert("TODO! REALLOC HANDLER HERE" == 0);
@@ -58,7 +58,6 @@ uint64_t vm_alloc(MMU* mmu, uint64_t base_address, size_t size, uint32_t perms) 
         mmu->virtual_memory[mmu->segment_count].data_size = size;
         mmu->virtual_memory[mmu->segment_count].data = (uint8_t*)calloc(1,size);
         mmu->virtual_memory[mmu->segment_count].perms = perms;
-        printf("AND 0x%x\n",mmu->virtual_memory[mmu->segment_count].perms & WRITE);
         mmu->segment_count++;
         mmu->next_allocation_base = end;
         return base;
@@ -74,13 +73,12 @@ uint64_t vm_alloc(MMU* mmu, uint64_t base_address, size_t size, uint32_t perms) 
     }
     uint64_t base = base_address;
     uint64_t end = base + size;
-    fprintf(stderr,"DEBUG: ALLOC AT 0x%x\n",base);
+    //fprintf(stderr,"DEBUG: ALLOC AT 0x%x\n",base);
     mmu->virtual_memory[mmu->segment_count].range.start = base;
     mmu->virtual_memory[mmu->segment_count].range.end = end;
     mmu->virtual_memory[mmu->segment_count].data_size = size;
     mmu->virtual_memory[mmu->segment_count].data = (uint8_t*)calloc(1,size);
     mmu->virtual_memory[mmu->segment_count].perms = perms;
-    printf("AND 0x%x\n",mmu->virtual_memory[mmu->segment_count].perms & WRITE);
     mmu->segment_count++;
     mmu->next_allocation_base = end;
     return base;
@@ -92,7 +90,7 @@ void vm_copy(MMU* mmu,char* src, size_t src_size, uint64_t dst) {
         assert("TODO! LOG SEGFAULTS" == 0);
         return;
     }
-    printf("perms 0x%x perms ord 0x%d\n",segment->perms,(segment->perms & WRITE));
+    //printf("perms 0x%x perms ord 0x%d\n",segment->perms,(segment->perms & WRITE));
     if ((segment->perms & WRITE) == 0){
         assert("TODO! LOG SEGFAULT NO WRITE PERM" == 0);
     }
@@ -138,7 +136,7 @@ void vm_write_double_word(MMU* mmu, uint64_t address, uint64_t value)  {
         assert("TODO HANDLE SEGFAULT! WITH A CALLBACK" == 0);
     }
     uint64_t index = address - s->range.start;
-    printf("Address 0x%x memory base 0x%x segment offset 0x%x\n",address, s->range.start,index);
+    //printf("Address 0x%x memory base 0x%x segment offset 0x%x\n",address, s->range.start,index);
     s->data[index] = (value & 0xff);
     s->data[index + 1] = ((value >> 8 ) & 0xff);
     s->data[index + 2] = ((value >> 16 ) & 0xff);
@@ -156,7 +154,7 @@ uint64_t vm_read_word(MMU* mmu, uint64_t address){
         assert("TODO HANDLE SEGFAULT! WITH A CALLBACK" == 0);
     }
     uint64_t index = address - s->range.start;
-    printf("Address 0x%x memory base 0x%x segment offset 0x%x\n",address, s->range.start,index);
+    //fprintf(stderr,"DEBUG: Address 0x%x memory base 0x%x segment offset 0x%x\n",address, s->range.start,index);
     return (uint64_t)(s->data[index])
         | ((uint64_t)(s->data[index + 1]) << 8)
         | ((uint64_t)(s->data[index + 2]) << 16)
@@ -164,7 +162,7 @@ uint64_t vm_read_word(MMU* mmu, uint64_t address){
 }
 
 uint32_t fetch(Emulator* emu) {
-    fprintf(stderr,"DEBUG: FETCHING INSTRUCTION 0x%x\n",emu->cpu.pc);
+    //fprintf(stderr,"DEBUG: FETCHING INSTRUCTION 0x%x\n",emu->cpu.pc);
     Segment* segment = vm_get_segment(&emu->mmu,emu->cpu.pc);
     if (segment == NULL){
         assert("TODO HANDLE SEGFAULT! WITH A CALLBACK" == 0);
@@ -174,33 +172,32 @@ uint32_t fetch(Emulator* emu) {
 
 void execute_instruction(Emulator* emu, uint32_t instruction){
     if ((0x3 & instruction) != 0x3) {
-        fprintf(stderr,"DEBUG: COMPRESSED\n");
+        //fprintf(stderr,"DEBUG: COMPRESSED\n");
+        fprintf(stderr,"DEBUG: 0x%02x\n",(uint16_t)instruction);
         emu->cpu.pc += 0x2;
     } else {
-        fprintf(stderr,"DEBUG: NOT COMPRESSED\n");
+        //fprintf(stderr,"DEBUG: NOT COMPRESSED\n");
+        fprintf(stderr,"DEBUG: 0x%08x\n",instruction);
+        execute(emu,instruction);
         emu->cpu.pc += 0x4;
     }
 }
 
-/*
-    pub fn execute_instruction(self: &mut Self) -> bool {
-        let current_frame = self.cpu.call_stack.len() - 1;
-        if (0x3 & self.current_instruction) != 0x3 {
-            if !self.cpu.execute_compressed(self.current_instruction as u64) {
-                self.cpu.pc += 0x2;
-                self.cpu.call_stack[current_frame] = self.cpu.pc;
-            }
-            self.cpu.was_last_compressed = true;
-        } else {
-            if !self.cpu.execute(self.current_instruction as u64) {
-                self.cpu.pc += 0x4;
-                self.cpu.call_stack[current_frame] = self.cpu.pc;
-            }
-            self.cpu.was_last_compressed = false;
+static void execute(Emulator* emu, uint32_t instruction){
+    // decode get what we need
+    uint64_t opcode = instruction & 0x0000007f;
+    uint64_t rd  = (instruction & 0x00000f80) >> 7;
+    uint64_t rs1 = (instruction & 0x000f8000) >> 15;
+    uint64_t rs2 = (instruction & 0x01f00000) >> 20;
+    switch (opcode)
+    {
+        case 0b0010111: {
+            fprintf(stderr,"DEBUG: auipc\n");
+            break;
         }
-        self.fuzz_state.instructions_ran += 1;
-        self.cpu.sp = self.cpu.x_reg[2];
-        self.cpu.x_reg[0] = 0x0;
-        self.cpu.exit_called
+    default:
+        assert("TODO! UNKNOWN OPCODE" == 0);
     }
-*/
+}
+
+///             0b0010111 => self.auipc(rd, (instruction & 0xfffff000) as i32 as i64 as u64),

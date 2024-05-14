@@ -23,7 +23,6 @@ int main(int argc, char **argv) {
   rewind(binary_ptr);
   binary_buffer = (char *)calloc(1, binary_size);
   nread = fread(binary_buffer, 1, binary_size, binary_ptr);
-  printf("READ %lu bytes\n", nread);
   // Parse Elf Headers
   CodeSegment* code_segment = parse_elf_segments(binary_buffer,nread);
   free(binary_buffer);
@@ -31,7 +30,7 @@ int main(int argc, char **argv) {
   // Create Virtual Memory
   Emulator* emu = new_emulator();
   load_code_segments_into_virtual_memory(emu,code_segment);
-  printf("Code Loaded At 0x%x\n",code_segment->base_address);
+  //printf("Code Loaded At 0x%x\n",code_segment->base_address);
   // INITALIZE CPU REGISTERS
   emu->cpu.pc = code_segment->entry_point;
   emu->cpu.stack_pointer = init_stack_virtual_memory(emu,1,NULL); 
@@ -46,7 +45,7 @@ int main(int argc, char **argv) {
     uint32_t instruction = fetch(emu);
     execute_instruction(emu,instruction);
     t++;
-    if (t > 5)
+    if (t > 20)
       break;
   }
 

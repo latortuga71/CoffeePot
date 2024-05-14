@@ -37,12 +37,21 @@ void vm_write_double_word(MMU*, uint64_t address, uint64_t value);
 
 
 // Emulator //
+// load elf segments into memory
 void load_code_segments_into_virtual_memory(Emulator* ,CodeSegment*);
+// load libc stack args into stack memory
 uint64_t init_stack_virtual_memory(Emulator* emu,int argc, char** argv);
-
 uint32_t fetch(Emulator* emu);
 void execute_instruction(Emulator* emu, uint32_t instruction);
-void static execute(Emulator* emu);
-void static execute_compressed(Emulator* emu);
+///void static execute(Emulator* emu);
+//void static execute_compressed(Emulator* emu);
+
+static void execute(Emulator* emu, uint32_t instruction);
+
+
+
+// CPU INSTRUCTIONS
+
+void auipc(uint64_t rs1, uint64_t rs2, void* error_callback);
 
 #endif
