@@ -43,7 +43,7 @@ int main(int argc, char **argv) {
   int t = 0;
   for (;;) {
     uint32_t instruction = fetch(emu);
-    execute_instruction(emu,instruction);
+    execute_instruction(emu,(uint64_t)instruction);
     t++;
     if (t > 20)
       break;

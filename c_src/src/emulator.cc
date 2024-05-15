@@ -170,29 +170,53 @@ uint32_t fetch(Emulator* emu) {
     return (uint32_t)vm_read_word(&emu->mmu,emu->cpu.pc);
 }
 
-void execute_instruction(Emulator* emu, uint32_t instruction){
+void execute_instruction(Emulator* emu, uint64_t instruction){
     if ((0x3 & instruction) != 0x3) {
         //fprintf(stderr,"DEBUG: COMPRESSED\n");
         fprintf(stderr,"DEBUG: 0x%02x\n",(uint16_t)instruction);
+        execute_compressed(emu, instruction);
         emu->cpu.pc += 0x2;
     } else {
         //fprintf(stderr,"DEBUG: NOT COMPRESSED\n");
-        fprintf(stderr,"DEBUG: 0x%08x\n",instruction);
+        fprintf(stderr,"DEBUG: 0x%08x\n", instruction);
         execute(emu,instruction);
         emu->cpu.pc += 0x4;
     }
 }
 
-static void execute(Emulator* emu, uint32_t instruction){
+static void execute_compressed(Emulator* emu, uint64_t instruction){}
+
+
+
+
+
+static void execute(Emulator* emu, uint64_t instruction){
     // decode get what we need
     uint64_t opcode = instruction & 0x0000007f;
     uint64_t rd  = (instruction & 0x00000f80) >> 7;
     uint64_t rs1 = (instruction & 0x000f8000) >> 15;
     uint64_t rs2 = (instruction & 0x01f00000) >> 20;
+    uint64_t funct3 = (instruction & 0x00007000) >> 12;
     switch (opcode)
     {
         case 0b0010111: {
-            fprintf(stderr,"DEBUG: auipc\n");
+            uint64_t imm = (uint64_t)((int64_t)((int32_t)(instruction & 0xfffff000)));
+            emu->cpu.x_reg[rd] = emu->cpu.pc + imm;
+            fprintf(stderr,"DEBUG: auipc x%d,0x%01x\n",rd,imm);
+            break;
+        }
+        case 0b00010011: {
+            uint64_t imm = (uint64_t)((( (int64_t)((int32_t)instruction)) >> 20));
+            switch (funct3)
+            {
+            case 0x0:
+                emu->cpu.x_reg[rd] = emu->cpu.x_reg[rs1] + imm;
+                fprintf(stderr,"DEBUG: addi x%d,x%d, 0x%x\n",rd,rs1,imm);
+                break;
+            
+            default:
+                assert("TODO! UNKNOWN FUNCT3");
+            }
             break;
         }
     default:
