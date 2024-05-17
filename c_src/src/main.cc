@@ -34,6 +34,7 @@ int main(int argc, char **argv) {
   // INITALIZE CPU REGISTERS
   emu->cpu.pc = code_segment->entry_point;
   emu->cpu.stack_pointer = init_stack_virtual_memory(emu,1,NULL); 
+  emu->cpu.x_reg[2] = emu->cpu.stack_pointer;
   /// FREE ELF SEGMENTS
   free(code_segment->raw_data);
   free(code_segment);
@@ -44,6 +45,7 @@ int main(int argc, char **argv) {
   for (;;) {
     uint32_t instruction = fetch(emu);
     execute_instruction(emu,(uint64_t)instruction);
+    print_registers(emu);
     t++;
     if (t > 20)
       break;

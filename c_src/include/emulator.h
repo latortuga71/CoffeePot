@@ -44,6 +44,7 @@ void vm_write_double_word(MMU*, uint64_t address, uint64_t value);
 
 
 // Emulator //
+void print_registers(Emulator*);
 // load elf segments into memory
 void load_code_segments_into_virtual_memory(Emulator* ,CodeSegment*);
 // load libc stack args into stack memory

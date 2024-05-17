@@ -170,10 +170,16 @@ uint32_t fetch(Emulator* emu) {
     return (uint32_t)vm_read_word(&emu->mmu,emu->cpu.pc);
 }
 
+void print_registers(Emulator* emu){
+    for (int i = 0; i < 32; i++){
+        debug_print("x%d 0x%x\n",i,emu->cpu.x_reg[i]);
+    }
+}
+
 void execute_instruction(Emulator* emu, uint64_t instruction){
     if ((0x3 & instruction) != 0x3) {
         //fprintf(stderr,"DEBUG: COMPRESSED\n");
-        debug_print("DEBUG: 0x%02x\n",(uint16_t)instruction);
+        debug_print("DEBUG: COMPRESSED 0x%02x\n",(uint16_t)instruction);
         execute_compressed(emu, instruction);
         emu->cpu.pc += 0x2;
     } else {
@@ -184,7 +190,66 @@ void execute_instruction(Emulator* emu, uint64_t instruction){
     }
 }
 
-static void execute_compressed(Emulator* emu, uint64_t instruction){}
+static void execute_compressed(Emulator* emu, uint64_t instruction){
+    uint64_t opcode = instruction & 0b11;
+    uint64_t funct3 = (instruction >> 13) & 0x7;
+    switch (opcode)
+    {
+    case 0b00:{
+        debug_print("DEBUG QUADRANT %d\n",0);
+        break;
+    }
+    case 0b01: {
+        debug_print("DEBUG QUADRANT %d\n",1);
+        break;
+    }
+    case 0b10: {
+        debug_print("DEBUG QUADRANT %d\n",2);
+        switch (funct3) {
+            case 0x1: {
+                break;
+            }
+            case 0x2: {
+                break;
+            }
+            case 0x3: {
+                break;
+            }
+            case 0x4: {
+                uint64_t left = (instruction >> 12) & 0x1;
+                uint64_t right = (instruction >> 2) & 0x1f;
+                if (left == 0 && right == 0){
+                    debug_print("DEBUG c_jr %s\n","quadrant 2");
+                    break;
+                } else if (left == 0 && right != 0){
+                    debug_print("DEBUG c_mv %s\n","quadrant 2");
+                    uint64_t rd = (instruction >> 7 ) & 0x1f;
+                    uint64_t rs2 = (instruction >> 2 ) & 0x1f;
+                    if (rs2 != 0){
+                        emu->cpu.x_reg[rd] = emu->cpu.x_reg[rs2];
+                    }
+                    debug_print("DEBUG a0 => 0x%x sp => 0x%x\n",emu->cpu.x_reg[rd],emu->cpu.x_reg[2]);
+                    break;
+                } else if (left == 1 && right == 0){
+                    debug_print("DEBUG c_ebreak %s\n","quadrant 2");
+                    break;
+                } else if (left == 1 && right != 0){
+                    debug_print("DEBUG c_add %s\n","quadrant 2");
+                    break;
+                } else {
+                    assert("QUADRANT 2 INVALID INSTRUCTION" != 0 );
+                }
+                break;
+            }
+            default:
+                assert("INVALID FUNCT3 QUADRANT 2" != 0);
+        }
+        break;
+    }
+    default:
+        assert("INVALID QUADRANT " != 0);
+    }
+}
 
 
 

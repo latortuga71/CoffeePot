@@ -6,6 +6,20 @@
 int stack_init_test(Emulator* emu, int argc, char** argv){
     return 1;
 }
+
+int c_mv_test(Emulator* emu,uint64_t instruction){
+    uint64_t expected = 0x1234;
+    emu->cpu.x_reg[2] = 0x1234;
+    execute_instruction(emu,instruction);
+    uint64_t result = emu->cpu.x_reg[10];
+    if (expected != result){
+      fprintf(stderr,"[-] TEST FAILED: %s expected 0x%x result 0x%x\n","c_mv_test",expected,result);
+      return 0;
+    }
+      fprintf(stderr,"[-] TEST PASSED: %s \n","c_mv_test");
+    return 1;
+}
+
 int addi_test(Emulator* emu,uint64_t instruction){
     uint64_t expected = 0x12d58;
     emu->cpu.x_reg[3] = 0x1314a;
@@ -68,12 +82,14 @@ int load_elf_test(){
 int main(){
   Emulator* emu = new_emulator();
   int passed_tests = 0;
-  int total_tests = 3;
+  int total_tests = 4;
   if (load_elf_test())
     passed_tests +=1;
   if (auipc_test(emu, 0x00003197))
     passed_tests +=1;
   if (addi_test(emu, 0xc0e18193))
+    passed_tests +=1;
+  if (c_mv_test(emu, 0x850a))
     passed_tests +=1;
   fprintf(stderr,"[+] %d/%d TESTS PASSED\n",passed_tests,total_tests);
   return 0;
