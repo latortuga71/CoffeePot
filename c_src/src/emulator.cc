@@ -171,6 +171,7 @@ uint32_t fetch(Emulator* emu) {
 }
 
 void print_registers(Emulator* emu){
+    debug_print("pc: 0x%x\n",emu->cpu.pc);
     for (int i = 0; i < 32; i++){
         debug_print("x%d 0x%x\n",i,emu->cpu.x_reg[i]);
     }
@@ -274,14 +275,28 @@ static void execute(Emulator* emu, uint64_t instruction){
             uint64_t imm = (uint64_t)((( (int64_t)((int32_t)instruction)) >> 20));
             switch (funct3)
             {
-            case 0x0:
+            case 0x0:{
                 emu->cpu.x_reg[rd] = emu->cpu.x_reg[rs1] + imm;
                 debug_print("DEBUG: addi x%d,x%d, 0x%x\n",rd,rs1,imm);
                 break;
-            
+            }
+            case 0x7: {
+                emu->cpu.x_reg[rd] = emu->cpu.x_reg[rs1] & imm;
+                debug_print("DEBUG: andi x%d,x%d, 0x%x\n",rd,rs1,imm);
+                break;
+            }
             default:
                 assert("TODO! UNKNOWN FUNCT3");
             }
+            break;
+        }
+        case 0b1100111: {
+            int64_t imm = (int64_t)((int32_t)instruction)  >> 20;
+            uint64_t return_address = emu->cpu.pc + 0x4;
+            uint64_t jump_address = ((int64_t)emu->cpu.x_reg[rs1] + (int64_t)imm) & ~1;
+            emu->cpu.pc = (jump_address - 0x4);
+            emu->cpu.x_reg[rd] = return_address;
+            debug_print("DEBUG: jalr %d (x%d)\n",imm,rs1);
             break;
         }
     default:

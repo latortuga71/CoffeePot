@@ -7,6 +7,20 @@ int stack_init_test(Emulator* emu, int argc, char** argv){
     return 1;
 }
 
+int jalr_test(Emulator* emu,uint64_t instruction){
+    emu->cpu.pc = 0x10164;
+    emu->cpu.x_reg[6] = 0x10160;
+    uint64_t expected = 0x10168;
+    execute_instruction(emu,instruction);
+    uint64_t result = emu->cpu.pc;
+    if (expected != result){
+      fprintf(stderr,"[-] TEST FAILED: %s expected 0x%x result 0x%x\n","jalr_test",expected,result);
+      return 0;
+    }
+      fprintf(stderr,"[-] TEST PASSED: %s \n","jalr_test");
+    return 1;
+}
+
 int c_mv_test(Emulator* emu,uint64_t instruction){
     uint64_t expected = 0x1234;
     emu->cpu.x_reg[2] = 0x1234;
@@ -17,6 +31,19 @@ int c_mv_test(Emulator* emu,uint64_t instruction){
       return 0;
     }
       fprintf(stderr,"[-] TEST PASSED: %s \n","c_mv_test");
+    return 1;
+}
+
+int andi_test(Emulator* emu,uint64_t instruction){
+    emu->cpu.x_reg[2] = 0x40007ffa40;
+    uint64_t expected = emu->cpu.x_reg[2];
+    execute_instruction(emu,instruction);
+    uint64_t result = emu->cpu.x_reg[2];
+    if (expected != result){
+      fprintf(stderr,"[-] TEST FAILED: %s expected 0x%x result 0x%x\n","andi_test",expected,result);
+      return 0;
+    }
+      fprintf(stderr,"[-] TEST PASSED: %s \n","andi_test");
     return 1;
 }
 
@@ -82,7 +109,7 @@ int load_elf_test(){
 int main(){
   Emulator* emu = new_emulator();
   int passed_tests = 0;
-  int total_tests = 4;
+  int total_tests = 6;
   if (load_elf_test())
     passed_tests +=1;
   if (auipc_test(emu, 0x00003197))
@@ -90,6 +117,10 @@ int main(){
   if (addi_test(emu, 0xc0e18193))
     passed_tests +=1;
   if (c_mv_test(emu, 0x850a))
+    passed_tests +=1;
+  if (andi_test(emu, 0xff017113))
+    passed_tests +=1;
+  if (jalr_test(emu, 0x00830067))
     passed_tests +=1;
   fprintf(stderr,"[+] %d/%d TESTS PASSED\n",passed_tests,total_tests);
   return 0;
