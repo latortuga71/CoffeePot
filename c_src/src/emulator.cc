@@ -21,7 +21,7 @@ void free_emulator(Emulator* emu){
 
 void vm_print(MMU* mmu){
     for (int i = 0; i < mmu->segment_count; i++){
-        fprintf(stderr,"[%d] DEBUG SEGMENT: 0x%x-0x%x size 0x%0x perms 0x%x\n",i,mmu->virtual_memory[i].range.start,mmu->virtual_memory[i].range.end,mmu->virtual_memory[i].data_size,mmu->virtual_memory[i].perms);
+        debug_print("[%d] DEBUG SEGMENT: 0x%x-0x%x size 0x%0x perms 0x%x\n",i,mmu->virtual_memory[i].range.start,mmu->virtual_memory[i].range.end,mmu->virtual_memory[i].data_size,mmu->virtual_memory[i].perms);
     }
 }
 
@@ -64,7 +64,7 @@ uint64_t vm_alloc(MMU* mmu, uint64_t base_address, size_t size, uint32_t perms) 
     }
 
     if (vm_range_exists(mmu, base_address)){
-        fprintf(stderr, "ERROR FAILED TO ALLOCATE MEMORY RANGE TAKEN 0x%x\n",base_address);
+        error_print("ERROR FAILED TO ALLOCATE MEMORY RANGE TAKEN 0x%x\n",base_address);
         return -1;
     }
     if (mmu->segment_count + 1 > mmu->segment_capacity){
@@ -173,12 +173,12 @@ uint32_t fetch(Emulator* emu) {
 void execute_instruction(Emulator* emu, uint64_t instruction){
     if ((0x3 & instruction) != 0x3) {
         //fprintf(stderr,"DEBUG: COMPRESSED\n");
-        fprintf(stderr,"DEBUG: 0x%02x\n",(uint16_t)instruction);
+        debug_print("DEBUG: 0x%02x\n",(uint16_t)instruction);
         execute_compressed(emu, instruction);
         emu->cpu.pc += 0x2;
     } else {
         //fprintf(stderr,"DEBUG: NOT COMPRESSED\n");
-        fprintf(stderr,"DEBUG: 0x%08x\n", instruction);
+        debug_print("DEBUG: 0x%08x\n", instruction);
         execute(emu,instruction);
         emu->cpu.pc += 0x4;
     }
@@ -202,7 +202,7 @@ static void execute(Emulator* emu, uint64_t instruction){
         case 0b0010111: {
             uint64_t imm = (uint64_t)((int64_t)((int32_t)(instruction & 0xfffff000)));
             emu->cpu.x_reg[rd] = emu->cpu.pc + imm;
-            fprintf(stderr,"DEBUG: auipc x%d,0x%01x\n",rd,imm);
+            debug_print("DEBUG: auipc x%d,0x%01x\n",rd,imm);
             break;
         }
         case 0b00010011: {
@@ -211,7 +211,7 @@ static void execute(Emulator* emu, uint64_t instruction){
             {
             case 0x0:
                 emu->cpu.x_reg[rd] = emu->cpu.x_reg[rs1] + imm;
-                fprintf(stderr,"DEBUG: addi x%d,x%d, 0x%x\n",rd,rs1,imm);
+                debug_print("DEBUG: addi x%d,x%d, 0x%x\n",rd,rs1,imm);
                 break;
             
             default:
