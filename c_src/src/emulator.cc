@@ -118,6 +118,7 @@ uint64_t init_stack_virtual_memory(Emulator* emu, int argc, char** argv){
   /// loop over args and write them
   // heap
   uint64_t string_address = vm_alloc(&emu->mmu,0,1024,READ|WRITE);
+  // for now we just right AAAAA
   vm_write_double_word(&emu->mmu,string_address,0x41414141);
   // write heap pointer to stack
   stack_pointer -= 0x8;
@@ -178,6 +179,7 @@ void print_registers(Emulator* emu){
 }
 
 void execute_instruction(Emulator* emu, uint64_t instruction){
+    emu->cpu.x_reg[0] = 0;
     if ((0x3 & instruction) != 0x3) {
         //fprintf(stderr,"DEBUG: COMPRESSED\n");
         debug_print("DEBUG: COMPRESSED 0x%02x\n",(uint16_t)instruction);
@@ -198,6 +200,24 @@ static void execute_compressed(Emulator* emu, uint64_t instruction){
     {
     case 0b00:{
         debug_print("DEBUG QUADRANT %d\n",0);
+        switch (funct3)
+        {
+            case 0x2: {
+                uint64_t rd = ((instruction >> 2) & 0x7) + 8;
+                uint64_t rs1 = ((instruction >> 7) & 0x7) + 8;
+                uint64_t offset = ((instruction << 1) & 0x40) // imm[6]
+                            | ((instruction >> 7) & 0x38) // imm[5:3]
+                            | ((instruction >> 4) & 0x4); // imm[2]
+                debug_print("DEBUG c_lw x%d, 0x%x (x%d)\n",rd,offset,rs1);
+                uint64_t memory_address = emu->cpu.x_reg[rs1] + offset;
+                uint64_t result = vm_read_word(&emu->mmu,memory_address);
+                emu->cpu.x_reg[rd] = (uint64_t)((int64_t)((int32_t)result));
+                break;
+            }
+            default: {
+                assert("UNKNOWN FUNC3 QUADRANT 0");
+                }
+            }
         break;
     }
     case 0b01: {

@@ -21,6 +21,20 @@ int jalr_test(Emulator* emu,uint64_t instruction){
     return 1;
 }
 
+int c_lw_test(Emulator* emu,uint64_t instruction){
+    uint64_t expected = 0x1;
+    emu->cpu.x_reg[10] = 0x112cd0;
+    emu->cpu.x_reg[11] = 0x0;
+    execute_instruction(emu,instruction);
+    uint64_t result = emu->cpu.x_reg[11];
+    if (expected != result){
+      fprintf(stderr,"[-] TEST FAILED: %s expected 0x%x result 0x%x\n","c_lw_test",expected,result);
+      return 0;
+    }
+      fprintf(stderr,"[-] TEST PASSED: %s \n","c_lw_test");
+    return 1;
+}
+
 int c_mv_test(Emulator* emu,uint64_t instruction){
     uint64_t expected = 0x1234;
     emu->cpu.x_reg[2] = 0x1234;
@@ -73,7 +87,7 @@ int auipc_test(Emulator* emu,uint64_t instruction){
     return 1;
 }
 
-int load_elf_test(){
+int load_elf_test(Emulator* emu){
   FILE *binary_ptr = NULL;
   long binary_size = 0;
   size_t nread = 0;
@@ -97,7 +111,7 @@ int load_elf_test(){
     fprintf(stderr,"[-] TEST FAILED: %s \n","load_elf_test");
     return 0;
   }
-  //load_code_segments_into_virtual_memory(emu,code_segment);
+  load_code_segments_into_virtual_memory(emu,code_segment);
   free(binary_buffer);
   fclose(binary_ptr);
     fprintf(stderr,"[-] TEST PASSED: %s \n","load_elf_test");
@@ -109,9 +123,10 @@ int load_elf_test(){
 int main(){
   Emulator* emu = new_emulator();
   int passed_tests = 0;
-  int total_tests = 6;
-  if (load_elf_test())
+  int total_tests = 7;
+  if (load_elf_test(emu))
     passed_tests +=1;
+  emu->cpu.stack_pointer = init_stack_virtual_memory(emu,1,NULL); 
   if (auipc_test(emu, 0x00003197))
     passed_tests +=1;
   if (addi_test(emu, 0xc0e18193))
@@ -121,6 +136,8 @@ int main(){
   if (andi_test(emu, 0xff017113))
     passed_tests +=1;
   if (jalr_test(emu, 0x00830067))
+    passed_tests +=1;
+  if (c_lw_test(emu, 0x410c))
     passed_tests +=1;
   fprintf(stderr,"[+] %d/%d TESTS PASSED\n",passed_tests,total_tests);
   return 0;
