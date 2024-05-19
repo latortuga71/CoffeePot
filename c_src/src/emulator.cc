@@ -215,27 +215,48 @@ static void execute_compressed(Emulator* emu, uint64_t instruction){
                 break;
             }
             default: {
-                assert("UNKNOWN FUNC3 QUADRANT 0");
+                assert("UNKNOWN FUNC3 QUADRANT 0" == 0);
                 }
             }
         break;
     }
     case 0b01: {
         debug_print("DEBUG QUADRANT %d\n",1);
+        switch (funct3) {
+            case 0x0: {
+                uint64_t rd = (instruction >> 7) & 0x1f;
+                uint64_t nzimm = ((instruction >> 7) & 0x20) | ((instruction >> 2) & 0x1f);
+                if ((nzimm & 0x20) != 0){
+                    nzimm = (uint64_t)((int64_t)((int8_t)(0xc0 | nzimm)));
+                }
+                debug_print("DEBUG c_addi x%d, x%d, %d \n",rd,rd, (int16_t)nzimm);
+                if (rd != 0){
+                    emu->cpu.x_reg[rd] = (emu->cpu.x_reg[rd] + nzimm);
+                }
+                break;
+            }
+            case 0x2: {
+                uint64_t rd = (instruction >> 7) & 0x1f;
+                uint64_t nzimm = ((instruction >> 7) & 20) | ((instruction >> 2) & 0x1f);
+                if ((nzimm & 0x20) != 0){
+                    nzimm = (uint64_t)((int64_t)((int8_t)(0xc0 | nzimm)));
+                }
+                debug_print("DEBUG c_li x%d, x%d, 0x%x\n",rd,nzimm);
+                if (rd != 0){
+                    emu->cpu.x_reg[rd] = nzimm;
+                }
+                break;
+            }
+            default:{
+                assert("TODO QUADRANT 1 FUNCT 3" == 0 );
+                break;
+            }
+        }
         break;
     }
     case 0b10: {
         debug_print("DEBUG QUADRANT %d\n",2);
         switch (funct3) {
-            case 0x1: {
-                break;
-            }
-            case 0x2: {
-                break;
-            }
-            case 0x3: {
-                break;
-            }
             case 0x4: {
                 uint64_t left = (instruction >> 12) & 0x1;
                 uint64_t right = (instruction >> 2) & 0x1f;
@@ -258,17 +279,17 @@ static void execute_compressed(Emulator* emu, uint64_t instruction){
                     debug_print("DEBUG c_add %s\n","quadrant 2");
                     break;
                 } else {
-                    assert("QUADRANT 2 INVALID INSTRUCTION" != 0 );
+                    assert("QUADRANT 2 INVALID INSTRUCTION" == 0 );
                 }
                 break;
             }
             default:
-                assert("INVALID FUNCT3 QUADRANT 2" != 0);
+                assert("INVALID FUNCT3 QUADRANT 2" == 0);
         }
         break;
     }
     default:
-        assert("INVALID QUADRANT " != 0);
+        assert("INVALID QUADRANT " == 0);
     }
 }
 
@@ -285,6 +306,12 @@ static void execute(Emulator* emu, uint64_t instruction){
     uint64_t funct3 = (instruction & 0x00007000) >> 12;
     switch (opcode)
     {
+        case 0b0110111: {
+            uint64_t imm = (uint64_t)((int64_t)((int32_t)(instruction & 0xfffff000)));
+            emu->cpu.x_reg[rd] = imm;
+            debug_print("DEBUG: lui x%d,0x%01x\n",rd,imm);
+            break;
+        }
         case 0b0010111: {
             uint64_t imm = (uint64_t)((int64_t)((int32_t)(instruction & 0xfffff000)));
             emu->cpu.x_reg[rd] = emu->cpu.pc + imm;
