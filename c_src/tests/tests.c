@@ -6,6 +6,31 @@
 int stack_init_test(Emulator* emu, int argc, char** argv){
     return 1;
 }
+int c_li_test(Emulator* emu, uint64_t instruction){
+    emu->cpu.x_reg[15] = 0x0;
+    uint64_t expected = 0x0;
+    execute_instruction(emu,instruction);
+    uint64_t result = emu->cpu.x_reg[15];
+    if (expected != result){
+      fprintf(stderr,"[-] TEST FAILED: %s expected 0x%x result 0x%x\n","c_li_test",expected,result);
+      return 0;
+    }
+      fprintf(stderr,"[-] TEST PASSED: %s \n","c_li_test");
+    return 1;
+}
+
+int c_addi_test(Emulator* emu ,uint64_t instruction){
+    emu->cpu.x_reg[2] = 0x40007ffa40;
+    uint64_t expected = 0x40007ffa20;
+    execute_instruction(emu,instruction);
+    uint64_t result = emu->cpu.x_reg[2];
+    if (expected != result){
+      fprintf(stderr,"[-] TEST FAILED: %s expected 0x%x result 0x%x\n","c_addi_test",expected,result);
+      return 0;
+    }
+      fprintf(stderr,"[-] TEST PASSED: %s \n","c_addi_test");
+    return 1;
+}
 
 int lui_test(Emulator* emu,uint64_t instruction){
     emu->cpu.x_reg[10] = 0;
@@ -136,7 +161,7 @@ int load_elf_test(Emulator* emu){
 int main(){
   Emulator* emu = new_emulator();
   int passed_tests = 0;
-  int total_tests = 8;
+  int total_tests = 10;
   if (load_elf_test(emu))
     passed_tests +=1;
   emu->cpu.stack_pointer = init_stack_virtual_memory(emu,1,NULL); 
@@ -153,6 +178,10 @@ int main(){
   if (c_lw_test(emu, 0x410c))
     passed_tests +=1;
   if (lui_test(emu, 0x00010537))
+    passed_tests +=1;
+  if (c_li_test(emu, 0x4781))
+    passed_tests +=1;
+  if (c_addi_test(emu, 0x1101))
     passed_tests +=1;
   fprintf(stderr,"[+] %d/%d TESTS PASSED\n",passed_tests,total_tests);
   return 0;

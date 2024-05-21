@@ -228,6 +228,8 @@ static void execute_compressed(Emulator* emu, uint64_t instruction){
                 uint64_t nzimm = ((instruction >> 7) & 0x20) | ((instruction >> 2) & 0x1f);
                 if ((nzimm & 0x20) != 0){
                     nzimm = (uint64_t)((int64_t)((int8_t)(0xc0 | nzimm)));
+                } else {
+                    nzimm = (nzimm & 0x20);
                 }
                 debug_print("DEBUG c_addi x%d, x%d, %d \n",rd,rd, (int16_t)nzimm);
                 if (rd != 0){
@@ -238,10 +240,14 @@ static void execute_compressed(Emulator* emu, uint64_t instruction){
             case 0x2: {
                 uint64_t rd = (instruction >> 7) & 0x1f;
                 uint64_t nzimm = ((instruction >> 7) & 20) | ((instruction >> 2) & 0x1f);
+                debug_print("DEBUG zim %d\n",nzimm);
+                debug_print("DEBUG zim %d\n",nzimm & 0x20);
                 if ((nzimm & 0x20) != 0){
                     nzimm = (uint64_t)((int64_t)((int8_t)(0xc0 | nzimm)));
+                } else {
+                    nzimm = (nzimm & 0x20);
                 }
-                debug_print("DEBUG c_li x%d, x%d, 0x%x\n",rd,nzimm);
+                debug_print("DEBUG c_li x%d,%x\n",rd, nzimm);
                 if (rd != 0){
                     emu->cpu.x_reg[rd] = nzimm;
                 }
