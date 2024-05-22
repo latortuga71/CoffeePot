@@ -10,6 +10,8 @@
 #define error_print(fmt, ...) \
             do { fprintf(stderr, fmt, __VA_ARGS__); } while (0)
 
+#define todo(fmt) assert("TODO -> " fmt == 0);
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>
@@ -37,6 +39,8 @@ Segment* vm_get_segment(MMU* mmu, uint64_t address);
 // MMU WRITE TO MEMORY //
 void vm_write_double_word(MMU*, uint64_t address, uint64_t value);
 // MMU READ FROM MEMORY //
+uint64_t vm_read_double_word(MMU* mmu, uint64_t address);
+uint64_t vm_read_word(MMU* mmu, uint64_t address);
 
 
 
