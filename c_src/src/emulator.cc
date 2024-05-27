@@ -324,7 +324,7 @@ static void execute_compressed(Emulator* emu, uint64_t instruction){
                 uint64_t shamt = ((instruction >> 7) & 0x20) | ((instruction >> 2) & 0x1f);
                 debug_print("DEBUG: c.slli x%d, x%d , 0x%x\n",rd,rd,shamt);
                 if (rd != 0) {
-                    emu->cpu.x_reg[rd] = (emu->cpu.x_reg[rd] << shamt);
+                    emu->cpu.x_reg[rd] = emu->cpu.x_reg[rd] << shamt;
                 }
                 break;
             }
