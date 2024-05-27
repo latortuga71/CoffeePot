@@ -10,6 +10,20 @@ void reset_color(){
 int stack_init_test(Emulator* emu, int argc, char** argv){
     return 1;
 }
+
+int c_addi16sp_test(Emulator* emu,uint64_t instruction){
+    emu->cpu.x_reg[2] = 0x40007ffa20;
+    uint64_t expected = 0x40007ff8a0;
+    execute_instruction(emu,instruction);
+    uint64_t result = emu->cpu.x_reg[2];
+    if (expected != result){
+      fprintf(stderr,"[-] TEST FAILED: %s expected 0x%x result 0x%x\n","c_addi16sp_test",expected,result);
+      return 0;
+    }
+      fprintf(stderr,"[+] TEST PASSED: %s \n","c_addi16sp_test");
+    return 1;
+}
+
 int c_slli_test(Emulator* emu,uint64_t instruction){
     emu->cpu.x_reg[15] = 0x2;
     uint64_t expected = 0x10;
@@ -224,7 +238,7 @@ int load_elf_test(Emulator* emu){
 int main(){
   Emulator* emu = new_emulator();
   int passed_tests = 0;
-  int total_tests = 14;
+  int total_tests = 15;
   if (load_elf_test(emu))
     passed_tests +=1;
   emu->cpu.stack_pointer = init_stack_virtual_memory(emu,1,NULL); 
@@ -255,6 +269,10 @@ int main(){
     passed_tests +=1;
   if (add_test(emu,0x00f60533))
     passed_tests +=1;
+  if (c_addi16sp_test(emu,0x7109))
+    passed_tests +=1;
+
+  ///////
   if (passed_tests == total_tests){
     fprintf(stderr,"\033[0;32m[+] %d/%d ALL TESTS PASSED\n",passed_tests,total_tests);
   } else {
