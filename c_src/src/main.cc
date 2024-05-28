@@ -47,8 +47,8 @@ int main(int argc, char **argv) {
     uint32_t instruction = fetch(emu);
     execute_instruction(emu,(uint64_t)instruction);
     t++;
-    if (t > 50){
-      debug_print("ERROR: HIT 50 INSTRUCTION MILESTONE%s","\n");
+    if (t > 100){
+      debug_print("ERROR: HIT 100 INSTRUCTION MILESTONE%s","\n");
       break;
     }
   }
