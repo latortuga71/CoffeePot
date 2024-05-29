@@ -11,6 +11,7 @@
             do { fprintf(stderr, fmt, __VA_ARGS__); } while (0)
 
 #define todo(fmt) assert("TODO -> " fmt == 0);
+#define panic(fmt) assert("PANIC !!! ->" fmt == 0);
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -63,6 +64,5 @@ static void execute_compressed(Emulator* emu, uint64_t instruction);
 
 // CPU INSTRUCTIONS
 
-void auipc(uint64_t rs1, uint64_t rs2, void* error_callback);
 
 #endif
