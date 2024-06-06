@@ -124,18 +124,21 @@ uint64_t init_stack_virtual_memory(Emulator* emu, int argc, char** argv){
   uint64_t stack_pointer = stack_base + 0x1024;  //+ (1024*1024);
   stack_pointer -= 0x8;
   vm_write_double_word(&emu->mmu,stack_pointer, 0x0000000);
+
   stack_pointer -= 0x8;
   vm_write_double_word(&emu->mmu,stack_pointer, 0x0000000);
+
   stack_pointer -= 0x8;
   vm_write_double_word(&emu->mmu,stack_pointer, 0x0000000);
+
   /// loop over args and write them
   // heap
   uint64_t string_address = vm_alloc(&emu->mmu,0,1024,READ|WRITE);
   // for now we just right AAAAA
-  vm_write_double_word(&emu->mmu,string_address,0x4141414141414141);
+  vm_write_double_word(&emu->mmu,string_address,0x41414141);
   // write heap pointer to stack
   stack_pointer -= 0x8;
-  vm_write_double_word(&emu->mmu,stack_pointer, string_address);
+  vm_write_double_word(&emu->mmu, stack_pointer, string_address);
   // Write Argc
   stack_pointer -= 0x8;
   vm_write_double_word(&emu->mmu,stack_pointer, 1);
@@ -430,6 +433,10 @@ static void execute_compressed(Emulator* emu, uint64_t instruction){
                 }
                 todo("quadrant 1 func 3 0x4");
             }
+            case 0x5: {
+                todo("c.j");
+                return;
+            }
             case 0x6: {
                 uint64_t rs1 = ((instruction >>7 ) & 0b111) + 8;
                 uint64_t offset = ((instruction >> 4) & 0x100) |
@@ -591,7 +598,10 @@ static void execute(Emulator* emu, uint64_t instruction){
             switch (funct3)
             {
             case 0x0: {
-                todo("beq");
+                debug_print("beq x%d, x%d, 0x%x\n",rs1,rs2,emu->cpu.pc + imm);
+                if (emu->cpu.x_reg[rs1] == emu->cpu.x_reg[rs2]) {
+                    emu->cpu.pc = (emu->cpu.pc + imm) - 0x4;
+                }
                 return;
             }
             case 0x1: {
