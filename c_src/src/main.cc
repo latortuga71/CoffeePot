@@ -24,7 +24,7 @@ int main(int argc, char **argv) {
   binary_buffer = (char *)calloc(1, binary_size);
   nread = fread(binary_buffer, 1, binary_size, binary_ptr);
   // Parse Elf Headers
-  CodeSegment* code_segment = parse_elf_segments(binary_buffer,nread);
+  CodeSegments* code_segment = parse_elf_segments(binary_buffer,nread);
   free(binary_buffer);
   fclose(binary_ptr);
   // Create Virtual Memory
@@ -35,18 +35,21 @@ int main(int argc, char **argv) {
   emu->cpu.pc = code_segment->entry_point;
   emu->cpu.stack_pointer = init_stack_virtual_memory(emu,1,NULL); 
   emu->cpu.x_reg[2] = emu->cpu.stack_pointer;
-  /// FREE ELF SEGMENTS
-  free(code_segment->raw_data);
+  // Free elf segmetns
+  for (int i = 0; i < code_segment->count; i++){
+    free(code_segment->segs[i]->raw_data);
+    free(code_segment->segs[i]);
+  }
   free(code_segment);
   // PRINT SEGMENTS
   vm_print(&emu->mmu);
   /// Emulator Basic Loop
   int t = 0;
   for (;;) {
+    getchar();
     print_registers(emu);
     uint32_t instruction = fetch(emu);
     execute_instruction(emu,(uint64_t)instruction);
-    getchar();
   }
 
   free_emulator(emu);

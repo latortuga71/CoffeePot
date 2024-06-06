@@ -21,12 +21,12 @@ void free_emulator(Emulator* emu){
 
 void vm_print(MMU* mmu){
     for (int i = 0; i < mmu->segment_count; i++){
-        debug_print("[%d] DEBUG SEGMENT: 0x%x-0x%x size 0x%0x perms 0x%x\n",i,mmu->virtual_memory[i].range.start,mmu->virtual_memory[i].range.end,mmu->virtual_memory[i].data_size,mmu->virtual_memory[i].perms);
+        debug_print("[%d] DEBUG SEGMENT: 0x%llx-0x%llx size 0x%0x perms 0x%x\n",i,mmu->virtual_memory[i].range.start,mmu->virtual_memory[i].range.end,mmu->virtual_memory[i].data_size,mmu->virtual_memory[i].perms);
     }
 }
 
 Segment* vm_get_segment(MMU* mmu, uint64_t address){
-    //fprintf(stderr,"DEBUG: GETTING SEGMENT 0x%x\n",address);
+    fprintf(stderr,"DEBUG: GETTING SEGMENT 0x%llx\n",address);
     for (int i = 0; i < mmu->segment_count; i++){
         if (address >= mmu->virtual_memory[i].range.start && address < mmu->virtual_memory[i].range.end){
             return &mmu->virtual_memory[i];
@@ -45,8 +45,17 @@ bool vm_range_exists(MMU* mmu, uint64_t address){
 }
 
 uint64_t vm_alloc(MMU* mmu, uint64_t base_address, size_t size, uint32_t perms) {
+    uint64_t page_size = 4096;
     if (base_address == 0){
+        // makre sure base is 8 byte aligned
         uint64_t base = mmu->next_allocation_base + 0x1024;
+        // force upper alignment
+        /*
+        base = (base & ~(page_size - 1)) + page_size;
+        if ((base % 8) != 0 ){
+            todo("Alignement issue\n");
+        }
+        */
         uint64_t end = base + size;
         //fprintf(stderr,"DEBUG: ALLOC AT 0x%x\n",base);
         if (mmu->segment_count + 1 > mmu->segment_capacity){
@@ -101,14 +110,18 @@ void vm_copy(MMU* mmu,char* src, size_t src_size, uint64_t dst) {
     memcpy(&segment->data[offset],src, src_size);
 }
 
-void load_code_segments_into_virtual_memory(Emulator* emu ,CodeSegment* code){
-  uint64_t text_section_base = vm_alloc(&emu->mmu, code->base_address,code->total_size, READ|WRITE|EXEC);
-  vm_copy(&emu->mmu,code->raw_data,code->total_size,code->base_address);
+void load_code_segments_into_virtual_memory(Emulator* emu ,CodeSegments* code){
+  uint64_t base_addr = vm_alloc(&emu->mmu,code->base_address,code->total_size, READ|WRITE|EXEC );
+  for (int i = 0; i < code->count; i++){
+    vm_copy(&emu->mmu, code->segs[i]->raw_data, code->segs[i]->size, code->segs[i]->virtual_address);
+  }
 }
 
 uint64_t init_stack_virtual_memory(Emulator* emu, int argc, char** argv){
-  uint64_t stack_base = vm_alloc(&emu->mmu, 0, 1024*1024, READ | WRITE);
-  uint64_t stack_pointer = stack_base + (1024*1024);
+  uint64_t test_start = 0x40007ffa40 + 0x28;
+  uint64_t stack_base = vm_alloc(&emu->mmu, test_start - (0x1024), 1024*1024, READ | WRITE);
+  debug_print("base 0x%llx\n",stack_base);
+  uint64_t stack_pointer = stack_base + 0x1024;  //+ (1024*1024);
   stack_pointer -= 0x8;
   vm_write_double_word(&emu->mmu,stack_pointer, 0x0000000);
   stack_pointer -= 0x8;
@@ -119,7 +132,7 @@ uint64_t init_stack_virtual_memory(Emulator* emu, int argc, char** argv){
   // heap
   uint64_t string_address = vm_alloc(&emu->mmu,0,1024,READ|WRITE);
   // for now we just right AAAAA
-  vm_write_double_word(&emu->mmu,string_address,0x41414141);
+  vm_write_double_word(&emu->mmu,string_address,0x4141414141414141);
   // write heap pointer to stack
   stack_pointer -= 0x8;
   vm_write_double_word(&emu->mmu,stack_pointer, string_address);
@@ -127,6 +140,7 @@ uint64_t init_stack_virtual_memory(Emulator* emu, int argc, char** argv){
   stack_pointer -= 0x8;
   vm_write_double_word(&emu->mmu,stack_pointer, 1);
   // Return SP
+  debug_print("0x%llx\n",stack_pointer);
   return stack_pointer;
 }
 
@@ -137,7 +151,7 @@ void vm_write_byte(MMU* mmu, uint64_t address, uint64_t value)  {
         panic("TODO HANDLE SEGFAULT! WITH A CALLBACK");
     }
     uint64_t index = address - s->range.start;
-    printf("Address 0x%x memory base 0x%x memory end 0x%x segment offset 0x%x\n",address, s->range.start,s->range.end,index);
+    debug_print("WRITE BYTE Writing 0x%llx to 0x%llx\n",value,address);
     s->data[index] = (uint8_t)(value);
 }
 
@@ -147,7 +161,7 @@ void vm_write_word(MMU* mmu, uint64_t address, uint64_t value)  {
         panic("TODO HANDLE SEGFAULT! WITH A CALLBACK");
     }
     uint64_t index = address - s->range.start;
-    printf("Address 0x%x memory base 0x%x memory end 0x%x segment offset 0x%x\n",address, s->range.start,s->range.end,index);
+    debug_print("Writing WORD 0x%llx to 0x%llx\n",value,address);
     s->data[index] = (value & 0xff);
     s->data[index + 1] = ((value >> 8 ) & 0xff);
     s->data[index + 2] = ((value >> 16 ) & 0xff);
@@ -158,11 +172,11 @@ void vm_write_word(MMU* mmu, uint64_t address, uint64_t value)  {
 void vm_write_double_word(MMU* mmu, uint64_t address, uint64_t value)  {
     Segment* s = vm_get_segment(mmu, address);
     if (s == NULL){
-        debug_print("Attempted to write too 0x%x\n",address);
+        debug_print("Attempted to write too 0x%llx\n",address);
         assert("TODO HANDLE SEGFAULT! WITH A CALLBACK" == 0);
     }
     uint64_t index = address - s->range.start;
-    printf("Address 0x%x memory base 0x%x memory end 0x%x segment offset 0x%x\n",address, s->range.start,s->range.end,index);
+    debug_print("Writing DOUBLE 0x%llx to 0x%llx\n",value,address);
     s->data[index] = (value & 0xff);
     s->data[index + 1] = ((value >> 8 ) & 0xff);
     s->data[index + 2] = ((value >> 16 ) & 0xff);
@@ -179,7 +193,7 @@ uint64_t vm_read_double_word(MMU* mmu, uint64_t address){
         assert("TODO HANDLE SEGFAULT! WITH A CALLBACK" == 0);
     }
     uint64_t index = address - s->range.start;
-    //fprintf(stderr,"DEBUG: Address 0x%x memory base 0x%x segment offset 0x%x\n",address, s->range.start,index);
+    debug_print("READING DOUBLE 0x%llx\n",address);
     return (uint64_t)(s->data[index])
         | ((uint64_t)(s->data[index + 1]) << 8)
         | ((uint64_t)(s->data[index + 2]) << 16)
@@ -197,6 +211,7 @@ uint64_t vm_read_word(MMU* mmu, uint64_t address){
     }
     uint64_t index = address - s->range.start;
     //fprintf(stderr,"DEBUG: Address 0x%x memory base 0x%x segment offset 0x%x\n",address, s->range.start,index);
+    debug_print("READING WORD 0x%llx\n",address);
     return (uint64_t)(s->data[index])
         | ((uint64_t)(s->data[index + 1]) << 8)
         | ((uint64_t)(s->data[index + 2]) << 16)
@@ -213,9 +228,9 @@ uint32_t fetch(Emulator* emu) {
 }
 
 void print_registers(Emulator* emu){
-    debug_print("pc: 0x%x\n",emu->cpu.pc);
+    debug_print("pc: 0x%llx\n",emu->cpu.pc);
     for (int i = 0; i < 32; i++){
-        debug_print("x%d 0x%x\n",i,emu->cpu.x_reg[i]);
+        debug_print("x%d 0x%llx\n",i,emu->cpu.x_reg[i]);
     }
 }
 
@@ -263,6 +278,7 @@ static void execute_compressed(Emulator* emu, uint64_t instruction){
                 uint64_t memory_address = emu->cpu.x_reg[rs1] + offset;
                 uint64_t result = vm_read_double_word(&emu->mmu,memory_address);
                 debug_print("DEBUG c_ld x%d, %d (x%d)\n",rd,offset,rs1);
+                debug_print("LOADED 0x%x\n",result);
                 emu->cpu.x_reg[rd] = result;
                 return;
             }
@@ -301,8 +317,6 @@ static void execute_compressed(Emulator* emu, uint64_t instruction){
                 uint64_t nzimm = ((instruction >> 7) & 0x20) | ((instruction >> 2) & 0x1f);
                 if ((nzimm & 0x20) != 0){
                     nzimm = (uint64_t)((int64_t)((int8_t)(0xc0 | nzimm)));
-                } else {
-                    nzimm = (nzimm & 0x20);
                 }
                 debug_print("DEBUG c_addi x%d, x%d, %d \n",rd,rd, (int16_t)nzimm);
                 if (rd != 0){
@@ -316,8 +330,6 @@ static void execute_compressed(Emulator* emu, uint64_t instruction){
                 uint64_t imm = ((instruction >> 7) & 0x20) | ((instruction >> 2) & 0x1f);
                 if ((imm & 0x20) != 0){
                     imm = (uint64_t)((int64_t)((int8_t)(0xc0 | imm)));
-                } else {
-                    imm = (imm & 0x20);
                 }
                 debug_print("DEBUG c_addiw x%d, x%d, %d \n",rd,rd, (int16_t)imm);
                 if (rd != 0){
@@ -327,17 +339,13 @@ static void execute_compressed(Emulator* emu, uint64_t instruction){
             }
             case 0x2: {
                 uint64_t rd = (instruction >> 7) & 0x1f;
-                uint64_t nzimm = ((instruction >> 7) & 20) | ((instruction >> 2) & 0x1f);
-                debug_print("DEBUG zim %d\n",nzimm);
-                debug_print("DEBUG zim %d\n",nzimm & 0x20);
-                if ((nzimm & 0x20) != 0){
-                    nzimm = (uint64_t)((int64_t)((int8_t)(0xc0 | nzimm)));
-                } else {
-                    nzimm = (nzimm & 0x20);
+                uint64_t imm_ = ((instruction >> 7) & 0x20) | ((instruction >> 2) & 0x1f);
+                debug_print("DEBUG c_li x%d,%x\n",rd, imm_);
+                if ((imm_ & 0x20) != 0){
+                    imm_ = (int64_t)((int8_t)((0xc0 | imm_)));
                 }
-                debug_print("DEBUG c_li x%d,%x\n",rd, nzimm);
                 if (rd != 0){
-                    emu->cpu.x_reg[rd] = nzimm;
+                    emu->cpu.x_reg[rd] = imm_;
                 }
                 return;
             }
@@ -353,8 +361,6 @@ static void execute_compressed(Emulator* emu, uint64_t instruction){
                     ((instruction << 3) & 0x20);
                     if ((nzimm & 0x200 ) != 0 ){
                        nzimm = (uint64_t)((int64_t)((int32_t)((int16_t)(0xfc00 | nzimm))));
-                    } else {
-                        nzimm = (nzimm & 0x200);
                     }
                     if (nzimm != 0 ){
                         emu->cpu.x_reg[2] = (emu->cpu.x_reg[2] + nzimm);
@@ -373,17 +379,17 @@ static void execute_compressed(Emulator* emu, uint64_t instruction){
                 {
                 case 0x0:{
                     todo("c.srli");
+                    return;
                 }
                 case 0x1: {
                     todo("c.srai");
+                    return;
                 }
                 case 0x2: {
                     uint64_t rd = ((instruction >> 7) & 0b111) + 8;
                     uint64_t imm = ((instruction >> 7) & 0x20) | ((instruction >> 2) & 0x1f);
                     if ( (imm & 0x20) != 0 ){
                         imm = (uint64_t)((int64_t)((int8_t)((0xc0 | imm))));
-                    } else {
-                        imm = (imm & 0x20);
                     }
                     debug_print("c.andi x%d, x%d, %d\n",rd,rd,(int64_t)imm);
                     emu->cpu.x_reg[rd] = (emu->cpu.x_reg[rd] & imm);
@@ -416,6 +422,7 @@ static void execute_compressed(Emulator* emu, uint64_t instruction){
                         return;
                     } else {
                         todo("panic Invalid quadrant 2 funct 2");
+                        return;
                     }
                 }
                 default:
@@ -433,11 +440,9 @@ static void execute_compressed(Emulator* emu, uint64_t instruction){
                 debug_print("c_beqz x%d, 0x%x\n",rs1,emu->cpu.pc + offset);
                 if ((offset & 0x100 ) != 0 ){
                     offset = (uint64_t)((int64_t)((int16_t)((0xfe00 | offset))));
-                } else {
-                    offset = (offset & 0x100);
                 }
                 if (emu->cpu.x_reg[rs1] == 0) {
-                    emu->cpu.pc = (emu->cpu.pc + offset);
+                    emu->cpu.pc = (emu->cpu.pc + offset) - 0x2;
                 }
                 return;
             }
@@ -543,9 +548,11 @@ static void execute(Emulator* emu, uint64_t instruction){
                     return;
                 } else {
                     assert("INVALID FUNCT 7" == 0);
+                    return;
                 }
             default:
                 assert("INVALID FUNCT 3" == 0);
+                return;
             }
         }
         case 0b0110111: {
@@ -572,6 +579,7 @@ static void execute(Emulator* emu, uint64_t instruction){
             }
             default:
                 todo("slliw unknown funct3");
+                return;
             }
         }
         case 0b1100011: {
@@ -589,7 +597,7 @@ static void execute(Emulator* emu, uint64_t instruction){
             case 0x1: {
                 debug_print("bne x%d, x%d, 0x%x\n",rs1,rs2,emu->cpu.pc + imm);
                 if (emu->cpu.x_reg[rs1] != emu->cpu.x_reg[rs2]){
-                    emu->cpu.pc = emu->cpu.pc + imm;
+                    emu->cpu.pc = (emu->cpu.pc + imm) - 0x4;
                 }
                 return;
             }
@@ -608,7 +616,7 @@ static void execute(Emulator* emu, uint64_t instruction){
             case 0x7: {
                 debug_print("bgeu x%d, x%d, 0x%x\n",rs1,rs2,emu->cpu.pc + imm);
                 if ((int64_t)(emu->cpu.x_reg[rs1]) >= (int64_t)(emu->cpu.x_reg[rs2])) {
-                    emu->cpu.pc = emu->cpu.pc + imm;
+                    emu->cpu.pc = (emu->cpu.pc + imm) - 0x4;
                 }
                 return;
             }
@@ -643,6 +651,7 @@ static void execute(Emulator* emu, uint64_t instruction){
             }
             default:
                 assert("TODO STORE INSTRUCT" == 0);
+                return;
             }
         }
         case 0b00010011: {
@@ -682,6 +691,7 @@ static void execute(Emulator* emu, uint64_t instruction){
             }
             default:
                 assert("TODO! UNKNOWN FUNCT3" == 0);
+                return;
             }
         }
         case 0b1100111: {
@@ -695,5 +705,6 @@ static void execute(Emulator* emu, uint64_t instruction){
         }
     default:
         assert("TODO! UNKNOWN OPCODE" == 0);
+        return;
     }
 }

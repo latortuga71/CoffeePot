@@ -36,14 +36,23 @@ typedef struct elf_program_hdr_t {
   uint64_t p_align;
 } ElfProgHdr;
 
+
+
 typedef struct code_segment_t {
-  uint64_t entry_point;
-  uint64_t base_address;
-  uint64_t total_size;
+  uint64_t virtual_address;
+  uint64_t size;
   char* raw_data;
 } CodeSegment;
 
+typedef struct code_segments_t {
+  uint64_t entry_point;
+  uint64_t base_address;
+  uint64_t total_size;
+  CodeSegment** segs;
+  size_t count;
+} CodeSegments;
 
-CodeSegment* parse_elf_segments(char *, size_t);
+
+CodeSegments* parse_elf_segments(char *, size_t);
 
 #endif

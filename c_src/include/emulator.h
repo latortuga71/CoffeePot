@@ -51,7 +51,7 @@ uint64_t vm_read_word(MMU* mmu, uint64_t address);
 // Emulator //
 void print_registers(Emulator*);
 // load elf segments into memory
-void load_code_segments_into_virtual_memory(Emulator* ,CodeSegment*);
+void load_code_segments_into_virtual_memory(Emulator* ,CodeSegments*);
 // load libc stack args into stack memory
 uint64_t init_stack_virtual_memory(Emulator* emu,int argc, char** argv);
 uint32_t fetch(Emulator* emu);
