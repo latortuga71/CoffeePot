@@ -221,8 +221,6 @@ void* vm_copy_memory(MMU* mmu,uint64_t address,size_t count) {
     uint64_t index = address - s->range.start;
     uint8_t* copy = (uint8_t*)malloc(sizeof(uint8_t) * count);
     memset(copy,0,count);
-    //printf("-> %s\n",(char*)&s->data[index]);
-    //printf("-> %s \0\n",copy);
     memcpy(copy,&s->data[index], sizeof(uint8_t) * count);
     return copy;
 }

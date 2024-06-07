@@ -35,11 +35,12 @@ int main(int argc, char **argv) {
   emu->cpu.pc = code_segment->entry_point;
   emu->cpu.stack_pointer = init_stack_virtual_memory(emu,argc,argv); 
   emu->cpu.x_reg[2] = emu->cpu.stack_pointer;
-  // Free elf segmetns
+  // Free elf segments
   for (int i = 0; i < code_segment->count; i++){
     free(code_segment->segs[i]->raw_data);
     free(code_segment->segs[i]);
   }
+  free(code_segment->segs);
   free(code_segment);
   // PRINT SEGMENTS
   vm_print(&emu->mmu);
@@ -65,12 +66,11 @@ int main(int argc, char **argv) {
   // TODO....
   //.....
   // Set Memory Permissions Function
-  // Set EntryPoint On CPU
-  // Fetch Function
-  // Decode Function
-  // Execute Function
-  // Snapshot Function
-  // Restore Function
+  // Snapshot Functionality
+  // Restore Functionality
+  // Crash Gathering Callback
+  // Coverage Gathering Callback
   // Enable Memory Swapping For FuzzCases
+  // Better Memory Permisssions
   return 0;
 }
