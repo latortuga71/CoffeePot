@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>
+#include <unistd.h>
 #include "cpu.h"
 #include "mmu.h"
 #include "loader.h"
@@ -43,8 +44,8 @@ void vm_write_double_word(MMU*, uint64_t address, uint64_t value);
 uint64_t vm_read_double_word(MMU* mmu, uint64_t address);
 uint64_t vm_read_word(MMU* mmu, uint64_t address);
 uint64_t vm_read_byte(MMU* mmu, uint64_t address);
-
-
+char* vm_read_string(MMU* mmu,uint64_t address);
+void vm_write_string(MMU* mmu,uint64_t address, char* string);
 
 
 // Emulator //
@@ -60,6 +61,8 @@ void execute_instruction(Emulator* emu, uint64_t instruction);
 
 static void execute(Emulator* emu, uint64_t instruction);
 static void execute_compressed(Emulator* emu, uint64_t instruction);
+
+void emulate_syscall(Emulator* emu);
 
 // CPU INSTRUCTIONS
 

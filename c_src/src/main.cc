@@ -33,7 +33,7 @@ int main(int argc, char **argv) {
   //printf("Code Loaded At 0x%x\n",code_segment->base_address);
   // INITALIZE CPU REGISTERS
   emu->cpu.pc = code_segment->entry_point;
-  emu->cpu.stack_pointer = init_stack_virtual_memory(emu,1,NULL); 
+  emu->cpu.stack_pointer = init_stack_virtual_memory(emu,argc,argv); 
   emu->cpu.x_reg[2] = emu->cpu.stack_pointer;
   // Free elf segmetns
   for (int i = 0; i < code_segment->count; i++){
