@@ -221,6 +221,17 @@ uint64_t vm_read_word(MMU* mmu, uint64_t address){
         | ((uint64_t)(s->data[index + 3]) << 24);
 }
 
+uint64_t vm_read_byte(MMU* mmu, uint64_t address){
+    Segment* s = vm_get_segment(mmu, address);
+    if (s == NULL){
+        assert("TODO HANDLE SEGFAULT! WITH A CALLBACK" == 0);
+    }
+    uint64_t index = address - s->range.start;
+    //fprintf(stderr,"DEBUG: Address 0x%x memory base 0x%x segment offset 0x%x\n",address, s->range.start,index);
+    debug_print("READING WORD 0x%llx\n",address);
+    return (uint64_t)(s->data[index]);
+}
+
 uint32_t fetch(Emulator* emu) {
     //fprintf(stderr,"DEBUG: FETCHING INSTRUCTION 0x%x\n",emu->cpu.pc);
     Segment* segment = vm_get_segment(&emu->mmu,emu->cpu.pc);
@@ -414,7 +425,8 @@ static void execute_compressed(Emulator* emu, uint64_t instruction){
                         todo("c.or");
                         return;
                     } else if (left == 0x0 && right == 0x3) {
-                        todo("c.and");
+                        debug_print("c.and%s","\n");
+                        emu->cpu.x_reg[rd] = emu->cpu.x_reg[rd] & emu->cpu.x_reg[rs2];
                         return;
                     } else if (left == 0x1 && right == 0x0) {
                         todo("c.subw");
@@ -457,6 +469,22 @@ static void execute_compressed(Emulator* emu, uint64_t instruction){
                 ((instruction >> 7) & 0x18) |
                 ((instruction >> 2) & 0x6);
                 debug_print("c_beqz x%d, 0x%x\n",rs1,emu->cpu.pc + offset);
+                if ((offset & 0x100 ) != 0 ){
+                    offset = (uint64_t)((int64_t)((int16_t)((0xfe00 | offset))));
+                }
+                if (emu->cpu.x_reg[rs1] == 0) {
+                    emu->cpu.pc = (emu->cpu.pc + offset) - 0x2;
+                }
+                return;
+            }
+            case 0x7: {
+                uint64_t rs1 = ((instruction >>7 ) & 0b111) + 8;
+                uint64_t offset = ((instruction >> 4) & 0x100) |
+                ((instruction << 1) & 0xc0) |
+                ((instruction << 3) & 0x20) |
+                ((instruction >> 7) & 0x18) |
+                ((instruction >> 2) & 0x6);
+                debug_print("c_bnez x%d, 0x%x\n",rs1,emu->cpu.pc + offset);
                 if ((offset & 0x100 ) != 0 ){
                     offset = (uint64_t)((int64_t)((int16_t)((0xfe00 | offset))));
                 }
@@ -571,6 +599,48 @@ static void execute(Emulator* emu, uint64_t instruction){
                 }
             default:
                 assert("INVALID FUNCT 3" == 0);
+                return;
+            }
+        }
+        case 0b0000011: {
+            uint64_t offset = ((int64_t)((int32_t)(instruction)) >> 20);
+            uint64_t memory_address = emu->cpu.x_reg[rs1] + offset;
+            switch (funct3)
+            {
+            case 0x0: {
+                todo("load byte");
+                return;
+            }
+            case 0x1:{
+                todo("load half");
+                return;
+            }
+            case 0x2: {
+                todo("load word");
+                return;
+            }
+            case 0x3: {
+                debug_print("ld%s","\n");
+                uint64_t value = vm_read_double_word(&emu->mmu,memory_address);
+                emu->cpu.x_reg[rd] = value;
+                return;
+            }
+            case 0x4: {
+                debug_print("lbu%s","\n");
+                uint64_t value = vm_read_byte(&emu->mmu,memory_address);
+                emu->cpu.x_reg[rd] = value;
+                return;
+            }
+            case 0x5: {
+                todo("lhu");
+                return;
+            }
+            case 0x6: {
+                todo("lwu");
+                return;
+            }
+            default:
+                todo("invalid load instruction");
                 return;
             }
         }

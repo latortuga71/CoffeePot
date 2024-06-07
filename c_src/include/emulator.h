@@ -42,8 +42,7 @@ void vm_write_double_word(MMU*, uint64_t address, uint64_t value);
 // MMU READ FROM MEMORY //
 uint64_t vm_read_double_word(MMU* mmu, uint64_t address);
 uint64_t vm_read_word(MMU* mmu, uint64_t address);
-
-
+uint64_t vm_read_byte(MMU* mmu, uint64_t address);
 
 
 
