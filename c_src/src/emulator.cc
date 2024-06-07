@@ -434,7 +434,19 @@ static void execute_compressed(Emulator* emu, uint64_t instruction){
                 todo("quadrant 1 func 3 0x4");
             }
             case 0x5: {
-                todo("c.j");
+                debug_print("c.j%s","\n");
+                uint64_t offset = ((instruction >> 1) & 0x800) |
+                ((instruction << 2) & 0x400) |
+                ((instruction >> 1) & 0x300) |
+                ((instruction << 1) & 0x80) |
+                ((instruction >> 1) & 0x40) |
+                ((instruction << 3) & 0x20) |
+                ((instruction >> 7) & 0x10) |
+                ((instruction >> 2) & 0xe);
+                if ((offset & 0x800 ) != 0 ){
+                    offset = (uint64_t)((int64_t)((int16_t)((0xf000 | offset))));
+                }
+                emu->cpu.pc = (emu->cpu.pc + offset) - 0x2;
                 return;
             }
             case 0x6: {

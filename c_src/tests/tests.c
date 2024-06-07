@@ -10,6 +10,29 @@ void reset_color(){
 int stack_init_test(Emulator* emu, int argc, char** argv){
     return 1;
 }
+uint64_t init_stack_virtual_memory_test(Emulator* emu, int argc, char** argv){
+  uint64_t stack_base = vm_alloc(&emu->mmu, 0, 1024*1024, READ | WRITE);
+  uint64_t stack_pointer = stack_base + (1024*1024);
+  stack_pointer -= 0x8;
+  vm_write_double_word(&emu->mmu,stack_pointer, 0x0000000);
+  stack_pointer -= 0x8;
+  vm_write_double_word(&emu->mmu,stack_pointer, 0x0000000);
+  stack_pointer -= 0x8;
+  vm_write_double_word(&emu->mmu,stack_pointer, 0x0000000);
+  /// loop over args and write them
+  // heap
+  uint64_t string_address = vm_alloc(&emu->mmu,0,1024,READ|WRITE);
+  // for now we just right AAAAA
+  vm_write_double_word(&emu->mmu,string_address,0x41414141);
+  // write heap pointer to stack
+  stack_pointer -= 0x8;
+  vm_write_double_word(&emu->mmu,stack_pointer, string_address);
+  // Write Argc
+  stack_pointer -= 0x8;
+  vm_write_double_word(&emu->mmu,stack_pointer, 1);
+  // Return SP
+  return stack_pointer;
+}
 
 int c_addi16sp_test(Emulator* emu,uint64_t instruction){
     emu->cpu.x_reg[2] = 0x40007ffa20;
@@ -123,6 +146,8 @@ int jalr_test(Emulator* emu,uint64_t instruction){
 
 int c_lw_test(Emulator* emu,uint64_t instruction){
     uint64_t expected = 0x1;
+    // writeing the number one there lol
+    vm_write_double_word(&emu->mmu,0x112cd0,0x1);
     emu->cpu.x_reg[10] = 0x112cd0;
     emu->cpu.x_reg[11] = 0x0;
     execute_instruction(emu,instruction);
@@ -219,7 +244,7 @@ int load_elf_test(Emulator* emu){
   binary_buffer = (char *)calloc(1, binary_size);
   nread = fread(binary_buffer, 1, binary_size, binary_ptr);
   // Parse Elf Headers
-  CodeSegment* code_segment = parse_elf_segments(binary_buffer,nread);
+  CodeSegments* code_segment = parse_elf_segments(binary_buffer,nread);
   if (code_segment->entry_point != 0x1014A){
     free(binary_buffer);
     fclose(binary_ptr);
@@ -241,7 +266,7 @@ int main(){
   int total_tests = 15;
   if (load_elf_test(emu))
     passed_tests +=1;
-  emu->cpu.stack_pointer = init_stack_virtual_memory(emu,1,NULL); 
+  emu->cpu.stack_pointer = init_stack_virtual_memory_test(emu,1,NULL); 
   uint64_t stack_pointer_og = emu->cpu.stack_pointer;
   if (auipc_test(emu, 0x00003197))
     passed_tests +=1;
