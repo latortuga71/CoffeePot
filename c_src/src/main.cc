@@ -45,8 +45,17 @@ int main(int argc, char **argv) {
   vm_print(&emu->mmu);
   /// Emulator Basic Loop
   int t = 0;
+  bool debug = false;
+  uint64_t main_addr = 0x10236;
   for (;;) {
-    //getchar();
+    /*
+    if (emu->cpu.pc == main_addr){
+      debug = true;
+    }
+    */
+    if (debug){
+      getchar();
+    }
     print_registers(emu);
     uint32_t instruction = fetch(emu);
     execute_instruction(emu,(uint64_t)instruction);

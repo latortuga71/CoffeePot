@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <unistd.h>
+#include <sys/uio.h>
 #include "cpu.h"
 #include "mmu.h"
 #include "loader.h"
