@@ -26,7 +26,7 @@ void vm_print(MMU* mmu){
 }
 
 Segment* vm_get_segment(MMU* mmu, uint64_t address){
-    fprintf(stderr,"DEBUG: GETTING SEGMENT 0x%llx\n",address);
+    debug_print("DEBUG: GETTING SEGMENT 0x%llx\n",address);
     for (int i = 0; i < mmu->segment_count; i++){
         if (address >= mmu->virtual_memory[i].range.start && address < mmu->virtual_memory[i].range.end){
             return &mmu->virtual_memory[i];
@@ -845,6 +845,21 @@ static void execute(Emulator* emu, uint64_t instruction){
                 emu->cpu.x_reg[rd] = (uint64_t)((int64_t)((int32_t)((emu->cpu.x_reg[rs1] << shamt))));
                 return;
             }
+            case 0x5:{
+                switch (funct7)
+                {
+                    case 0x20:{
+                        uint32_t shamt = (uint32_t)(imm & 0x1f);
+                        debug_print("sraiw x%d, x%d, 0x%x\n",rd,rs1,imm);
+                        emu->cpu.x_reg[rd] = (uint64_t)((int64_t)((int32_t)(emu->cpu.x_reg[rs1]) >> shamt));
+                        return;
+                    }
+                    default:{
+                        panic("unknwon funct7");
+                        break;
+                    }
+                }
+            }
             default:
                 todo("slliw unknown funct3");
                 return;
@@ -1053,14 +1068,17 @@ void emulate_syscall(Emulator* emu){
             // Read Memory Buffer
             ssize_t write_count = 0;
             for (int i = 0; i < iovcnt; i++){
+                if (iovec_ptr->iov_len < 1){
+                    continue;
+                }
                 void* buffer = vm_copy_memory(&emu->mmu,(uint64_t)(iovec_ptr->iov_base),iovec_ptr->iov_len);
                 // Write it to corresponding file descriptor
                 if (file_descriptor == STDOUT_FILENO) {
-                    printf("stdout: %s",(char*)buffer);
+                    //printf("%s",(char*)buffer);
+                    write(file_descriptor,buffer,iovec_ptr->iov_len);
                 }
                 write_count += iovec_ptr->iov_len;
                 free(buffer);
-                getchar();
                 iovec_ptr++;
             }
             emu->cpu.x_reg[10] = write_count;
@@ -1092,7 +1110,8 @@ void emulate_syscall(Emulator* emu){
             return;
         }
         case 0x5e: {
-            todo("exit syscall");
+            debug_print("exit syscall%s","\n");
+            exit(arg0);
             return;
         }
         default: {

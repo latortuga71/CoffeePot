@@ -38,34 +38,10 @@ CodeSegments* parse_elf_segments(char *elf_data,size_t file_size) {
     int end = start + program_header_entry->p_filesz;
     int off = end - start;
     memcpy(segment->raw_data,&elf_data[start],off);
-    printf("%s\n",segment->raw_data);
+    //printf("%s\n",segment->raw_data);
     code_segment_info->segs[code_segment_info->count] = segment;
     code_segment_info->count++;
-    printf("Loaded Segment 0x%llx\n",segment->virtual_address);
+    //printf("Loaded Segment 0x%llx\n",segment->virtual_address);
   }
     return code_segment_info;
 }
-
-    // for each section allocate the size and the virtual memory address
-    // this wastes memory but allows us to just put the raw data in the virtual addresses in our buffer easier
-
-
-
-
-
-
-    /*
-    // handle copying the data to 1 buffer this will be our text section in memory;
-    //code_segment_info->total_size += program_header_entry->p_memsz; // <- look here if you have issues
-    int start = program_header_entry->p_offset;
-    int end = start + program_header_entry->p_filesz;
-    int off = end - start;
-    memcpy(code_segment_info->raw_data, &elf_data[start],off);
-    *?
-  }
-  // add values to struct
-  /*
-  printf("Code Segment Entry 0x%x\n",code_segment_info->entry_point);
-  printf("Code Segment Info Base Address 0x%x\n",code_segment_info->base_address);
-  printf("Code Segment Info Size %d\n",code_segment_info->total_size);
-  */
