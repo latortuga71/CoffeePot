@@ -213,14 +213,18 @@ void* vm_read_memory(MMU* mmu,uint64_t address) {
     return (void*)&s->data[index];
 }
 
-void* vm_copy_memory(MMU* mmu,uint64_t address) {
-    todo("implement copy");
+void* vm_copy_memory(MMU* mmu,uint64_t address,size_t count) {
     Segment* s = vm_get_segment(mmu, address);
     if (s == NULL){
         assert("TODO HANDLE SEGFAULT! WITH A CALLBACK" == 0);
     }
     uint64_t index = address - s->range.start;
-    return (void*)&s->data[index];
+    uint8_t* copy = (uint8_t*)malloc(sizeof(uint8_t) * count);
+    memset(copy,0,count);
+    //printf("-> %s\n",(char*)&s->data[index]);
+    //printf("-> %s \0\n",copy);
+    memcpy(copy,&s->data[index], sizeof(uint8_t) * count);
+    return copy;
 }
 
 char* vm_read_string(MMU* mmu,uint64_t address){
@@ -1042,12 +1046,24 @@ void emulate_syscall(Emulator* emu){
         case 0x42:{
             debug_print("syscall -> writev%s","\n");
             uint64_t file_descriptor = arg0;
+            // Read IOVEC Pointer
             iovec* iovec_ptr = (iovec*)vm_read_memory(&emu->mmu,arg1);
             int iovcnt = (int)arg2;
-            // loop over memory
-            debug_print("buffer length %d\n",iovec_ptr->iov_len);
-            // Write it to corresponding file descriptor
-            panic("Stop");
+            debug_print("buffer address 0x%llx buffer length %d file_descriptor %d\n",iovec_ptr->iov_base,iovec_ptr->iov_len,file_descriptor);
+            // Read Memory Buffer
+            ssize_t write_count = 0;
+            for (int i = 0; i < iovcnt; i++){
+                void* buffer = vm_copy_memory(&emu->mmu,(uint64_t)(iovec_ptr->iov_base),iovec_ptr->iov_len);
+                // Write it to corresponding file descriptor
+                if (file_descriptor == STDOUT_FILENO) {
+                    printf("stdout: %s",(char*)buffer);
+                }
+                write_count += iovec_ptr->iov_len;
+                free(buffer);
+                getchar();
+                iovec_ptr++;
+            }
+            emu->cpu.x_reg[10] = write_count;
             return;
         }
         case 0x1d: {
