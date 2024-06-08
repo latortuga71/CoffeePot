@@ -59,7 +59,7 @@ int main(int argc, char **argv) {
     }
     print_registers(emu);
     uint32_t instruction = fetch(emu);
-    execute_instruction(emu,(uint64_t)instruction);
+    execute_instruction(emu,(uint64_t)instruction, generic_record_coverage);
   }
 
   free_emulator(emu);

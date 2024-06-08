@@ -21,15 +21,22 @@
 #include "cpu.h"
 #include "mmu.h"
 #include "loader.h"
+#include "hash.h"
+#include "coverage.h"
 
 
 typedef struct emulator_t {
     CPU cpu;
     MMU mmu;
+    CoverageMap coverage;
 } Emulator;
 
 Emulator* new_emulator();
 void free_emulator(Emulator* emu);
+
+// Coverage Callback
+bool generic_record_coverage(CoverageMap* coverage,uint64_t src, uint64_t dst);
+
 
 
 // MMU PRIMITIVES //
@@ -56,12 +63,10 @@ void load_code_segments_into_virtual_memory(Emulator* ,CodeSegments*);
 // load libc stack args into stack memory
 uint64_t init_stack_virtual_memory(Emulator* emu,int argc, char** argv);
 uint32_t fetch(Emulator* emu);
-void execute_instruction(Emulator* emu, uint64_t instruction);
-///void static execute(Emulator* emu);
-//void static execute_compressed(Emulator* emu);
 
-static void execute(Emulator* emu, uint64_t instruction);
-static void execute_compressed(Emulator* emu, uint64_t instruction);
+void execute_instruction(Emulator* emu, uint64_t instruction,coverage_callback coverage_function);
+static void execute(Emulator* emu, uint64_t instruction,coverage_callback coverage_function);
+static void execute_compressed(Emulator* emu, uint64_t instruction,coverage_callback coverage_function);
 
 void emulate_syscall(Emulator* emu);
 

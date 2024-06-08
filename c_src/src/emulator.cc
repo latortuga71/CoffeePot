@@ -1,9 +1,22 @@
 #include "emulator.h"
 
-
+bool generic_record_coverage(CoverageMap* coverage,uint64_t src, uint64_t dst){
+    uint64_t target = src ^ dst;
+    uint64_t hash = hashstring((unsigned char*)&target);
+    if (coverage->hashes->count(hash)){
+        coverage->branches_taken++;
+        printf("0x%llx NOT UNIQUE\n",hash);
+    } else {
+        coverage->hashes->insert(hash);
+        coverage->unique_branches_taken++;
+        printf("0x%llx UNIQUE\n",hash);
+    }
+    return true;
+}
 
 Emulator* new_emulator(){
     Emulator* emu = (Emulator*)calloc(1,sizeof(Emulator));
+    emu->coverage.hashes = new std::set<uint64_t>();
     emu->mmu.next_allocation_base = 0;
     emu->mmu.virtual_memory = (Segment*)calloc(100,sizeof(Segment));
     emu->mmu.segment_count = 0;
@@ -49,6 +62,7 @@ uint64_t vm_alloc(MMU* mmu, uint64_t base_address, size_t size, uint32_t perms) 
     uint64_t page_size = 4096;
     if (base_address == 0){
         // makre sure base is 8 byte aligned
+        debug_print("TODO! Make Sure Allocations Are Properly Aligned%s","\n");
         uint64_t base = mmu->next_allocation_base + 0x1024;
         // force upper alignment
         /*
@@ -303,22 +317,22 @@ void print_registers(Emulator* emu){
     }
 }
 
-void execute_instruction(Emulator* emu, uint64_t instruction){
+void execute_instruction(Emulator* emu, uint64_t instruction, coverage_callback coverage_function){
     emu->cpu.x_reg[0] = 0;
     if ((0x3 & instruction) != 0x3) {
         //fprintf(stderr,"DEBUG: COMPRESSED\n");
         debug_print("DEBUG: COMPRESSED 0x%02x\n",(uint16_t)instruction);
-        execute_compressed(emu, instruction);
+        execute_compressed(emu, instruction,coverage_function);
         emu->cpu.pc += 0x2;
     } else {
         //fprintf(stderr,"DEBUG: NOT COMPRESSED\n");
         debug_print("DEBUG: 0x%08x\n", instruction);
-        execute(emu,instruction);
+        execute(emu,instruction,coverage_function);
         emu->cpu.pc += 0x4;
     }
 }
 
-static void execute_compressed(Emulator* emu, uint64_t instruction){
+static void execute_compressed(Emulator* emu, uint64_t instruction, coverage_callback coverage_function){
     uint64_t opcode = instruction & 0b11;
     uint64_t funct3 = (instruction >> 13) & 0x7;
     switch (opcode)
@@ -689,7 +703,7 @@ static void execute_compressed(Emulator* emu, uint64_t instruction){
 
 
 
-static void execute(Emulator* emu, uint64_t instruction){
+static void execute(Emulator* emu, uint64_t instruction,coverage_callback coverage_function){
     // decode get what we need
     uint64_t opcode = instruction & 0x0000007f;
     uint64_t rd  = (instruction & 0x00000f80) >> 7;
@@ -872,9 +886,13 @@ static void execute(Emulator* emu, uint64_t instruction){
             switch (funct3)
             {
             case 0x0: {
+                // Basic Coverage Idea
                 debug_print("beq x%d, x%d, 0x%x\n",rs1,rs2,emu->cpu.pc + imm);
                 if (emu->cpu.x_reg[rs1] == emu->cpu.x_reg[rs2]) {
+                    coverage_function(&emu->coverage,emu->cpu.pc,(emu->cpu.pc + imm) - 0x4);
                     emu->cpu.pc = (emu->cpu.pc + imm) - 0x4;
+                } else {
+                    coverage_function(&emu->coverage,emu->cpu.pc,emu->cpu.pc + 0x4); 
                 }
                 return;
             }
