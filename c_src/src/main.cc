@@ -47,16 +47,26 @@ int main(int argc, char **argv) {
   /// Emulator Basic Loop
   int t = 0;
   bool debug = false;
+  bool snapshot_taken = false;
   uint64_t main_addr = 0x10236;
+  Emulator* snapshot = NULL;
   for (;;) {
-    /*
     if (emu->cpu.pc == main_addr){
-      debug = true;
+       if (!snapshot_taken){
+        snapshot = SnapshotVM(emu);
+        printf("snapshotted \n");
+        vm_print(&snapshot->mmu);
+       }
     }
-    */
-    if (debug){
+    if (emu->cpu.pc == main_addr + 0x8){
+      printf("restore?\n");
+      RestoreVM(snapshot,emu);
+    }
+    /*
+    if (snapshot){
       getchar();
     }
+    */
     print_registers(emu);
     uint32_t instruction = fetch(emu);
     execute_instruction(emu,(uint64_t)instruction, generic_record_coverage);

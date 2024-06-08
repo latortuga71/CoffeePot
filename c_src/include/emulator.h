@@ -2,7 +2,7 @@
 
 #define EMULATOR_HEADER 
 
-#define DEBUG 0
+#define DEBUG 1
 
 #define debug_print(fmt, ...) \
             do { if (DEBUG) fprintf(stderr, fmt, __VA_ARGS__); } while (0)
@@ -36,6 +36,10 @@ void free_emulator(Emulator* emu);
 
 // Coverage Callback
 bool generic_record_coverage(CoverageMap* coverage,uint64_t src, uint64_t dst);
+
+// SnapShot Restore Functions
+Emulator* SnapshotVM(Emulator* emu);
+void RestoreVM(Emulator* snapshot, Emulator* current);
 
 
 
