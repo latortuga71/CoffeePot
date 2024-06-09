@@ -2,7 +2,7 @@
 
 #define EMULATOR_HEADER 
 
-#define DEBUG 1
+#define DEBUG 0
 
 #define debug_print(fmt, ...) \
             do { if (DEBUG) fprintf(stderr, fmt, __VA_ARGS__); } while (0)
@@ -28,10 +28,10 @@
 typedef struct emulator_t {
     CPU cpu;
     MMU mmu;
-    CoverageMap coverage;
+    CoverageMap* coverage;
 } Emulator;
 
-Emulator* new_emulator();
+Emulator* new_emulator(CoverageMap* coverage);
 void free_emulator(Emulator* emu);
 
 static Emulator* clone_emulator(Emulator* og);
@@ -40,8 +40,8 @@ static Emulator* clone_emulator(Emulator* og);
 bool generic_record_coverage(CoverageMap* coverage,uint64_t src, uint64_t dst);
 
 // SnapShot Restore Functions
-Emulator* SnapshotVM(Emulator* emu);
-void RestoreVM(Emulator* snapshot, Emulator* current);
+Emulator* snapshot_vm(Emulator* emu);
+void restore_vm(Emulator* snapshot, Emulator* current);
 
 
 

@@ -27,8 +27,10 @@ int main(int argc, char **argv) {
   CodeSegments* code_segment = parse_elf_segments(binary_buffer,nread);
   free(binary_buffer);
   fclose(binary_ptr);
+  // Create Coverage Map Memory
+  CoverageMap* coverage_map_data = (CoverageMap*)calloc(1,sizeof(CoverageMap));
   // Create Virtual Memory
-  Emulator* emu = new_emulator();
+  Emulator* emu = new_emulator(coverage_map_data);
   load_code_segments_into_virtual_memory(emu,code_segment);
   //printf("Code Loaded At 0x%x\n",code_segment->base_address);
   // INITALIZE CPU REGISTERS
@@ -48,25 +50,31 @@ int main(int argc, char **argv) {
   int t = 0;
   bool debug = false;
   bool snapshot_taken = false;
-  uint64_t main_addr = 0x10236;
-  Emulator* snapshot = NULL;
+  uint64_t snapshot_addr = 0x10236;
+  uint64_t restore_addr = 0x10252;
+  Emulator* snapshot_immut = NULL;
+  uint64_t iterations = 0;
   for (;;) {
-    if (emu->cpu.pc == main_addr){
-       if (!snapshot_taken){
-        snapshot = SnapshotVM(emu);
-        printf("snapshotted \n");
-        vm_print(&snapshot->mmu);
-       }
+    // Take Snapshot at desired state
+    if (!snapshot_taken && emu->cpu.pc == snapshot_addr){
+        snapshot_immut = snapshot_vm(emu);
+        snapshot_taken = true;
     }
-    if (emu->cpu.pc == main_addr + 0x8){
-      //printf("restore?\n");
-      //RestoreVM(snapshot,emu);
+    // Restore vm back to snapshot
+    if (emu->cpu.pc == restore_addr){
+      // TODO Check if our coverage increased since last case
+      // If it did add case to corpus
+      // free emulator memory then clone the immutable snapshot and assign that to emulator
+      free_emulator(emu);
+      emu = snapshot_vm(snapshot_immut);
+      // keep coverage map alive
+      emu->coverage = coverage_map_data;
+      // keep crash map alive
+      // keep statistics alive
+      iterations++;
+      printf("%lld iterations\n",iterations);
     }
-    /*
-    if (snapshot){
-      getchar();
-    }
-    */
+    // Execute Instructions
     print_registers(emu);
     uint32_t instruction = fetch(emu);
     execute_instruction(emu,(uint64_t)instruction, generic_record_coverage);
@@ -74,10 +82,7 @@ int main(int argc, char **argv) {
 
   free_emulator(emu);
   // TODO....
-  //.....
   // Set Memory Permissions Function
-  // Snapshot Functionality
-  // Restore Functionality
   // Crash Gathering Callback
   // Coverage Gathering Callback
   // Enable Memory Swapping For FuzzCases

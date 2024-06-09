@@ -1,16 +1,31 @@
 #include "emulator.h"
 
-Emulator* SnapshotVM(Emulator* emu){
+Emulator* snapshot_vm(Emulator* emu){
     Emulator* snap = clone_emulator(emu);
     copy_mmu_segments(emu,snap);
     for (int i = 0; i < snap->mmu.segment_count; i++){
-        printf("copying 0x%llx\n",snap->mmu.virtual_memory[i].range.start);
+        debug_print("copying 0x%llx\n",snap->mmu.virtual_memory[i].range.start);
     }
     return snap;
 }
 
-void RestoreVM(Emulator* snapshot, Emulator* current){
-    todo("restore vm");
+void restore_vm(Emulator* snapshot, Emulator* current){
+    // restore memory
+    // src, dst
+    copy_mmu_segments(snapshot,current);
+    for (int i = 0; i < snapshot->mmu.segment_count; i++){
+        debug_print("copying 0x%llx\n",snapshot->mmu.virtual_memory[i].range.start);
+    }
+    // todo realloc segments s
+    current->mmu.next_allocation_base = snapshot->mmu.next_allocation_base;
+    current->mmu.segment_capacity = snapshot->mmu.segment_capacity;
+    current->mmu.segment_count = snapshot->mmu.segment_count;
+    // CPU 
+    current->cpu.pc = snapshot->cpu.pc;
+    current->cpu.stack_pointer = snapshot->cpu.stack_pointer;
+    for (int i = 0; i < 32; i++){
+        current->cpu.x_reg[i] = snapshot->cpu.x_reg[i];
+    }
 }
 
 bool generic_record_coverage(CoverageMap* coverage,uint64_t src, uint64_t dst){
@@ -18,26 +33,27 @@ bool generic_record_coverage(CoverageMap* coverage,uint64_t src, uint64_t dst){
     uint64_t hash = hashstring((unsigned char*)&target);
     if (coverage->hashes->count(hash)){
         coverage->branches_taken++;
-        printf("0x%llx NOT UNIQUE\n",hash);
+        debug_print("0x%llx NOT UNIQUE\n",hash);
     } else {
         coverage->hashes->insert(hash);
         coverage->unique_branches_taken++;
-        printf("0x%llx UNIQUE\n",hash);
+        debug_print("0x%llx UNIQUE\n",hash);
     }
     return true;
 }
 
-Emulator* new_emulator(){
+Emulator* new_emulator(CoverageMap* coverage){
     Emulator* emu = (Emulator*)calloc(1,sizeof(Emulator));
-    emu->coverage.hashes = new std::set<uint64_t>();
+    emu->coverage = coverage;
+    emu->coverage->hashes = new std::set<uint64_t>();
     emu->mmu.next_allocation_base = 0;
-    emu->mmu.virtual_memory = (Segment*)calloc(100,sizeof(Segment));
+    emu->mmu.virtual_memory = (Segment*)calloc(10,sizeof(Segment));
     emu->mmu.segment_count = 0;
-    emu->mmu.segment_capacity = 100;
+    emu->mmu.segment_capacity = 10;
     return emu;
 }
 
-void copy_mmu_segments(Emulator* original,Emulator* snapshot){
+static void copy_mmu_segments(Emulator* original,Emulator* snapshot){
     for (int i = 0; i < original->mmu.segment_count; i++){
         Segment* segment_og = &original->mmu.virtual_memory[i];
         Segment* segment_new = &snapshot->mmu.virtual_memory[i];
@@ -51,6 +67,7 @@ void copy_mmu_segments(Emulator* original,Emulator* snapshot){
 
 static Emulator* clone_emulator(Emulator* og){
     Emulator* emu = (Emulator*)calloc(1,sizeof(Emulator));
+    //
     // MMU
     emu->mmu.next_allocation_base = og->mmu.next_allocation_base;
     emu->mmu.segment_capacity = og->mmu.segment_capacity;
@@ -362,12 +379,10 @@ void print_registers(Emulator* emu){
 void execute_instruction(Emulator* emu, uint64_t instruction, coverage_callback coverage_function){
     emu->cpu.x_reg[0] = 0;
     if ((0x3 & instruction) != 0x3) {
-        //fprintf(stderr,"DEBUG: COMPRESSED\n");
         debug_print("DEBUG: COMPRESSED 0x%02x\n",(uint16_t)instruction);
         execute_compressed(emu, instruction,coverage_function);
         emu->cpu.pc += 0x2;
     } else {
-        //fprintf(stderr,"DEBUG: NOT COMPRESSED\n");
         debug_print("DEBUG: 0x%08x\n", instruction);
         execute(emu,instruction,coverage_function);
         emu->cpu.pc += 0x4;
@@ -931,10 +946,10 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
                 // Basic Coverage Idea
                 debug_print("beq x%d, x%d, 0x%x\n",rs1,rs2,emu->cpu.pc + imm);
                 if (emu->cpu.x_reg[rs1] == emu->cpu.x_reg[rs2]) {
-                    coverage_function(&emu->coverage,emu->cpu.pc,(emu->cpu.pc + imm) - 0x4);
+                    coverage_function(emu->coverage,emu->cpu.pc,(emu->cpu.pc + imm) - 0x4);
                     emu->cpu.pc = (emu->cpu.pc + imm) - 0x4;
                 } else {
-                    coverage_function(&emu->coverage,emu->cpu.pc,emu->cpu.pc + 0x4); 
+                    coverage_function(emu->coverage,emu->cpu.pc,emu->cpu.pc + 0x4); 
                 }
                 return;
             }
@@ -1132,7 +1147,6 @@ void emulate_syscall(Emulator* emu){
                 void* buffer = vm_copy_memory(&emu->mmu,(uint64_t)(iovec_ptr->iov_base),iovec_ptr->iov_len);
                 // Write it to corresponding file descriptor
                 if (file_descriptor == STDOUT_FILENO) {
-                    //printf("%s",(char*)buffer);
                     write(file_descriptor,buffer,iovec_ptr->iov_len);
                 }
                 write_count += iovec_ptr->iov_len;
