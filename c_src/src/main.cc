@@ -59,8 +59,8 @@ int main(int argc, char **argv) {
        }
     }
     if (emu->cpu.pc == main_addr + 0x8){
-      printf("restore?\n");
-      RestoreVM(snapshot,emu);
+      //printf("restore?\n");
+      //RestoreVM(snapshot,emu);
     }
     /*
     if (snapshot){

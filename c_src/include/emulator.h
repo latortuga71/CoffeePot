@@ -34,6 +34,8 @@ typedef struct emulator_t {
 Emulator* new_emulator();
 void free_emulator(Emulator* emu);
 
+static Emulator* clone_emulator(Emulator* og);
+
 // Coverage Callback
 bool generic_record_coverage(CoverageMap* coverage,uint64_t src, uint64_t dst);
 
@@ -49,6 +51,7 @@ bool vm_range_exists(MMU*,uint64_t address);
 uint64_t vm_alloc(MMU* mmu, uint64_t base_address, size_t size,uint32_t perms);
 void vm_copy(MMU* mmu,char* src, size_t src_size, uint64_t dst);
 Segment* vm_get_segment(MMU* mmu, uint64_t address);
+static void copy_mmu_segments(Emulator* original,Emulator* snapshot);
 
 // MMU WRITE TO MEMORY //
 void vm_write_double_word(MMU*, uint64_t address, uint64_t value);

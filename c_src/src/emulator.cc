@@ -1,32 +1,16 @@
 #include "emulator.h"
 
 Emulator* SnapshotVM(Emulator* emu){
-    Emulator* snap = (Emulator*)calloc(1,sizeof(Emulator));
-    snap->cpu.pc = emu->cpu.pc;
-    snap->cpu.stack_pointer = emu->cpu.stack_pointer;
-    memcpy(&snap->cpu,&emu->cpu,sizeof(CPU));
-    memcpy(&snap->mmu,&emu->mmu,sizeof(MMU));
-    snap->mmu.virtual_memory = (Segment*)calloc(emu->mmu.segment_capacity,sizeof(Segment));
-    memcpy(snap->mmu.virtual_memory,emu->mmu.virtual_memory,sizeof(Segment) * emu->mmu.segment_capacity);
-    // Segments are copied but not the actual raw data
-    // copy
-    for (int i = 0; i < emu->mmu.segment_count; i++){
-        printf("copying 0x%llx\n",emu->mmu.virtual_memory[i].range.start);
-        snap->mmu.virtual_memory->data = (uint8_t*)calloc(sizeof(uint8_t),emu->mmu.virtual_memory->data_size);
-        memcpy(snap->mmu.virtual_memory[i].data, emu->mmu.virtual_memory[i].data, emu->mmu.virtual_memory[i].data_size);
+    Emulator* snap = clone_emulator(emu);
+    copy_mmu_segments(emu,snap);
+    for (int i = 0; i < snap->mmu.segment_count; i++){
+        printf("copying 0x%llx\n",snap->mmu.virtual_memory[i].range.start);
     }
     return snap;
 }
 
 void RestoreVM(Emulator* snapshot, Emulator* current){
-    current->cpu.pc = snapshot->cpu.pc;
-    memcpy(&current->cpu,&snapshot->cpu,sizeof(CPU));
-    memcpy(&current->mmu,&snapshot->mmu,sizeof(MMU));
-    memcpy(current->mmu.virtual_memory,snapshot->mmu.virtual_memory,sizeof(Segment) * current->mmu.segment_capacity);
-    for (int i = 0; i < current->mmu.segment_count; i++){
-        printf("restoring 0x%llx\n",snapshot->mmu.virtual_memory[i].range.start);
-        memcpy(current->mmu.virtual_memory[i].data, snapshot->mmu.virtual_memory[i].data, snapshot->mmu.virtual_memory[i].data_size);
-    }
+    todo("restore vm");
 }
 
 bool generic_record_coverage(CoverageMap* coverage,uint64_t src, uint64_t dst){
@@ -50,6 +34,35 @@ Emulator* new_emulator(){
     emu->mmu.virtual_memory = (Segment*)calloc(100,sizeof(Segment));
     emu->mmu.segment_count = 0;
     emu->mmu.segment_capacity = 100;
+    return emu;
+}
+
+void copy_mmu_segments(Emulator* original,Emulator* snapshot){
+    for (int i = 0; i < original->mmu.segment_count; i++){
+        Segment* segment_og = &original->mmu.virtual_memory[i];
+        Segment* segment_new = &snapshot->mmu.virtual_memory[i];
+        segment_new->data_size = segment_og->data_size;
+        segment_new->perms = segment_og->perms;
+        segment_new->range = segment_og->range;
+        segment_new->data = (uint8_t*)calloc(1,segment_new->data_size);
+        memcpy(&segment_new->data[0],&segment_og->data[0],segment_og->data_size);
+    }
+}
+
+static Emulator* clone_emulator(Emulator* og){
+    Emulator* emu = (Emulator*)calloc(1,sizeof(Emulator));
+    // MMU
+    emu->mmu.next_allocation_base = og->mmu.next_allocation_base;
+    emu->mmu.segment_capacity = og->mmu.segment_capacity;
+    emu->mmu.virtual_memory = (Segment*)calloc(og->mmu.segment_capacity,sizeof(Segment));
+    emu->mmu.segment_count = og->mmu.segment_count;
+    // CPU 
+    emu->cpu.pc = og->cpu.pc;
+    emu->cpu.stack_pointer = og->cpu.stack_pointer;
+    for (int i = 0; i < 32; i++){
+        emu->cpu.x_reg[i] = og->cpu.x_reg[i];
+    }
+
     return emu;
 }
 
