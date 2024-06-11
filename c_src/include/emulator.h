@@ -23,15 +23,23 @@
 #include "loader.h"
 #include "hash.h"
 #include "coverage.h"
-
+#include "crash.h"
+#include "stats.h"
+#include "corpus.h"
 
 typedef struct emulator_t {
     CPU cpu;
     MMU mmu;
+    Corpus* corpus;
     CoverageMap* coverage;
+    CrashMap* crashes;
+    Stats* stats;
 } Emulator;
 
-Emulator* new_emulator(CoverageMap* coverage);
+
+Emulator* new_emulator(CoverageMap* coverage,CrashMap* crashes,Stats* stats,Corpus* corpus);
+
+
 void free_emulator(Emulator* emu);
 
 static Emulator* clone_emulator(Emulator* og);

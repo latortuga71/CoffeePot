@@ -3,9 +3,6 @@
 Emulator* snapshot_vm(Emulator* emu){
     Emulator* snap = clone_emulator(emu);
     copy_mmu_segments(emu,snap);
-    for (int i = 0; i < snap->mmu.segment_count; i++){
-        debug_print("copying 0x%llx\n",snap->mmu.virtual_memory[i].range.start);
-    }
     return snap;
 }
 
@@ -42,9 +39,14 @@ bool generic_record_coverage(CoverageMap* coverage,uint64_t src, uint64_t dst){
     return true;
 }
 
-Emulator* new_emulator(CoverageMap* coverage){
+Emulator* new_emulator(CoverageMap* coverage,CrashMap* crashes,Stats* stats,Corpus* corpus){
     Emulator* emu = (Emulator*)calloc(1,sizeof(Emulator));
+    emu->corpus = corpus;
+    emu->crashes = crashes;
     emu->coverage = coverage;
+    emu->stats = stats;
+    emu->stats->cases = 0;
+    emu->stats->start_time = std::time(0);
     emu->coverage->hashes = new std::set<uint64_t>();
     emu->mmu.next_allocation_base = 0;
     emu->mmu.virtual_memory = (Segment*)calloc(10,sizeof(Segment));
@@ -1147,7 +1149,7 @@ void emulate_syscall(Emulator* emu){
                 void* buffer = vm_copy_memory(&emu->mmu,(uint64_t)(iovec_ptr->iov_base),iovec_ptr->iov_len);
                 // Write it to corresponding file descriptor
                 if (file_descriptor == STDOUT_FILENO) {
-                    write(file_descriptor,buffer,iovec_ptr->iov_len);
+                    //write(file_descriptor,buffer,iovec_ptr->iov_len);
                 }
                 write_count += iovec_ptr->iov_len;
                 free(buffer);
