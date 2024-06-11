@@ -5,6 +5,6 @@
 #include "corpus.h"
 
 
-FuzzCase* MutateBuffer(FuzzCase*);
+void MutateBuffer(FuzzCase* original,FuzzCase* copy);
 
 #endif

@@ -2,7 +2,8 @@
 
 #define EMULATOR_HEADER 
 
-#define DEBUG 0
+#define DEBUG 1
+
 
 #define debug_print(fmt, ...) \
             do { if (DEBUG) fprintf(stderr, fmt, __VA_ARGS__); } while (0)
@@ -35,10 +36,12 @@ typedef struct emulator_t {
     CoverageMap* coverage;
     CrashMap* crashes;
     Stats* stats;
+    uint64_t snapshot_address;
+    uint64_t restore_address;
 } Emulator;
 
 
-Emulator* new_emulator(CoverageMap* coverage,CrashMap* crashes,Stats* stats,Corpus* corpus);
+Emulator* new_emulator(CoverageMap* coverage,CrashMap* crashes,Stats* stats,Corpus* corpus,uint64_t snapshot_addr,uint64_t restore_address);
 
 
 void free_emulator(Emulator* emu);
@@ -64,6 +67,10 @@ static void copy_mmu_segments(Emulator* original,Emulator* snapshot);
 
 // MMU WRITE TO MEMORY //
 void vm_write_double_word(MMU*, uint64_t address, uint64_t value);
+void vm_write_word(MMU* mmu, uint64_t address, uint64_t value);
+void vm_write_byte(MMU* mmu, uint64_t address, uint64_t value);
+void vm_write_half(MMU* mmu, uint64_t address, uint64_t value);
+
 // MMU READ FROM MEMORY //
 uint64_t vm_read_double_word(MMU* mmu, uint64_t address);
 uint64_t vm_read_word(MMU* mmu, uint64_t address);
@@ -71,6 +78,7 @@ uint64_t vm_read_byte(MMU* mmu, uint64_t address);
 char* vm_read_string(MMU* mmu,uint64_t address);
 void vm_write_string(MMU* mmu,uint64_t address, char* string);
 
+void vm_write_buffer(MMU* mmu,uint64_t address, uint8_t* data, size_t size);
 
 // Emulator //
 void print_registers(Emulator*);

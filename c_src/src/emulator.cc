@@ -6,6 +6,7 @@ Emulator* snapshot_vm(Emulator* emu){
     return snap;
 }
 
+/*
 void restore_vm(Emulator* snapshot, Emulator* current){
     // restore memory
     // src, dst
@@ -24,6 +25,7 @@ void restore_vm(Emulator* snapshot, Emulator* current){
         current->cpu.x_reg[i] = snapshot->cpu.x_reg[i];
     }
 }
+*/
 
 bool generic_record_coverage(CoverageMap* coverage,uint64_t src, uint64_t dst){
     uint64_t target = src ^ dst;
@@ -39,7 +41,7 @@ bool generic_record_coverage(CoverageMap* coverage,uint64_t src, uint64_t dst){
     return true;
 }
 
-Emulator* new_emulator(CoverageMap* coverage,CrashMap* crashes,Stats* stats,Corpus* corpus){
+Emulator* new_emulator(CoverageMap* coverage,CrashMap* crashes,Stats* stats,Corpus* corpus,uint64_t snapshot_address,uint64_t restore_address){
     Emulator* emu = (Emulator*)calloc(1,sizeof(Emulator));
     emu->corpus = corpus;
     emu->crashes = crashes;
@@ -53,6 +55,8 @@ Emulator* new_emulator(CoverageMap* coverage,CrashMap* crashes,Stats* stats,Corp
     emu->mmu.virtual_memory = (Segment*)calloc(10,sizeof(Segment));
     emu->mmu.segment_count = 0;
     emu->mmu.segment_capacity = 10;
+    emu->snapshot_address = snapshot_address;
+    emu->restore_address = restore_address;
     return emu;
 }
 
@@ -107,7 +111,7 @@ Segment* vm_get_segment(MMU* mmu, uint64_t address){
             return &mmu->virtual_memory[i];
         }
     }
-    vm_print(mmu);
+    //vm_print(mmu);
     return NULL;
 }
 
@@ -287,6 +291,20 @@ void* vm_read_memory(MMU* mmu,uint64_t address) {
     }
     uint64_t index = address - s->range.start;
     return (void*)&s->data[index];
+}
+
+
+void vm_write_buffer(MMU* mmu,uint64_t address, uint8_t* data, size_t size){
+    Segment* s = vm_get_segment(mmu, address);
+    if (s == NULL){
+        assert("TODO HANDLE SEGFAULT! WITH A CALLBACK" == 0);
+    }
+    uint64_t index = address - s->range.start;
+    /*
+    for (int i = 0; i < size; i++){
+        vm_write_byte(mmu, address + i,data[i]);
+    }*/
+    return;
 }
 
 void* vm_copy_memory(MMU* mmu,uint64_t address,size_t count) {
@@ -1150,7 +1168,7 @@ void emulate_syscall(Emulator* emu){
                 void* buffer = vm_copy_memory(&emu->mmu,(uint64_t)(iovec_ptr->iov_base),iovec_ptr->iov_len);
                 // Write it to corresponding file descriptor
                 if (file_descriptor == STDOUT_FILENO) {
-                    //write(file_descriptor,buffer,iovec_ptr->iov_len);
+                    write(file_descriptor,buffer,iovec_ptr->iov_len);
                 }
                 write_count += iovec_ptr->iov_len;
                 free(buffer);
