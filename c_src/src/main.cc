@@ -1,10 +1,13 @@
 #include "loader.h"
 #include "emulator.h"
+#include "mutate.h"
 #include <cstdlib>
 #include <stdio.h>
 
 
 int main(int argc, char **argv) {
+  int seed = 0x123;
+  srand(seed);
   const char *binary_path = *++argv;
   printf("Coffeepot Emulating %s\n", binary_path);
   // Read Binary Into Memory
@@ -33,6 +36,7 @@ int main(int argc, char **argv) {
   Stats* stats_data = (Stats*)calloc(1,sizeof(Stats));
   Corpus* corpus_data = new_corpus("./corpus");
   Emulator* emu = new_emulator(coverage_map_data,crash_map_data,stats_data,corpus_data);
+  emu->current_fuzz_case = NULL;
   load_code_segments_into_virtual_memory(emu,code_segment);
   emu->cpu.pc = code_segment->entry_point;
   emu->cpu.stack_pointer = init_stack_virtual_memory(emu,argc,argv); 
@@ -49,45 +53,52 @@ int main(int argc, char **argv) {
   uint64_t snapshot_addr = 0x10236;
   uint64_t restore_addr = 0x10252;
   Emulator* snapshot_immut = NULL;
+  // Run until take snapshot
+take_snapshot:
   for (;;) {
-    // Take Snapshot at desired state
     if (!snapshot_taken && emu->cpu.pc == snapshot_addr){
         snapshot_immut = snapshot_vm(emu);
         snapshot_taken = true;
-        // TODO Get Address Of Memory To Replace With FuzzCase
+        goto fuzz_loop;
     }
-    if (emu->cpu.pc == restore_addr){
-      /*
-      if (emu->coverage->unique_branches_taken > emu->coverage->previous_unique_branches_taken){
-        todo("add case to corpus");
-        emu->coverage->previous_unique_branches_taken = emu->coverage->unique_branches_taken;
-      }
-      */
-      // Restore VM
-      free_emulator(emu);
-      emu = snapshot_vm(snapshot_immut);
-      // Restore Done
-      //todo("choose item from corpus");
-      //todo("mutate corpus item");
-      //todo("write fuzz case to location")
-      emu->coverage = coverage_map_data;
-      emu->crashes = crash_map_data;
-      emu->stats = stats_data;
-      emu->stats->cases++;
-      display_stats(emu->stats);
-    }
-    // Execute Instructions
     print_registers(emu);
     uint32_t instruction = fetch(emu);
     execute_instruction(emu,(uint64_t)instruction, generic_record_coverage);
   }
 
+// Restore Loop Here
+fuzz_loop:
+for (;;){
+  int corpus_index = rand() % (emu->corpus->count - 2);
+  FuzzCase* fcase = &emu->corpus->cases[corpus_index];
+  FuzzCase* mutated_case = MutateBuffer(fcase);
+  emu->current_fuzz_case = mutated_case;
+  //printf("FuzzCase  %d %x\n",corpus_index,emu->current_fuzz_case->data[0]);
+  //todo("load corpus item into memory")
+  if (emu->cpu.pc == restore_addr){
+    // Check if got more coverage
+    if (emu->coverage->unique_branches_taken > emu->coverage->previous_unique_branches_taken){
+      emu->coverage->previous_unique_branches_taken = emu->coverage->unique_branches_taken;
+      add_to_corpus(emu->corpus,emu->current_fuzz_case);
+      free(mutated_case->data);
+      free(mutated_case);
+    }
+    // Restore VM 
+    free_emulator(emu); // only frees virtual memory and register stuff
+    emu = snapshot_vm(snapshot_immut);
+    emu->corpus = corpus_data;
+    emu->coverage = coverage_map_data;
+    emu->crashes = crash_map_data;
+    emu->stats = stats_data;
+    emu->stats->cases++;
+    emu->stats->unique_branches = emu->coverage->unique_branches_taken;
+    display_stats(emu->stats);
+  } 
+  // Continue Execution Normally
+  print_registers(emu);
+  uint32_t instruction = fetch(emu);
+  execute_instruction(emu,(uint64_t)instruction, generic_record_coverage);
+}
   free_emulator(emu);
-  // TODO....
-  // Set Memory Permissions Function
-  // Crash Gathering Callback
-  // Coverage Gathering Callback
-  // Enable Memory Swapping For FuzzCases
-  // Better Memory Permisssions
   return 0;
 }

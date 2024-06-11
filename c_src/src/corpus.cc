@@ -59,11 +59,11 @@ Corpus* new_corpus(const char* corpus_dir){
 }
 
 void add_to_corpus(Corpus* corpus, FuzzCase* fzz_case){
-    if (corpus->capacity + 1 > corpus->count){
+    if ((corpus->count+ 1) > corpus->capacity){
         printf("REALLOC CORPUS TODO\n");
         exit(1);
     }
-    corpus->cases[corpus->count].data = fzz_case->data;
-    corpus->cases[corpus->count].size = fzz_case->size;
+    corpus->cases[++corpus->count].data = fzz_case->data;
+    corpus->cases[++corpus->count].size = fzz_case->size;
     corpus->count++;
 }

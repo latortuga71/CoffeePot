@@ -30,6 +30,7 @@
 typedef struct emulator_t {
     CPU cpu;
     MMU mmu;
+    FuzzCase* current_fuzz_case;
     Corpus* corpus;
     CoverageMap* coverage;
     CrashMap* crashes;

@@ -48,6 +48,7 @@ Emulator* new_emulator(CoverageMap* coverage,CrashMap* crashes,Stats* stats,Corp
     emu->stats->cases = 0;
     emu->stats->start_time = std::time(0);
     emu->coverage->hashes = new std::set<uint64_t>();
+    emu->coverage->previous_unique_branches_taken = 0;
     emu->mmu.next_allocation_base = 0;
     emu->mmu.virtual_memory = (Segment*)calloc(10,sizeof(Segment));
     emu->mmu.segment_count = 0;
