@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <ctime>
 #include <stdio.h>
+#include "corpus.h"
 
 #define STATS_HEADER 
 
@@ -13,6 +14,6 @@ typedef struct stats_t {
 } Stats ;
 
 
-void display_stats(Stats* stats);
+void display_stats(Stats* stats,Corpus* corpus);
 
 #endif

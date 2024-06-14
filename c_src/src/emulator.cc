@@ -224,6 +224,8 @@ uint64_t init_stack_virtual_memory(Emulator* emu, int argc, char** argv){
   stack_pointer -= 0x8;
   vm_write_double_word(&emu->mmu,stack_pointer, argc);
   debug_print("0x%llx\n",stack_pointer);
+  emu->cpu.stack_pointer = stack_pointer;
+  emu->cpu.x_reg[2] = stack_pointer;
   return stack_pointer;
 }
 
@@ -300,10 +302,7 @@ void vm_write_buffer(MMU* mmu,uint64_t address, uint8_t* data, size_t size){
         assert("TODO HANDLE SEGFAULT! WITH A CALLBACK" == 0);
     }
     uint64_t index = address - s->range.start;
-    /*
-    for (int i = 0; i < size; i++){
-        vm_write_byte(mmu, address + i,data[i]);
-    }*/
+    memcpy(&s->data[index],data,size);
     return;
 }
 
@@ -964,7 +963,6 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
             switch (funct3)
             {
             case 0x0: {
-                // Basic Coverage Idea
                 debug_print("beq x%d, x%d, 0x%x\n",rs1,rs2,emu->cpu.pc + imm);
                 if (emu->cpu.x_reg[rs1] == emu->cpu.x_reg[rs2]) {
                     coverage_function(emu->coverage,emu->cpu.pc,(emu->cpu.pc + imm) - 0x4);
@@ -977,14 +975,20 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
             case 0x1: {
                 debug_print("bne x%d, x%d, 0x%x\n",rs1,rs2,emu->cpu.pc + imm);
                 if (emu->cpu.x_reg[rs1] != emu->cpu.x_reg[rs2]){
+                    coverage_function(emu->coverage,emu->cpu.pc,(emu->cpu.pc + imm) - 0x4);
                     emu->cpu.pc = (emu->cpu.pc + imm) - 0x4;
+                } else {
+                    coverage_function(emu->coverage,emu->cpu.pc,emu->cpu.pc + 0x4); 
                 }
                 return;
             }
             case 0x4: {
                 debug_print("blt x%d, x%d, 0x%x\n",rs1,rs2,emu->cpu.pc + imm);
                 if ((int64_t)(emu->cpu.x_reg[rs1]) < (int64_t)(emu->cpu.x_reg[rs2])){
+                    coverage_function(emu->coverage,emu->cpu.pc,(emu->cpu.pc + imm) - 0x4);
                     emu->cpu.pc = (emu->cpu.pc + imm) - 0x4;
+                } else {
+                    coverage_function(emu->coverage,emu->cpu.pc,emu->cpu.pc + 0x4); 
                 }
                 return;
             }
@@ -995,7 +999,10 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
                 debug_print("%d >= %d\n",left,right);
                 if (left >= right){
                     debug_print("%d%s%d\n",left," is greater than ",right);
+                    coverage_function(emu->coverage,emu->cpu.pc,(emu->cpu.pc + imm) - 0x4);
                     emu->cpu.pc = (emu->cpu.pc + imm) - 0x4;
+                } else {
+                    coverage_function(emu->coverage,emu->cpu.pc,emu->cpu.pc + 0x4); 
                 }
                 return;
             }
