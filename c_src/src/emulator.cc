@@ -1162,9 +1162,9 @@ void emulate_syscall(Emulator* emu){
             // Read Memory Buffer
             ssize_t write_count = 0;
             for (int i = 0; i < iovcnt; i++){
-                if (iovec_ptr->iov_len < 1){
-                    continue;
-                }
+                debug_print("iovec ptr -> 0x%llx\n",iovec_ptr);
+                debug_print("fd %d iovec ptr 0x%llx, count %d\n",arg0,arg1,arg2);
+                debug_print("iovec data-> 0x%llx iovec data sz -> %d\n",iovec_ptr->iov_base,iovec_ptr->iov_len);
                 void* buffer = vm_copy_memory(&emu->mmu,(uint64_t)(iovec_ptr->iov_base),iovec_ptr->iov_len);
                 // Write it to corresponding file descriptor
                 if (file_descriptor == STDOUT_FILENO) {

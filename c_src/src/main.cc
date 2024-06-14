@@ -50,8 +50,12 @@ int main(int argc, char **argv) {
   free(code_segment->segs);
   free(code_segment);
   vm_print(&emu->mmu);
-  bool debug = true;
+  bool debug = false;
   for(;;){
+    if (emu->cpu.pc == 0x10256){
+      char* data = vm_read_string(&emu->mmu,0x113f0);
+      debug = false;
+    }
     if (debug){
       getchar();
     }
