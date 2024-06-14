@@ -24,8 +24,7 @@ Corpus* new_corpus(const char* corpus_dir){
     printf("corpus dir %s\n",corpus_dir);
     Corpus* corpus = (Corpus*)calloc(1,sizeof(Corpus));
     corpus->count = get_file_count(corpus_dir);
-    printf("%d\n",corpus->count);
-    corpus->capacity = corpus->count;
+    corpus->capacity = 100; // keep corpus size at 100 for now since we cant realloc lol
     corpus->cases = (FuzzCase*)calloc(corpus->capacity,sizeof(FuzzCase));
     int i = 0;
     DIR* d;
@@ -65,8 +64,9 @@ Corpus* new_corpus(const char* corpus_dir){
 
 void add_to_corpus(Corpus* corpus, FuzzCase* fzz_case){
     if ((corpus->count + 1) > corpus->capacity){
-        printf("REALLOC capacity %d\n",corpus->capacity);
-        printf("REALLOC count %d\n",corpus->count);
+        assert("TODO FIX RELLOCATION RANDOM CRASH" == 0);
+        //printf("REALLOC capacity %d\n",corpus->capacity);
+        //printf("REALLOC count %d\n",corpus->count);
         corpus->capacity = (int)(pow(corpus->capacity,2) + 0.5);
         void* tmp = realloc(corpus->cases,sizeof(FuzzCase) * corpus->capacity);
         if (tmp == NULL) {
@@ -76,11 +76,11 @@ void add_to_corpus(Corpus* corpus, FuzzCase* fzz_case){
         corpus->cases = (FuzzCase*)tmp;
     }
     // now copy the case
-    printf("Adding To Corpus Index %d Capacity %d\n",corpus->count,corpus->capacity);
+    //printf("Adding To Corpus Index %d Capacity %d\n",corpus->count,corpus->capacity);
     corpus->cases[corpus->count].data = (uint8_t*)calloc(fzz_case->size,sizeof(uint8_t));
     memcpy(corpus->cases[corpus->count].data,fzz_case->data,fzz_case->size);
     corpus->cases[corpus->count].size = fzz_case->size;
     corpus->count++;
-    printf("corpus increase\n");
+    printf("corpus increase -> 0x%x 0x%x 0x%x 0x%x 0x%x\n",fzz_case->data[0],fzz_case->data[1],fzz_case->data[2],fzz_case->data[3],fzz_case->data[4]);
     getchar();
 }

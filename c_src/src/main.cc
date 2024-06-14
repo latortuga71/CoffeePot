@@ -146,7 +146,8 @@ int main(int argc, char **argv) {
     emu->stats = stats_data;
     emu->stats->cases++;
     emu->stats->unique_branches = emu->coverage->unique_branches_taken;
-    display_stats(emu->stats,emu->corpus);
+    if (((int)emu->stats->cases % 100) == 0)
+      display_stats(emu->stats,emu->corpus);
   }
   // End of emulation
   free_emulator(emu);

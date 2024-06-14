@@ -646,7 +646,10 @@ static void execute_compressed(Emulator* emu, uint64_t instruction, coverage_cal
                     offset = (uint64_t)((int64_t)((int16_t)((0xfe00 | offset))));
                 }
                 if (emu->cpu.x_reg[rs1] == 0) {
+                    coverage_function(emu->coverage,emu->cpu.pc,(emu->cpu.pc + offset) - 0x2);
                     emu->cpu.pc = (emu->cpu.pc + offset) - 0x2;
+                } else {
+                    coverage_function(emu->coverage,emu->cpu.pc,(emu->cpu.pc + 0x2));
                 }
                 return;
             }
@@ -662,7 +665,10 @@ static void execute_compressed(Emulator* emu, uint64_t instruction, coverage_cal
                     offset = (uint64_t)((int64_t)((int16_t)((0xfe00 | offset))));
                 }
                 if (emu->cpu.x_reg[rs1] != 0) {
+                    coverage_function(emu->coverage,emu->cpu.pc,(emu->cpu.pc + offset) - 0x2);
                     emu->cpu.pc = (emu->cpu.pc + offset) - 0x2;
+                } else {
+                    coverage_function(emu->coverage,emu->cpu.pc,(emu->cpu.pc + 0x2));
                 }
                 return;
             }
@@ -1009,14 +1015,20 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
             case 0x6: {
                 debug_print("bltu x%d, x%d, 0x%x\n",rs1,rs2,emu->cpu.pc + imm);
                 if (emu->cpu.x_reg[rs1] < emu->cpu.x_reg[rs2]){
+                    coverage_function(emu->coverage,emu->cpu.pc,(emu->cpu.pc + imm) - 0x4);
                     emu->cpu.pc = (emu->cpu.pc + imm) - 0x4;
+                } else {
+                    coverage_function(emu->coverage,emu->cpu.pc,emu->cpu.pc + 0x4); 
                 }
                 return;
             }
             case 0x7: {
                 debug_print("bgeu x%d, x%d, 0x%x\n",rs1,rs2,emu->cpu.pc + imm);
                 if (emu->cpu.x_reg[rs1] >= emu->cpu.x_reg[rs2]){
+                    coverage_function(emu->coverage,emu->cpu.pc,(emu->cpu.pc + imm) - 0x4);
                     emu->cpu.pc = (emu->cpu.pc + imm) - 0x4;
+                } else {
+                    coverage_function(emu->coverage,emu->cpu.pc,emu->cpu.pc + 0x4); 
                 }
                 return;
             }
@@ -1172,10 +1184,11 @@ void emulate_syscall(Emulator* emu){
                 debug_print("iovec ptr -> 0x%llx\n",iovec_ptr);
                 debug_print("fd %d iovec ptr 0x%llx, count %d\n",arg0,arg1,arg2);
                 debug_print("iovec data-> 0x%llx iovec data sz -> %d\n",iovec_ptr->iov_base,iovec_ptr->iov_len);
+                // TODO dont copy memory into another buffer
                 void* buffer = vm_copy_memory(&emu->mmu,(uint64_t)(iovec_ptr->iov_base),iovec_ptr->iov_len);
                 // Write it to corresponding file descriptor
                 if (file_descriptor == STDOUT_FILENO) {
-                    write(file_descriptor,buffer,iovec_ptr->iov_len);
+                    //write(file_descriptor,buffer,iovec_ptr->iov_len);
                 }
                 write_count += iovec_ptr->iov_len;
                 free(buffer);
