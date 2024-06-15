@@ -122,6 +122,7 @@ int main(int argc, char **argv) {
     int corpus_index = rand() % ((emu->corpus->count) - 0);
     FuzzCase* fcase = &emu->corpus->cases[corpus_index];
     MutateBuffer(fcase,&fcase_mut);
+
     vm_write_buffer(&emu->mmu, 0x113f0, fcase_mut.data, sizeof(uint8_t) * fcase_mut.size);
     emu->current_fuzz_case = &fcase_mut;
     // Execute Normally
@@ -145,15 +146,15 @@ int main(int argc, char **argv) {
     emu->stats = stats_data;
     emu->stats->cases++;
     emu->stats->unique_branches = emu->coverage->unique_branches_taken;
-    if (((int)emu->stats->cases % 100) == 0)
+    if (((int)emu->stats->cases % 10000) == 0)
       display_stats(emu->stats,emu->corpus);
   }
-  // End of emulation
   free_emulator(emu);
   return 0;
 }
 
   // TODO's
+  // TODO implement faster way to get segments without hardcoding addresses probably need to use a map or 1 giant array
   // Implement Poisoned memory for each segment on write calls
   // use flag to determine if this should occur since we want it after we snapshot so only at that point we do the dirty mem
   // above can also be used to check memory permissions

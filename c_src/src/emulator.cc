@@ -21,8 +21,8 @@ void restore_vm(Emulator* emu,Emulator* og){
     // here we should only restore the stack
     // its mocking only restoring dirty memory segment
     // index 1 should be the stack segment
-    Segment* segment_og = &og->mmu.virtual_memory[1];
-    Segment* segment_new = &emu->mmu.virtual_memory[1];
+    Segment* segment_og = &og->mmu.virtual_memory[0];
+    Segment* segment_new = &emu->mmu.virtual_memory[0];
     memcpy(&segment_new->data[0],&segment_og->data[0],segment_og->data_size);
     /*
     for (int i = 0; i < og->mmu.segment_count; i++){
@@ -127,6 +127,23 @@ void vm_print(MMU* mmu){
 }
 
 Segment* vm_get_segment(MMU* mmu, uint64_t address){
+    if ( (address >= 0x10000 ) && (address <= 0x34c50)){
+        return &mmu->virtual_memory[0];
+    } else if ( (address >= 4000000000 ) && (address <= 0x4001048510 )){
+        return &mmu->virtual_memory[1];
+    } else if ( (address >= 0x4001049534 ) && (address <= 0x4001049934 )){
+        return &mmu->virtual_memory[2];
+    } else {
+        assert("ERROR MEMORY ACCESS" == 0);
+        return NULL;
+    }
+
+    /*
+    [0] DEBUG SEGMENT: 0x10000-0x34c50 size 0x24c50 perms 0x7
+    [1] DEBUG SEGMENT: 0x4000000000-0x4001048510 size 0x1048510 perms 0x3
+    [2] DEBUG SEGMENT: 0x4001049534-0x4001049934 size 0x400 perms 0x3
+    */
+   /*
     debug_print("DEBUG: GETTING SEGMENT 0x%llx\n",address);
     for (int i = 0; i < mmu->segment_count; i++){
         if (address >= mmu->virtual_memory[i].range.start && address < mmu->virtual_memory[i].range.end){
@@ -135,6 +152,7 @@ Segment* vm_get_segment(MMU* mmu, uint64_t address){
     }
     //vm_print(mmu);
     return NULL;
+    */
 }
 
 bool vm_range_exists(MMU* mmu, uint64_t address){
@@ -337,10 +355,14 @@ void* vm_read_memory(MMU* mmu,uint64_t address) {
 
 
 void vm_write_buffer(MMU* mmu,uint64_t address, uint8_t* data, size_t size){
+    /*
     Segment* s = vm_get_segment(mmu, address);
     if (s == NULL){
         assert("TODO HANDLE SEGFAULT! WITH A CALLBACK" == 0);
     }
+    */
+    // we know that its in the text section so we dont need to guess the segment
+    Segment* s = &mmu->virtual_memory[0];
     uint64_t index = address - s->range.start;
     memcpy(&s->data[index],data,size);
     return;
