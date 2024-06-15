@@ -82,5 +82,7 @@ void add_to_corpus(Corpus* corpus, FuzzCase* fzz_case){
     corpus->cases[corpus->count].size = fzz_case->size;
     corpus->count++;
     printf("corpus increase -> 0x%x 0x%x 0x%x 0x%x 0x%x\n",fzz_case->data[0],fzz_case->data[1],fzz_case->data[2],fzz_case->data[3],fzz_case->data[4]);
-    getchar();
+    printf("corpus increase -> %s\n",fzz_case->data);
+    printf("corpus increase -> %c\n",fzz_case->data[11]);
+    //getchar();
 }

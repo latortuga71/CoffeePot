@@ -38,6 +38,7 @@ typedef struct emulator_t {
     Stats* stats;
     uint64_t snapshot_address;
     uint64_t restore_address;
+    bool crashed;
 } Emulator;
 
 
@@ -50,6 +51,8 @@ static Emulator* clone_emulator(Emulator* og);
 
 // Coverage Callback
 bool generic_record_coverage(CoverageMap* coverage,uint64_t src, uint64_t dst);
+// Crashes Callback
+bool generic_record_crashes(CrashMap* crashes, uint64_t pc, FuzzCase* fcase);
 
 // SnapShot Restore Functions
 Emulator* snapshot_vm(Emulator* emu);
@@ -72,9 +75,11 @@ void vm_write_byte(MMU* mmu, uint64_t address, uint64_t value);
 void vm_write_half(MMU* mmu, uint64_t address, uint64_t value);
 
 // MMU READ FROM MEMORY //
-uint64_t vm_read_double_word(MMU* mmu, uint64_t address);
-uint64_t vm_read_word(MMU* mmu, uint64_t address);
-uint64_t vm_read_byte(MMU* mmu, uint64_t address);
+uint64_t vm_read_double_word(Emulator* emu, uint64_t address,crash_callback crashes_function);
+uint64_t vm_read_word(Emulator* emu, uint64_t address,crash_callback crashes_function);
+uint64_t vm_read_half(Emulator* emu, uint64_t address,crash_callback crashes_function);
+uint64_t vm_read_byte(Emulator* emu, uint64_t address,crash_callback crashes_function);
+
 char* vm_read_string(MMU* mmu,uint64_t address);
 void vm_write_string(MMU* mmu,uint64_t address, char* string);
 
@@ -86,11 +91,11 @@ void print_registers(Emulator*);
 void load_code_segments_into_virtual_memory(Emulator* ,CodeSegments*);
 // load libc stack args into stack memory
 uint64_t init_stack_virtual_memory(Emulator* emu,int argc, char** argv);
-uint32_t fetch(Emulator* emu);
+uint32_t fetch(Emulator* emu, crash_callback crashes_function);
 
-void execute_instruction(Emulator* emu, uint64_t instruction,coverage_callback coverage_function);
-static void execute(Emulator* emu, uint64_t instruction,coverage_callback coverage_function);
-static void execute_compressed(Emulator* emu, uint64_t instruction,coverage_callback coverage_function);
+void execute_instruction(Emulator* emu, uint64_t instruction,coverage_callback coverage_function,crash_callback crash_function);
+static void execute(Emulator* emu, uint64_t instruction,coverage_callback coverage_function,crash_callback crash_function);
+static void execute_compressed(Emulator* emu, uint64_t instruction,coverage_callback coverage_function, crash_callback crash_function);
 
 void emulate_syscall(Emulator* emu);
 

@@ -6,43 +6,38 @@ Emulator* snapshot_vm(Emulator* emu){
     return snap;
 }
 
-/*
-void restore_vm(Emulator* snapshot, Emulator* current){
-    // restore memory
-    // src, dst
-    copy_mmu_segments(snapshot,current);
-    for (int i = 0; i < snapshot->mmu.segment_count; i++){
-        debug_print("copying 0x%llx\n",snapshot->mmu.virtual_memory[i].range.start);
-    }
-    // todo realloc segments s
-    current->mmu.next_allocation_base = snapshot->mmu.next_allocation_base;
-    current->mmu.segment_capacity = snapshot->mmu.segment_capacity;
-    current->mmu.segment_count = snapshot->mmu.segment_count;
-    // CPU 
-    current->cpu.pc = snapshot->cpu.pc;
-    current->cpu.stack_pointer = snapshot->cpu.stack_pointer;
-    for (int i = 0; i < 32; i++){
-        current->cpu.x_reg[i] = snapshot->cpu.x_reg[i];
-    }
+
+bool generic_record_crashes(CrashMap* crashes,uint64_t pc, FuzzCase* fcase){
+    crashes->crashes++;
+    char file_name[250];
+    memset(file_name,0,250);
+    snprintf(file_name,250,"./crashes/_0x%llx_crash_id_%u",pc,crashes->crashes);
+    FILE* f = fopen(file_name,"w");
+    fwrite(fcase->data,sizeof(uint8_t),fcase->size,f);
+    fclose(f);
+    return true;
 }
-*/
+
 
 bool generic_record_coverage(CoverageMap* coverage,uint64_t src, uint64_t dst){
     uint64_t target = src ^ dst;
     uint64_t hash = hashstring((unsigned char*)&target);
     if (coverage->hashes->count(hash)){
         coverage->branches_taken++;
-        debug_print("0x%llx NOT UNIQUE\n",hash);
+        //debug_print("0x%llx NOT UNIQUE\n",hash);
+        //debug_print("0x%llx NOT UNIQUE\n",hash);
     } else {
         coverage->hashes->insert(hash);
         coverage->unique_branches_taken++;
-        debug_print("0x%llx UNIQUE\n",hash);
+        //debug_print("0x%llx UNIQUE\n",hash);
+        printf("unique dest -> 0x%llx\n",dst);
     }
     return true;
 }
 
 Emulator* new_emulator(CoverageMap* coverage,CrashMap* crashes,Stats* stats,Corpus* corpus,uint64_t snapshot_address,uint64_t restore_address){
     Emulator* emu = (Emulator*)calloc(1,sizeof(Emulator));
+    emu->crashed = false;
     emu->corpus = corpus;
     emu->crashes = crashes;
     emu->coverage = coverage;
@@ -327,8 +322,8 @@ char* vm_read_string(MMU* mmu,uint64_t address){
     return (char*)&s->data[index];
 }
 
-uint64_t vm_read_double_word(MMU* mmu, uint64_t address){
-    Segment* s = vm_get_segment(mmu, address);
+uint64_t vm_read_double_word(Emulator* emu, uint64_t address,crash_callback crashes_function){
+    Segment* s = vm_get_segment(&emu->mmu, address);
     if (s == NULL){
         assert("TODO HANDLE SEGFAULT! WITH A CALLBACK" == 0);
     }
@@ -344,13 +339,14 @@ uint64_t vm_read_double_word(MMU* mmu, uint64_t address){
         | ((uint64_t)(s->data[index + 7]) << 56);
 }
 
-uint64_t vm_read_word(MMU* mmu, uint64_t address){
-    Segment* s = vm_get_segment(mmu, address);
+uint64_t vm_read_word(Emulator* emu, uint64_t address,crash_callback crashes_function){
+    Segment* s = vm_get_segment(&emu->mmu, address);
     if (s == NULL){
-        assert("TODO HANDLE SEGFAULT! WITH A CALLBACK" == 0);
+        crashes_function(emu->crashes,emu->cpu.pc,emu->current_fuzz_case);
+        emu->crashed = true;
+        return 0;
     }
     uint64_t index = address - s->range.start;
-    //fprintf(stderr,"DEBUG: Address 0x%x memory base 0x%x segment offset 0x%x\n",address, s->range.start,index);
     debug_print("READING WORD 0x%llx\n",address);
     return (uint64_t)(s->data[index])
         | ((uint64_t)(s->data[index + 1]) << 8)
@@ -358,8 +354,8 @@ uint64_t vm_read_word(MMU* mmu, uint64_t address){
         | ((uint64_t)(s->data[index + 3]) << 24);
 }
 
-uint64_t vm_read_half(MMU* mmu, uint64_t address){
-    Segment* s = vm_get_segment(mmu, address);
+uint64_t vm_read_half(Emulator* emu, uint64_t address,crash_callback crashes_function){
+    Segment* s = vm_get_segment(&emu->mmu, address);
     if (s == NULL){
         assert("TODO HANDLE SEGFAULT! WITH A CALLBACK" == 0);
     }
@@ -369,8 +365,8 @@ uint64_t vm_read_half(MMU* mmu, uint64_t address){
     return (uint64_t)(s->data[index])
         | ((uint64_t)(s->data[index + 1]) << 8);
 }
-uint64_t vm_read_byte(MMU* mmu, uint64_t address){
-    Segment* s = vm_get_segment(mmu, address);
+uint64_t vm_read_byte(Emulator* emu, uint64_t address,crash_callback crashes_function){
+    Segment* s = vm_get_segment(&emu->mmu, address);
     if (s == NULL){
         assert("TODO HANDLE SEGFAULT! WITH A CALLBACK" == 0);
     }
@@ -380,13 +376,15 @@ uint64_t vm_read_byte(MMU* mmu, uint64_t address){
     return (uint64_t)(s->data[index]);
 }
 
-uint32_t fetch(Emulator* emu) {
+uint32_t fetch(Emulator* emu,crash_callback crash_function) {
     //fprintf(stderr,"DEBUG: FETCHING INSTRUCTION 0x%x\n",emu->cpu.pc);
+    /*
     Segment* segment = vm_get_segment(&emu->mmu,emu->cpu.pc);
     if (segment == NULL){
         assert("TODO HANDLE SEGFAULT! WITH A CALLBACK" == 0);
     }
-    return (uint32_t)vm_read_word(&emu->mmu,emu->cpu.pc);
+    */
+    return (uint32_t)vm_read_word(emu,emu->cpu.pc,crash_function);
 }
 
 void print_registers(Emulator* emu){
@@ -396,20 +394,20 @@ void print_registers(Emulator* emu){
     }
 }
 
-void execute_instruction(Emulator* emu, uint64_t instruction, coverage_callback coverage_function){
+void execute_instruction(Emulator* emu, uint64_t instruction, coverage_callback coverage_function,crash_callback crashes_function){
     emu->cpu.x_reg[0] = 0;
     if ((0x3 & instruction) != 0x3) {
         debug_print("DEBUG: COMPRESSED 0x%02x\n",(uint16_t)instruction);
-        execute_compressed(emu, instruction,coverage_function);
+        execute_compressed(emu, instruction,coverage_function,crashes_function);
         emu->cpu.pc += 0x2;
     } else {
         debug_print("DEBUG: 0x%08x\n", instruction);
-        execute(emu,instruction,coverage_function);
+        execute(emu,instruction,coverage_function,crashes_function);
         emu->cpu.pc += 0x4;
     }
 }
 
-static void execute_compressed(Emulator* emu, uint64_t instruction, coverage_callback coverage_function){
+static void execute_compressed(Emulator* emu, uint64_t instruction, coverage_callback coverage_function,crash_callback crashes_function){
     uint64_t opcode = instruction & 0b11;
     uint64_t funct3 = (instruction >> 13) & 0x7;
     switch (opcode)
@@ -440,7 +438,7 @@ static void execute_compressed(Emulator* emu, uint64_t instruction, coverage_cal
                             | ((instruction >> 4) & 0x4); // imm[2]
                 debug_print("DEBUG c_lw x%d, %d (x%d)\n",rd,offset,rs1);
                 uint64_t memory_address = emu->cpu.x_reg[rs1] + offset;
-                uint64_t result = vm_read_word(&emu->mmu,memory_address);
+                uint64_t result = vm_read_word(emu,memory_address,crashes_function);
                 emu->cpu.x_reg[rd] = (uint64_t)((int64_t)((int32_t)result));
                 return;
             }
@@ -450,7 +448,7 @@ static void execute_compressed(Emulator* emu, uint64_t instruction, coverage_cal
                 uint64_t offset = ((instruction << 1) & 0xc0) // imm[7:6]
                             | ((instruction >> 7) & 0x38); // imm[5:3]
                 uint64_t memory_address = emu->cpu.x_reg[rs1] + offset;
-                uint64_t result = vm_read_double_word(&emu->mmu,memory_address);
+                uint64_t result = vm_read_double_word(emu,memory_address,crashes_function);
                 debug_print("DEBUG c_ld x%d, %d (x%d)\n",rd,offset,rs1);
                 debug_print("LOADED 0x%x\n",result);
                 emu->cpu.x_reg[rd] = result;
@@ -649,7 +647,7 @@ static void execute_compressed(Emulator* emu, uint64_t instruction, coverage_cal
                     coverage_function(emu->coverage,emu->cpu.pc,(emu->cpu.pc + offset) - 0x2);
                     emu->cpu.pc = (emu->cpu.pc + offset) - 0x2;
                 } else {
-                    coverage_function(emu->coverage,emu->cpu.pc,(emu->cpu.pc + 0x2));
+                    //coverage_function(emu->coverage,emu->cpu.pc,(emu->cpu.pc + 0x2));
                 }
                 return;
             }
@@ -667,8 +665,9 @@ static void execute_compressed(Emulator* emu, uint64_t instruction, coverage_cal
                 if (emu->cpu.x_reg[rs1] != 0) {
                     coverage_function(emu->coverage,emu->cpu.pc,(emu->cpu.pc + offset) - 0x2);
                     emu->cpu.pc = (emu->cpu.pc + offset) - 0x2;
+                    //printf("Branch to 0x%llx taken\n",emu->cpu.pc);
                 } else {
-                    coverage_function(emu->coverage,emu->cpu.pc,(emu->cpu.pc + 0x2));
+                    //coverage_function(emu->coverage,emu->cpu.pc,(emu->cpu.pc + 0x2));
                 }
                 return;
             }
@@ -706,7 +705,7 @@ static void execute_compressed(Emulator* emu, uint64_t instruction, coverage_cal
                 ((instruction >> 2) & 0x18);
                 uint64_t memory_address = emu->cpu.x_reg[2] + offset;
                 debug_print("c.ldsp%s","\n");
-                uint64_t result = vm_read_double_word(&emu->mmu,memory_address);
+                uint64_t result = vm_read_double_word(emu,memory_address,crashes_function);
                 emu->cpu.x_reg[rd] = result;
                 return;
             }
@@ -727,7 +726,7 @@ static void execute_compressed(Emulator* emu, uint64_t instruction, coverage_cal
                 uint64_t memory_address = emu->cpu.x_reg[2] + offset;
                 debug_print("c.sdsp x%x,0x%x(sp)\n",rs2,offset);
                 vm_write_double_word(&emu->mmu, memory_address, emu->cpu.x_reg[rs2]);
-                uint64_t after = vm_read_double_word(&emu->mmu, memory_address);
+                uint64_t after = vm_read_double_word(emu, memory_address,crashes_function);
                 return;
             }
             case 0x4: {
@@ -786,7 +785,7 @@ static void execute_compressed(Emulator* emu, uint64_t instruction, coverage_cal
 
 
 
-static void execute(Emulator* emu, uint64_t instruction,coverage_callback coverage_function){
+static void execute(Emulator* emu, uint64_t instruction,coverage_callback coverage_function,crash_callback crashes_function){
     // decode get what we need
     uint64_t opcode = instruction & 0x0000007f;
     uint64_t rd  = (instruction & 0x00000f80) >> 7;
@@ -876,31 +875,31 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
             }
             case 0x1:{
                 debug_print("lh%s","\n");
-                uint64_t value = vm_read_half(&emu->mmu,memory_address);
+                uint64_t value = vm_read_half(emu,memory_address,crashes_function);
                 emu->cpu.x_reg[rd] = (int64_t)((int16_t)(value));
                 return;
             }
             case 0x2: {
                 debug_print("lw%s","\n");
-                uint64_t value = vm_read_word(&emu->mmu,memory_address);
+                uint64_t value = vm_read_word(emu,memory_address,crashes_function);
                 emu->cpu.x_reg[rd] = value;
                 return;
             }
             case 0x3: {
                 debug_print("ld%s","\n");
-                uint64_t value = vm_read_double_word(&emu->mmu,memory_address);
+                uint64_t value = vm_read_double_word(emu,memory_address,crashes_function);
                 emu->cpu.x_reg[rd] = value;
                 return;
             }
             case 0x4: {
                 debug_print("lbu%s","\n");
-                uint64_t value = vm_read_byte(&emu->mmu,memory_address);
+                uint64_t value = vm_read_byte(emu,memory_address,crashes_function);
                 emu->cpu.x_reg[rd] = value;
                 return;
             }
             case 0x5: {
                 debug_print("lhu%s","\n");
-                uint64_t value = vm_read_half(&emu->mmu,memory_address);
+                uint64_t value = vm_read_half(emu,memory_address,crashes_function);
                 emu->cpu.x_reg[rd] = value;
                 return;
             }
@@ -974,7 +973,7 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
                     coverage_function(emu->coverage,emu->cpu.pc,(emu->cpu.pc + imm) - 0x4);
                     emu->cpu.pc = (emu->cpu.pc + imm) - 0x4;
                 } else {
-                    coverage_function(emu->coverage,emu->cpu.pc,emu->cpu.pc + 0x4); 
+                    //coverage_function(emu->coverage,emu->cpu.pc,emu->cpu.pc + 0x4); 
                 }
                 return;
             }
@@ -984,7 +983,7 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
                     coverage_function(emu->coverage,emu->cpu.pc,(emu->cpu.pc + imm) - 0x4);
                     emu->cpu.pc = (emu->cpu.pc + imm) - 0x4;
                 } else {
-                    coverage_function(emu->coverage,emu->cpu.pc,emu->cpu.pc + 0x4); 
+                    //coverage_function(emu->coverage,emu->cpu.pc,emu->cpu.pc + 0x4); 
                 }
                 return;
             }
@@ -994,7 +993,7 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
                     coverage_function(emu->coverage,emu->cpu.pc,(emu->cpu.pc + imm) - 0x4);
                     emu->cpu.pc = (emu->cpu.pc + imm) - 0x4;
                 } else {
-                    coverage_function(emu->coverage,emu->cpu.pc,emu->cpu.pc + 0x4); 
+                    //coverage_function(emu->coverage,emu->cpu.pc,emu->cpu.pc + 0x4); 
                 }
                 return;
             }
@@ -1008,7 +1007,7 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
                     coverage_function(emu->coverage,emu->cpu.pc,(emu->cpu.pc + imm) - 0x4);
                     emu->cpu.pc = (emu->cpu.pc + imm) - 0x4;
                 } else {
-                    coverage_function(emu->coverage,emu->cpu.pc,emu->cpu.pc + 0x4); 
+                    //coverage_function(emu->coverage,emu->cpu.pc,emu->cpu.pc + 0x4); 
                 }
                 return;
             }
@@ -1018,7 +1017,7 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
                     coverage_function(emu->coverage,emu->cpu.pc,(emu->cpu.pc + imm) - 0x4);
                     emu->cpu.pc = (emu->cpu.pc + imm) - 0x4;
                 } else {
-                    coverage_function(emu->coverage,emu->cpu.pc,emu->cpu.pc + 0x4); 
+                    //coverage_function(emu->coverage,emu->cpu.pc,emu->cpu.pc + 0x4); 
                 }
                 return;
             }
@@ -1028,7 +1027,7 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
                     coverage_function(emu->coverage,emu->cpu.pc,(emu->cpu.pc + imm) - 0x4);
                     emu->cpu.pc = (emu->cpu.pc + imm) - 0x4;
                 } else {
-                    coverage_function(emu->coverage,emu->cpu.pc,emu->cpu.pc + 0x4); 
+                    //coverage_function(emu->coverage,emu->cpu.pc,emu->cpu.pc + 0x4); 
                 }
                 return;
             }
@@ -1215,10 +1214,6 @@ void emulate_syscall(Emulator* emu){
         }
         case 0x38: {
             debug_print("openat%s","\n");
-            uint64_t value = vm_read_double_word(&emu->mmu,arg1);
-            printf("-> %s\n",vm_read_string(&emu->mmu,arg1));
-            debug_print("dirfd: %d path: 0x%llx\n",arg0,arg1);
-            debug_print("path dereferenced 0x%llx\n",value);
             panic("shouldnt hit");
             return;
         }

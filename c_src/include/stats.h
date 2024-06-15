@@ -8,6 +8,7 @@
 #define STATS_HEADER 
 
 typedef struct stats_t {
+    uint64_t crashes;
     uint64_t unique_branches;
     uint64_t cases;
     std::time_t start_time;

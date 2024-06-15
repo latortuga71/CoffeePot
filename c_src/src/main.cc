@@ -65,8 +65,8 @@ int debug_main_no_snapshot(int argc, char **argv) {
   delete_code_segments(code_segment);
   bool debug = false;
   for(;;){
-    uint32_t instruction = fetch(emu);
-    execute_instruction(emu,(uint64_t)instruction, generic_record_coverage);
+    uint32_t instruction = fetch(emu,generic_record_crashes);
+    execute_instruction(emu,(uint64_t)instruction, generic_record_coverage,generic_record_crashes);
     print_registers(emu);
   }
   free_emulator(emu);
@@ -102,8 +102,8 @@ int main(int argc, char **argv) {
   bool snapshot_taken = false;
   Emulator* snapshot_immut = NULL;
   do {
-    uint32_t instruction = fetch(emu);
-    execute_instruction(emu,(uint64_t)instruction, generic_record_coverage);
+    uint32_t instruction = fetch(emu,generic_record_crashes);
+    execute_instruction(emu,(uint64_t)instruction, generic_record_coverage,generic_record_crashes);
   } while(emu->cpu.pc != emu->snapshot_address);
   if (emu->coverage->unique_branches_taken > emu->coverage->previous_unique_branches_taken){
     emu->coverage->previous_unique_branches_taken = emu->coverage->unique_branches_taken;
@@ -126,16 +126,23 @@ int main(int argc, char **argv) {
     MutateBuffer(fcase,&fcase_mut);
     //printf("FuzzCase  %d %s\n",corpus_index,(char*)fcase_mut.data);
     vm_write_buffer(&emu->mmu, 0x113f0, fcase_mut.data, sizeof(uint8_t) * fcase_mut.size);
+    emu->current_fuzz_case = &fcase_mut;
     // Execute Normally
     do {
-      uint32_t instruction = fetch(emu);
-      execute_instruction(emu,(uint64_t)instruction, generic_record_coverage);
+      uint32_t instruction = fetch(emu,generic_record_crashes);
+      execute_instruction(emu,(uint64_t)instruction, generic_record_coverage,generic_record_crashes);
+      if (emu->crashed){
+        emu->stats->crashes++;
+        break;
+      }
     } while( emu->cpu.pc != restore_addr);
     // If we got more coverage add it to the corpus
     if (emu->coverage->unique_branches_taken > emu->coverage->previous_unique_branches_taken){
+      printf("prev %d current %d\n",emu->coverage->previous_unique_branches_taken,emu->coverage->unique_branches_taken);
       emu->coverage->previous_unique_branches_taken = emu->coverage->unique_branches_taken;
       add_to_corpus(emu->corpus, &fcase_mut);
     }
+    memset(fcase_mut.data,0,fcase_mut.size);
     // Here We Restore
     free_emulator(emu);
     // TODO Instead of freeing. just copy memory segments that have been poisoned
@@ -155,5 +162,6 @@ int main(int argc, char **argv) {
 }
 
   // TODO's
+  // Better Crash Callback (add it to vm_write functions)
   // Snapshot and restore efficiency only restore poisoned memory
   // Implement Address Sanitizer 
