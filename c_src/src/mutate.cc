@@ -30,6 +30,7 @@ void MutateBuffer(FuzzCase* original,FuzzCase* copy){
         }
     }
     // GRAMMER CONFIRM
+    /*
     copy->data[0] = 'A';
     copy->data[1] = 'B';
     copy->data[2] = 'C';
@@ -42,5 +43,6 @@ void MutateBuffer(FuzzCase* original,FuzzCase* copy){
     copy->data[9] = 'J';
     copy->data[10] = 'K';
     copy->data[11] = 'L';
+    */
     copy->data[copy->size+1] = '\0';
 }

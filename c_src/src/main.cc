@@ -61,7 +61,7 @@ int debug_main_no_snapshot(int argc, char **argv) {
   emu->current_fuzz_case = NULL;
   emu->cpu.pc = code_segment->entry_point;
   load_code_segments_into_virtual_memory(emu,code_segment);
-  init_stack_virtual_memory(emu,argc,argv); 
+  init_stack_virtual_memory(emu,argc,argv,generic_record_crashes); 
   delete_code_segments(code_segment);
   bool debug = false;
   for(;;){
@@ -96,7 +96,7 @@ int main(int argc, char **argv) {
   emu->current_fuzz_case = NULL;
   emu->cpu.pc = code_segment->entry_point;
   load_code_segments_into_virtual_memory(emu,code_segment);
-  init_stack_virtual_memory(emu,argc,argv); 
+  init_stack_virtual_memory(emu,argc,argv,generic_record_crashes); 
   delete_code_segments(code_segment);
   bool debug = false;
   bool snapshot_taken = false;
@@ -111,6 +111,7 @@ int main(int argc, char **argv) {
   snapshot_immut = snapshot_vm(emu);
   printf("Snapshot taken!\n");
   printf("Fuzz Loop Begins Here\n");
+  vm_print(&emu->mmu);
   // Setup fuzzcase that gets mutated so we dont alloc a bunch of times
   FuzzCase fcase_mut = {0};
   fcase_mut.size = strlen("Hello From CoffeePot!\n");
@@ -118,13 +119,9 @@ int main(int argc, char **argv) {
   emu->stats->start_time = std::time(0);
   for (;;){
     // Here We Mutate The Buffer
-    //printf("corpus count %d\n",emu->corpus->count);
     int corpus_index = rand() % ((emu->corpus->count) - 0);
-    //printf("Corpus Index %d\n",corpus_index);
     FuzzCase* fcase = &emu->corpus->cases[corpus_index];
-    //printf("Corpus Data %s\n",fcase->data);
     MutateBuffer(fcase,&fcase_mut);
-    //printf("FuzzCase  %d %s\n",corpus_index,(char*)fcase_mut.data);
     vm_write_buffer(&emu->mmu, 0x113f0, fcase_mut.data, sizeof(uint8_t) * fcase_mut.size);
     emu->current_fuzz_case = &fcase_mut;
     // Execute Normally
@@ -138,15 +135,10 @@ int main(int argc, char **argv) {
     } while( emu->cpu.pc != restore_addr);
     // If we got more coverage add it to the corpus
     if (emu->coverage->unique_branches_taken > emu->coverage->previous_unique_branches_taken){
-      printf("prev %d current %d\n",emu->coverage->previous_unique_branches_taken,emu->coverage->unique_branches_taken);
       emu->coverage->previous_unique_branches_taken = emu->coverage->unique_branches_taken;
       add_to_corpus(emu->corpus, &fcase_mut);
     }
-    memset(fcase_mut.data,0,fcase_mut.size);
-    // Here We Restore
-    free_emulator(emu);
-    // TODO Instead of freeing. just copy memory segments that have been poisoned
-    emu = snapshot_vm(snapshot_immut);
+    restore_vm(emu,snapshot_immut);
     emu->corpus = corpus_data;
     emu->coverage = coverage_map_data;
     emu->crashes = crash_map_data;
@@ -162,6 +154,8 @@ int main(int argc, char **argv) {
 }
 
   // TODO's
-  // Better Crash Callback (add it to vm_write functions)
+  // Implement Poisoned memory for each segment on write calls
+  // use flag to determine if this should occur since we want it after we snapshot so only at that point we do the dirty mem
+  // above can also be used to check memory permissions
   // Snapshot and restore efficiency only restore poisoned memory
   // Implement Address Sanitizer 

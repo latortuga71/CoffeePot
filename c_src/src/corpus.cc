@@ -75,14 +75,17 @@ void add_to_corpus(Corpus* corpus, FuzzCase* fzz_case){
         }
         corpus->cases = (FuzzCase*)tmp;
     }
-    // now copy the case
-    //printf("Adding To Corpus Index %d Capacity %d\n",corpus->count,corpus->capacity);
+    // Write New Corpus To Out Dir So We just have track of what was added
+    char path_name[250];
+    snprintf(path_name,250,"./out/corpus/id_%d.bin",corpus->count);
+    FILE* f =fopen(path_name,"w");
+    fwrite(fzz_case->data,sizeof(uint8_t),fzz_case->size,f);
+    fclose(f);
     corpus->cases[corpus->count].data = (uint8_t*)calloc(fzz_case->size,sizeof(uint8_t));
     memcpy(corpus->cases[corpus->count].data,fzz_case->data,fzz_case->size);
     corpus->cases[corpus->count].size = fzz_case->size;
     corpus->count++;
-    printf("corpus increase -> 0x%x 0x%x 0x%x 0x%x 0x%x\n",fzz_case->data[0],fzz_case->data[1],fzz_case->data[2],fzz_case->data[3],fzz_case->data[4]);
-    printf("corpus increase -> %s\n",fzz_case->data);
-    printf("corpus increase -> %c\n",fzz_case->data[11]);
-    //getchar();
+    //printf("corpus increase -> 0x%x 0x%x 0x%x 0x%x 0x%x\n",fzz_case->data[0],fzz_case->data[1],fzz_case->data[2],fzz_case->data[3],fzz_case->data[4]);
+    //printf("corpus increase -> %s\n",fzz_case->data);
+    //printf("corpus increase -> %c\n",fzz_case->data[11]);
 }

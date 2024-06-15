@@ -7,6 +7,37 @@ Emulator* snapshot_vm(Emulator* emu){
 }
 
 
+void restore_vm(Emulator* emu,Emulator* og){
+    emu->mmu.next_allocation_base = og->mmu.next_allocation_base;
+    emu->mmu.segment_capacity = og->mmu.segment_capacity;
+    // May have an issue if we alloc more memory after snapshot and before restore
+    emu->mmu.segment_count = og->mmu.segment_count;
+    // CPU 
+    emu->cpu.pc = og->cpu.pc;
+    emu->cpu.stack_pointer = og->cpu.stack_pointer;
+    for (int i = 0; i < 32; i++){
+        emu->cpu.x_reg[i] = og->cpu.x_reg[i];
+    }
+    // here we should only restore the stack
+    // its mocking only restoring dirty memory segment
+    // index 1 should be the stack segment
+    Segment* segment_og = &og->mmu.virtual_memory[1];
+    Segment* segment_new = &emu->mmu.virtual_memory[1];
+    memcpy(&segment_new->data[0],&segment_og->data[0],segment_og->data_size);
+    /*
+    for (int i = 0; i < og->mmu.segment_count; i++){
+        Segment* segment_og = &og->mmu.virtual_memory[i];
+        Segment* segment_new = &emu->mmu.virtual_memory[i];
+        segment_new->data_size = segment_og->data_size;
+        segment_new->perms = segment_og->perms;
+        segment_new->range = segment_og->range;
+        segment_new->data = (uint8_t*)calloc(1,segment_new->data_size);
+        memcpy(&segment_new->data[0],&segment_og->data[0],segment_og->data_size);
+    }
+    */
+}
+
+
 bool generic_record_crashes(CrashMap* crashes,uint64_t pc, FuzzCase* fcase){
     crashes->crashes++;
     char file_name[250];
@@ -23,15 +54,10 @@ bool generic_record_coverage(CoverageMap* coverage,uint64_t src, uint64_t dst){
     uint64_t target = src ^ dst;
     uint64_t hash = hashstring((unsigned char*)&target);
     if (coverage->hashes->count(hash)){
-        coverage->branches_taken++;
-        //debug_print("0x%llx NOT UNIQUE\n",hash);
-        //debug_print("0x%llx NOT UNIQUE\n",hash);
-    } else {
-        coverage->hashes->insert(hash);
-        coverage->unique_branches_taken++;
-        //debug_print("0x%llx UNIQUE\n",hash);
-        printf("unique dest -> 0x%llx\n",dst);
-    }
+        return true;
+    } 
+    coverage->hashes->insert(hash);
+    coverage->unique_branches_taken++;
     return true;
 }
 
@@ -96,6 +122,7 @@ void free_emulator(Emulator* emu){
 void vm_print(MMU* mmu){
     for (int i = 0; i < mmu->segment_count; i++){
         debug_print("[%d] DEBUG SEGMENT: 0x%llx-0x%llx size 0x%0x perms 0x%x\n",i,mmu->virtual_memory[i].range.start,mmu->virtual_memory[i].range.end,mmu->virtual_memory[i].data_size,mmu->virtual_memory[i].perms);
+        printf("[%d] DEBUG SEGMENT: 0x%llx-0x%llx size 0x%0x perms 0x%x\n",i,mmu->virtual_memory[i].range.start,mmu->virtual_memory[i].range.end,mmu->virtual_memory[i].data_size,mmu->virtual_memory[i].perms);
     }
 }
 
@@ -194,30 +221,30 @@ void load_code_segments_into_virtual_memory(Emulator* emu ,CodeSegments* code){
   }
 }
 
-uint64_t init_stack_virtual_memory(Emulator* emu, int argc, char** argv){
+uint64_t init_stack_virtual_memory(Emulator* emu, int argc, char** argv,crash_callback crashes_function){
   uint64_t stack_base = 0x4000000000;
   uint64_t alloc_base = vm_alloc(&emu->mmu, stack_base, 0x1024*0x1024, READ | WRITE);
   debug_print("base 0x%llx\n",alloc_base);
   uint64_t stack_end = stack_base + (0x1024 * 0x1024);
   uint64_t stack_pointer = stack_end - (1024 * 1024);
   stack_pointer -= 0x8;
-  vm_write_double_word(&emu->mmu,stack_pointer, 0);
+  vm_write_double_word(emu,stack_pointer, 0,crashes_function);
 
   stack_pointer -= 0x8;
-  vm_write_double_word(&emu->mmu,stack_pointer, 0);
+  vm_write_double_word(emu,stack_pointer, 0,crashes_function);
 
   stack_pointer -= 0x8;
-  vm_write_double_word(&emu->mmu,stack_pointer, 0);
+  vm_write_double_word(emu,stack_pointer, 0,crashes_function);
   /// loop over args and write them
   while (*argv != NULL){
     uint64_t string_address = vm_alloc(&emu->mmu,0 , 1024 ,READ|WRITE);
     vm_write_string(&emu->mmu,string_address,*argv);
     stack_pointer -= 0x8;
-    vm_write_double_word(&emu->mmu, stack_pointer, string_address);
+    vm_write_double_word(emu, stack_pointer, string_address,crashes_function);
     argv++;
   }
   stack_pointer -= 0x8;
-  vm_write_double_word(&emu->mmu,stack_pointer, argc);
+  vm_write_double_word(emu,stack_pointer, argc,crashes_function);
   debug_print("0x%llx\n",stack_pointer);
   emu->cpu.stack_pointer = stack_pointer;
   emu->cpu.x_reg[2] = stack_pointer;
@@ -225,20 +252,37 @@ uint64_t init_stack_virtual_memory(Emulator* emu, int argc, char** argv){
 }
 
 
-void vm_write_byte(MMU* mmu, uint64_t address, uint64_t value)  {
-    Segment* s = vm_get_segment(mmu, address);
+void vm_write_byte(Emulator* emu, uint64_t address, uint64_t value,crash_callback crashes_function)  {
+    Segment* s = vm_get_segment(&emu->mmu, address);
     if (s == NULL){
-        panic("TODO HANDLE SEGFAULT! WITH A CALLBACK");
+        crashes_function(emu->crashes,emu->cpu.pc,emu->current_fuzz_case);
+        emu->crashed = true;
+        return;
     }
     uint64_t index = address - s->range.start;
     debug_print("WRITE BYTE Writing 0x%llx to 0x%llx\n",value,address);
     s->data[index] = (uint8_t)(value);
 }
 
-void vm_write_word(MMU* mmu, uint64_t address, uint64_t value)  {
-    Segment* s = vm_get_segment(mmu, address);
+void vm_write_half(Emulator* emu, uint64_t address, uint64_t value,crash_callback crashes_function)  {
+    Segment* s = vm_get_segment(&emu->mmu, address);
     if (s == NULL){
-        panic("TODO HANDLE SEGFAULT! WITH A CALLBACK");
+        crashes_function(emu->crashes,emu->cpu.pc,emu->current_fuzz_case);
+        emu->crashed = true;
+        return;
+    }
+    uint64_t index = address - s->range.start;
+    debug_print("Writing WORD 0x%llx to 0x%llx\n",value,address);
+    s->data[index] = (value & 0xff);
+    s->data[index + 1] = ((value >> 8 ) & 0xff);
+}
+
+void vm_write_word(Emulator* emu, uint64_t address, uint64_t value,crash_callback crashes_function)  {
+    Segment* s = vm_get_segment(&emu->mmu, address);
+    if (s == NULL){
+        crashes_function(emu->crashes,emu->cpu.pc,emu->current_fuzz_case);
+        emu->crashed = true;
+        return;
     }
     uint64_t index = address - s->range.start;
     debug_print("Writing WORD 0x%llx to 0x%llx\n",value,address);
@@ -249,11 +293,12 @@ void vm_write_word(MMU* mmu, uint64_t address, uint64_t value)  {
 }
 
 
-void vm_write_double_word(MMU* mmu, uint64_t address, uint64_t value)  {
-    Segment* s = vm_get_segment(mmu, address);
+void vm_write_double_word(Emulator* emu, uint64_t address, uint64_t value,crash_callback crashes_function)  {
+    Segment* s = vm_get_segment(&emu->mmu, address);
     if (s == NULL){
-        debug_print("Attempted to write too 0x%llx\n",address);
-        assert("TODO HANDLE SEGFAULT! WITH A CALLBACK" == 0);
+        crashes_function(emu->crashes,emu->cpu.pc,emu->current_fuzz_case);
+        emu->crashed = true;
+        return;
     }
     uint64_t index = address - s->range.start;
     debug_print("Writing DOUBLE 0x%llx to 0x%llx\n",value,address);
@@ -325,7 +370,9 @@ char* vm_read_string(MMU* mmu,uint64_t address){
 uint64_t vm_read_double_word(Emulator* emu, uint64_t address,crash_callback crashes_function){
     Segment* s = vm_get_segment(&emu->mmu, address);
     if (s == NULL){
-        assert("TODO HANDLE SEGFAULT! WITH A CALLBACK" == 0);
+        crashes_function(emu->crashes,emu->cpu.pc,emu->current_fuzz_case);
+        emu->crashed = true;
+        return 0;
     }
     uint64_t index = address - s->range.start;
     debug_print("READING DOUBLE 0x%llx\n",address);
@@ -357,7 +404,9 @@ uint64_t vm_read_word(Emulator* emu, uint64_t address,crash_callback crashes_fun
 uint64_t vm_read_half(Emulator* emu, uint64_t address,crash_callback crashes_function){
     Segment* s = vm_get_segment(&emu->mmu, address);
     if (s == NULL){
-        assert("TODO HANDLE SEGFAULT! WITH A CALLBACK" == 0);
+        crashes_function(emu->crashes,emu->cpu.pc,emu->current_fuzz_case);
+        emu->crashed = true;
+        return 0;
     }
     uint64_t index = address - s->range.start;
     //fprintf(stderr,"DEBUG: Address 0x%x memory base 0x%x segment offset 0x%x\n",address, s->range.start,index);
@@ -368,7 +417,9 @@ uint64_t vm_read_half(Emulator* emu, uint64_t address,crash_callback crashes_fun
 uint64_t vm_read_byte(Emulator* emu, uint64_t address,crash_callback crashes_function){
     Segment* s = vm_get_segment(&emu->mmu, address);
     if (s == NULL){
-        assert("TODO HANDLE SEGFAULT! WITH A CALLBACK" == 0);
+        crashes_function(emu->crashes,emu->cpu.pc,emu->current_fuzz_case);
+        emu->crashed = true;
+        return 0;
     }
     uint64_t index = address - s->range.start;
     //fprintf(stderr,"DEBUG: Address 0x%x memory base 0x%x segment offset 0x%x\n",address, s->range.start,index);
@@ -377,13 +428,6 @@ uint64_t vm_read_byte(Emulator* emu, uint64_t address,crash_callback crashes_fun
 }
 
 uint32_t fetch(Emulator* emu,crash_callback crash_function) {
-    //fprintf(stderr,"DEBUG: FETCHING INSTRUCTION 0x%x\n",emu->cpu.pc);
-    /*
-    Segment* segment = vm_get_segment(&emu->mmu,emu->cpu.pc);
-    if (segment == NULL){
-        assert("TODO HANDLE SEGFAULT! WITH A CALLBACK" == 0);
-    }
-    */
     return (uint32_t)vm_read_word(emu,emu->cpu.pc,crash_function);
 }
 
@@ -461,7 +505,7 @@ static void execute_compressed(Emulator* emu, uint64_t instruction, coverage_cal
                 | ((instruction >> 7) & 0x38)
                 | ((instruction >> 4) & 0x4);
                 uint64_t memory_address = emu->cpu.x_reg[rs1] + offset;
-                vm_write_word(&emu->mmu,memory_address,emu->cpu.x_reg[rs2]);
+                vm_write_word(emu,memory_address,emu->cpu.x_reg[rs2],crashes_function);
                 debug_print("c.sw x%d,%d(x%d)\n",rs2,offset,rs1);
                 return;
             }
@@ -471,7 +515,7 @@ static void execute_compressed(Emulator* emu, uint64_t instruction, coverage_cal
                 uint64_t offset = ((instruction << 1) & 0xc0) 
                 | ((instruction >> 7) & 0x38);
                 uint64_t memory_address = emu->cpu.x_reg[rs1] + offset;
-                vm_write_double_word(&emu->mmu,memory_address,emu->cpu.x_reg[rs2]);
+                vm_write_double_word(emu,memory_address,emu->cpu.x_reg[rs2],crashes_function);
                 debug_print("c.sd x%d,%d(x%d)\n",rs2,offset,rs1);
                 return;
             }
@@ -647,7 +691,7 @@ static void execute_compressed(Emulator* emu, uint64_t instruction, coverage_cal
                     coverage_function(emu->coverage,emu->cpu.pc,(emu->cpu.pc + offset) - 0x2);
                     emu->cpu.pc = (emu->cpu.pc + offset) - 0x2;
                 } else {
-                    //coverage_function(emu->coverage,emu->cpu.pc,(emu->cpu.pc + 0x2));
+                    coverage_function(emu->coverage,emu->cpu.pc,(emu->cpu.pc + 0x2));
                 }
                 return;
             }
@@ -667,7 +711,7 @@ static void execute_compressed(Emulator* emu, uint64_t instruction, coverage_cal
                     emu->cpu.pc = (emu->cpu.pc + offset) - 0x2;
                     //printf("Branch to 0x%llx taken\n",emu->cpu.pc);
                 } else {
-                    //coverage_function(emu->coverage,emu->cpu.pc,(emu->cpu.pc + 0x2));
+                    coverage_function(emu->coverage,emu->cpu.pc,(emu->cpu.pc + 0x2));
                 }
                 return;
             }
@@ -717,7 +761,7 @@ static void execute_compressed(Emulator* emu, uint64_t instruction, coverage_cal
                 | ((instruction >> 4) & 0x4);
                 uint64_t memory_address = emu->cpu.x_reg[rs1] + offset;
                 debug_print("c.sw x%d, 0x%x(x%d)\n",rs2,offset,rs1);
-                vm_write_word(&emu->mmu,memory_address,emu->cpu.x_reg[rs2]);
+                vm_write_word(emu,memory_address,emu->cpu.x_reg[rs2],crashes_function);
                 return;
             }
             case 0x7: {
@@ -725,7 +769,7 @@ static void execute_compressed(Emulator* emu, uint64_t instruction, coverage_cal
                 uint64_t offset = ((instruction >> 1 ) & 0x1c0) | ((instruction >> 7) & 0x38);
                 uint64_t memory_address = emu->cpu.x_reg[2] + offset;
                 debug_print("c.sdsp x%x,0x%x(sp)\n",rs2,offset);
-                vm_write_double_word(&emu->mmu, memory_address, emu->cpu.x_reg[rs2]);
+                vm_write_double_word(emu, memory_address, emu->cpu.x_reg[rs2],crashes_function);
                 uint64_t after = vm_read_double_word(emu, memory_address,crashes_function);
                 return;
             }
@@ -973,7 +1017,7 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
                     coverage_function(emu->coverage,emu->cpu.pc,(emu->cpu.pc + imm) - 0x4);
                     emu->cpu.pc = (emu->cpu.pc + imm) - 0x4;
                 } else {
-                    //coverage_function(emu->coverage,emu->cpu.pc,emu->cpu.pc + 0x4); 
+                    coverage_function(emu->coverage,emu->cpu.pc,emu->cpu.pc + 0x4); 
                 }
                 return;
             }
@@ -983,7 +1027,7 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
                     coverage_function(emu->coverage,emu->cpu.pc,(emu->cpu.pc + imm) - 0x4);
                     emu->cpu.pc = (emu->cpu.pc + imm) - 0x4;
                 } else {
-                    //coverage_function(emu->coverage,emu->cpu.pc,emu->cpu.pc + 0x4); 
+                    coverage_function(emu->coverage,emu->cpu.pc,emu->cpu.pc + 0x4); 
                 }
                 return;
             }
@@ -993,7 +1037,7 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
                     coverage_function(emu->coverage,emu->cpu.pc,(emu->cpu.pc + imm) - 0x4);
                     emu->cpu.pc = (emu->cpu.pc + imm) - 0x4;
                 } else {
-                    //coverage_function(emu->coverage,emu->cpu.pc,emu->cpu.pc + 0x4); 
+                    coverage_function(emu->coverage,emu->cpu.pc,emu->cpu.pc + 0x4); 
                 }
                 return;
             }
@@ -1007,7 +1051,7 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
                     coverage_function(emu->coverage,emu->cpu.pc,(emu->cpu.pc + imm) - 0x4);
                     emu->cpu.pc = (emu->cpu.pc + imm) - 0x4;
                 } else {
-                    //coverage_function(emu->coverage,emu->cpu.pc,emu->cpu.pc + 0x4); 
+                    coverage_function(emu->coverage,emu->cpu.pc,emu->cpu.pc + 0x4); 
                 }
                 return;
             }
@@ -1017,7 +1061,7 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
                     coverage_function(emu->coverage,emu->cpu.pc,(emu->cpu.pc + imm) - 0x4);
                     emu->cpu.pc = (emu->cpu.pc + imm) - 0x4;
                 } else {
-                    //coverage_function(emu->coverage,emu->cpu.pc,emu->cpu.pc + 0x4); 
+                    coverage_function(emu->coverage,emu->cpu.pc,emu->cpu.pc + 0x4); 
                 }
                 return;
             }
@@ -1027,7 +1071,7 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
                     coverage_function(emu->coverage,emu->cpu.pc,(emu->cpu.pc + imm) - 0x4);
                     emu->cpu.pc = (emu->cpu.pc + imm) - 0x4;
                 } else {
-                    //coverage_function(emu->coverage,emu->cpu.pc,emu->cpu.pc + 0x4); 
+                    coverage_function(emu->coverage,emu->cpu.pc,emu->cpu.pc + 0x4); 
                 }
                 return;
             }
@@ -1043,7 +1087,7 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
             {
             case 0x0:{
                 debug_print("sb x%d,0x%x,x%d\n",rs2,offset,rs1);
-                vm_write_byte(&emu->mmu,memory_address,emu->cpu.x_reg[rs2]);
+                vm_write_byte(emu,memory_address,emu->cpu.x_reg[rs2],crashes_function);
                 return;
             }
             case 0x1: {
@@ -1052,12 +1096,12 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
             }
             case 0x2: {
                 debug_print("sw x%d,0x%x,x%d\n",rs2,offset,rs1);
-                vm_write_word(&emu->mmu,memory_address,emu->cpu.x_reg[rs2]);
+                vm_write_word(emu,memory_address,emu->cpu.x_reg[rs2],crashes_function);
                 return;
             }
             case 0x3: {
                 debug_print("sd x%d,%d,x%d\n",rs2,offset,rs1);
-                vm_write_double_word(&emu->mmu,memory_address,emu->cpu.x_reg[rs2]);
+                vm_write_double_word(emu,memory_address,emu->cpu.x_reg[rs2],crashes_function);
                 return;
             }
             default:

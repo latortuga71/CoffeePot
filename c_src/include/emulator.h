@@ -69,10 +69,10 @@ Segment* vm_get_segment(MMU* mmu, uint64_t address);
 static void copy_mmu_segments(Emulator* original,Emulator* snapshot);
 
 // MMU WRITE TO MEMORY //
-void vm_write_double_word(MMU*, uint64_t address, uint64_t value);
-void vm_write_word(MMU* mmu, uint64_t address, uint64_t value);
-void vm_write_byte(MMU* mmu, uint64_t address, uint64_t value);
-void vm_write_half(MMU* mmu, uint64_t address, uint64_t value);
+void vm_write_double_word(Emulator* emu, uint64_t address, uint64_t value,crash_callback crashes_function);
+void vm_write_word(Emulator* emu, uint64_t address, uint64_t value,crash_callback crashes_function);
+void vm_write_byte(Emulator* emu, uint64_t address, uint64_t value,crash_callback crashes_function);
+void vm_write_half(Emulator* emu, uint64_t address, uint64_t value,crash_callback crashes_function);
 
 // MMU READ FROM MEMORY //
 uint64_t vm_read_double_word(Emulator* emu, uint64_t address,crash_callback crashes_function);
@@ -80,9 +80,10 @@ uint64_t vm_read_word(Emulator* emu, uint64_t address,crash_callback crashes_fun
 uint64_t vm_read_half(Emulator* emu, uint64_t address,crash_callback crashes_function);
 uint64_t vm_read_byte(Emulator* emu, uint64_t address,crash_callback crashes_function);
 
+
+// Stuff that i use for other reasons not really used in instruction set
 char* vm_read_string(MMU* mmu,uint64_t address);
 void vm_write_string(MMU* mmu,uint64_t address, char* string);
-
 void vm_write_buffer(MMU* mmu,uint64_t address, uint8_t* data, size_t size);
 
 // Emulator //
@@ -90,7 +91,7 @@ void print_registers(Emulator*);
 // load elf segments into memory
 void load_code_segments_into_virtual_memory(Emulator* ,CodeSegments*);
 // load libc stack args into stack memory
-uint64_t init_stack_virtual_memory(Emulator* emu,int argc, char** argv);
+uint64_t init_stack_virtual_memory(Emulator* emu, int argc, char** argv,crash_callback crashes_function);
 uint32_t fetch(Emulator* emu, crash_callback crashes_function);
 
 void execute_instruction(Emulator* emu, uint64_t instruction,coverage_callback coverage_function,crash_callback crash_function);
