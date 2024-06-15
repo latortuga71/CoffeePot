@@ -111,7 +111,6 @@ int main(int argc, char **argv) {
   snapshot_immut = snapshot_vm(emu);
   printf("Snapshot taken!\n");
   printf("Fuzz Loop Begins Here\n");
-  vm_print(&emu->mmu);
   // Setup fuzzcase that gets mutated so we dont alloc a bunch of times
   FuzzCase fcase_mut = {0};
   fcase_mut.size = strlen("Hello From CoffeePot!\n");
@@ -122,7 +121,6 @@ int main(int argc, char **argv) {
     int corpus_index = rand() % ((emu->corpus->count) - 0);
     FuzzCase* fcase = &emu->corpus->cases[corpus_index];
     MutateBuffer(fcase,&fcase_mut);
-
     vm_write_buffer(&emu->mmu, 0x113f0, fcase_mut.data, sizeof(uint8_t) * fcase_mut.size);
     emu->current_fuzz_case = &fcase_mut;
     // Execute Normally

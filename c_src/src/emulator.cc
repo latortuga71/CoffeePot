@@ -129,11 +129,12 @@ void vm_print(MMU* mmu){
 Segment* vm_get_segment(MMU* mmu, uint64_t address){
     if ( (address >= 0x10000 ) && (address <= 0x34c50)){
         return &mmu->virtual_memory[0];
-    } else if ( (address >= 4000000000 ) && (address <= 0x4001048510 )){
+    } else if ( (address >= 4000000000 ) && (address <= 0x400001f400 )){
         return &mmu->virtual_memory[1];
-    } else if ( (address >= 0x4001049534 ) && (address <= 0x4001049934 )){
+    } else if ( (address >= 0x4000020424) && (address <= 0x4000020824 )){
         return &mmu->virtual_memory[2];
     } else {
+        printf("0x%llx\n",address);
         assert("ERROR MEMORY ACCESS" == 0);
         return NULL;
     }
@@ -142,6 +143,11 @@ Segment* vm_get_segment(MMU* mmu, uint64_t address){
     [0] DEBUG SEGMENT: 0x10000-0x34c50 size 0x24c50 perms 0x7
     [1] DEBUG SEGMENT: 0x4000000000-0x4001048510 size 0x1048510 perms 0x3
     [2] DEBUG SEGMENT: 0x4001049534-0x4001049934 size 0x400 perms 0x3
+
+    1] DEBUG SEGMENT: 0x4000000000-0x4000001024 size 0x1024 perms 0x3
+    [2] DEBUG SEGMENT: 0x4000002048-0x4000002448 size 0x400 perms 0x3
+0x4000020424-0x4000020824
+
     */
    /*
     debug_print("DEBUG: GETTING SEGMENT 0x%llx\n",address);
@@ -241,10 +247,11 @@ void load_code_segments_into_virtual_memory(Emulator* emu ,CodeSegments* code){
 
 uint64_t init_stack_virtual_memory(Emulator* emu, int argc, char** argv,crash_callback crashes_function){
   uint64_t stack_base = 0x4000000000;
-  uint64_t alloc_base = vm_alloc(&emu->mmu, stack_base, 0x1024*0x1024, READ | WRITE);
+  // 0x1F400 = 128k
+  uint64_t alloc_base = vm_alloc(&emu->mmu, stack_base, 0x1F400, READ | WRITE);
   debug_print("base 0x%llx\n",alloc_base);
-  uint64_t stack_end = stack_base + (0x1024 * 0x1024);
-  uint64_t stack_pointer = stack_end - (1024 * 1024);
+  uint64_t stack_end = stack_base + (0x1F400);
+  uint64_t stack_pointer = stack_end - (0xFA00);
   stack_pointer -= 0x8;
   vm_write_double_word(emu,stack_pointer, 0,crashes_function);
 
