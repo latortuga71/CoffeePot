@@ -14,5 +14,3 @@
 * mkdir ~/riscv_gcc/
 * ./configure --prefix=/home/latortuga0x71/riscv_gcc --with-arch=rv64gc
 * make linux
-
-
