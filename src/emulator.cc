@@ -122,7 +122,6 @@ void free_emulator(Emulator* emu){
 void vm_print(MMU* mmu){
     for (int i = 0; i < mmu->segment_count; i++){
         debug_print("[%d] DEBUG SEGMENT: 0x%llx-0x%llx size 0x%0x perms 0x%x\n",i,mmu->virtual_memory[i].range.start,mmu->virtual_memory[i].range.end,mmu->virtual_memory[i].data_size,mmu->virtual_memory[i].perms);
-        printf("[%d] DEBUG SEGMENT: 0x%llx-0x%llx size 0x%0x perms 0x%x\n",i,mmu->virtual_memory[i].range.start,mmu->virtual_memory[i].range.end,mmu->virtual_memory[i].data_size,mmu->virtual_memory[i].perms);
     }
 }
 
@@ -873,8 +872,102 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
     uint64_t rs2 = (instruction & 0x01f00000) >> 20;
     uint64_t funct3 = (instruction & 0x00007000) >> 12;
     uint64_t funct7 = (instruction & 0xfe000000) >> 25;
+    uint64_t funct5 = (funct7 & 0b1111100) >> 2;
     switch (opcode)
     {
+        case 0b00101111: {
+            if ((funct3 == 0x2) && (funct5 == 0x0)){
+                todo("amoadd.w");
+                return;
+            } else if ((funct3 == 0x3) && (funct5 == 0x0)){
+                todo("amoadd.d");
+                return;
+            } else if ((funct3 == 0x2) && (funct5 == 0x1)){
+                todo("amoswap.w");
+                return;
+            } else if ((funct3 == 0x3) && (funct5 == 0x1)){
+                todo("amoswap.d");
+                return;
+            } else if ((funct3 == 0x2) && (funct5 == 0x2)){
+                debug_print("lr.w%s","\n");
+                uint64_t memory_address = emu->cpu.x_reg[rs1];
+                if ((memory_address % 4) != 0){
+                    panic("unaligned address lr.w instruction");
+                }
+                uint64_t value = vm_read_word(emu,memory_address,crashes_function);
+                emu->cpu.x_reg[rd] = (uint64_t)((int64_t)((int32_t)(value)));
+                return;
+            } else if ((funct3 == 0x3) && (funct5 == 0x2)){
+                todo("lr.d");
+                return;
+            } else if ((funct3 == 0x2) && (funct5 == 0x3)){
+                todo("sc.w");
+                return;
+            } else if ((funct3 == 0x3) && (funct5 == 0x3)){
+                todo("sc.d");
+                return;
+            } else if ((funct3 == 0x2) && (funct5 == 0x4)){
+                todo("amoxor.w");
+                return;
+            } else if ((funct3 == 0x3) && (funct5 == 0x4)){
+                todo("amoxor.d");
+                return;
+            } else if ((funct3 == 0x2) && (funct5 == 0x8)){
+                todo("amooor.w");
+                return;
+            } else if ((funct3 == 0x3) && (funct5 == 0x8)){
+                todo("amooor.d");
+                return;
+            } else if ((funct3 == 0x2) && (funct5 == 0xc)){
+                todo("amoand.w");
+                return;
+            } else if ((funct3 == 0x3) && (funct5 == 0xc)){
+                todo("amoand.d");
+                return;
+            } else if ((funct3 == 0x2) && (funct5 == 0x10)){
+                todo("amomin.w");
+                return;
+            } else if ((funct3 == 0x3) && (funct5 == 0x10)){
+                todo("amomin.d");
+                return;
+            } else if ((funct3 == 0x2) && (funct5 == 0x14)){
+                todo("amomax.w");
+                return;
+            } else if ((funct3 == 0x3) && (funct5 == 0x14)){
+                todo("amomax.d");
+                return;
+            } else if ((funct3 == 0x2) && (funct5 == 0x18)){
+                todo("amominu.w");
+                return;
+            } else if ((funct3 == 0x3) && (funct5 == 0x18)){
+                todo("amominu.d");
+                return;
+            } else if ((funct3 == 0x2) && (funct5 == 0x1c)){
+                todo("amomaxu.w");
+                return;
+            } else if ((funct3 == 0x3) && (funct5 == 0x1c)){
+                todo("amomaxu.d");
+                return;
+            } else {
+                panic("invalid a extension instruction");
+            }
+            return;
+        }
+        case 0b00111011: {
+            if ((funct3 == 0x0) && (funct7 == 0x00)){
+                debug_print("DEBUG: addw%s","\n");
+                emu->cpu.x_reg[rd] = (uint64_t)((int64_t)((int32_t)((emu->cpu.x_reg[rs1] + emu->cpu.x_reg[rs2]))));
+                return;
+            } else if ((funct3 == 0x0) && (funct7 == 0x20)) {
+                debug_print("DEBUG: subw%s","\n");
+                emu->cpu.x_reg[rd] = (uint64_t)((int32_t)(emu->cpu.x_reg[rs1] - emu->cpu.x_reg[rs2]));
+                return;
+            } else {
+                todo("subw, mulw, etc etc");
+                return;
+            }
+            return;
+        }
         case 0b0110011: {
             switch (funct3)
             {
@@ -1232,6 +1325,7 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
         }
 
     default:
+        printf("Opcode -> 0x%llx\n",opcode);
         assert("TODO! UNKNOWN OPCODE" == 0);
         return;
     }

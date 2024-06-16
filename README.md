@@ -15,5 +15,8 @@
 * wget https://github.com/riscv-collab/riscv-gnu-toolchain/releases/download/2024.04.12/riscv64-elf-ubuntu-20.04-gcc-nightly-2024.04.12-nightly.tar.gz
 * tar -zxvf
 * gdb is in bin
-
+* 
+# DEBUG
+* qemu-riscv64-static -g 1234 /home/latortuga0x71/CoffeePot/tests/test_binaries/simple_snapshot_test
+* ./riscv64-unknown-elf-gdb /home/latortuga0x71/CoffeePot/tests/test_binaries/simple_snapshot_test
 # TODO
