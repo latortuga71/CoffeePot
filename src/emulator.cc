@@ -251,7 +251,7 @@ void load_code_segments_into_virtual_memory(Emulator* emu ,CodeSegments* code){
   }
 }
 
-uint64_t init_stack_virtual_memory(Emulator* emu, int argc, char** argv,crash_callback crashes_function){
+uint64_t init_stack_virtual_memory(Emulator* emu, int argc, char** argv, crash_callback crashes_function){
   uint64_t stack_base = 0x4000000000;
   // 0x1F400 = 128k
   uint64_t alloc_base = vm_alloc(&emu->mmu, stack_base, 0x1F400, READ | WRITE);
@@ -458,7 +458,7 @@ uint64_t vm_read_byte(Emulator* emu, uint64_t address,crash_callback crashes_fun
     }
     uint64_t index = address - s->range.start;
     //fprintf(stderr,"DEBUG: Address 0x%x memory base 0x%x segment offset 0x%x\n",address, s->range.start,index);
-    debug_print("READING WORD 0x%llx\n",address);
+    debug_print("READING BYTE 0x%llx\n",address);
     return (uint64_t)(s->data[index]);
 }
 
@@ -774,7 +774,14 @@ static void execute_compressed(Emulator* emu, uint64_t instruction, coverage_cal
                 return;
             }
             case 0x2: {
-                todo("c.lwsp");
+                uint64_t rd = (instruction >> 7 ) & 0x1f;
+                uint64_t offset = ((instruction << 4) & 0xc0) |
+                ((instruction >> 7) & 0x20) |
+                ((instruction >> 2) & 0x1c);
+                uint64_t memory_address = emu->cpu.x_reg[2] + offset;
+                debug_print("c.lwsp%s","\n");
+                uint64_t result = vm_read_word(emu,memory_address,crashes_function);
+                emu->cpu.x_reg[rd] = (uint64_t)((int64_t)((int32_t)(result)));
                 return;
             }
             case 0x3: {
@@ -1000,6 +1007,7 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
                         break;
                     }
                     default:{
+                        todo("add, xor rem sra");
                         break;
                     }
                 }
@@ -1020,6 +1028,13 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
                 }
                 panic("unknown func7;");
                 return;
+            }
+            case 0x6: {
+                if (funct7 == 0x0){
+                    debug_print("or%s","\n");
+                    emu->cpu.x_reg[rd] = emu->cpu.x_reg[rs1] | emu->cpu.x_reg[rs2];
+                    return;
+                }
             }
             case 0x7:{
                 if (funct7 == 0x0 ){
@@ -1161,8 +1176,11 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
                 return;
             }
             case 0x4: {
+                // TODO: FOR SOME REASON int64_t doesnt get interpreted as less than zero when a negative number
                 debug_print("blt x%d, x%d, 0x%x\n",rs1,rs2,emu->cpu.pc + imm);
-                if ((int64_t)(emu->cpu.x_reg[rs1]) < (int64_t)(emu->cpu.x_reg[rs2])){
+                int32_t left = emu->cpu.x_reg[rs1];
+                int32_t right = emu->cpu.x_reg[rs2];
+                if (left < right){
                     coverage_function(emu->coverage,emu->cpu.pc,(emu->cpu.pc + imm) - 0x4);
                     emu->cpu.pc = (emu->cpu.pc + imm) - 0x4;
                 } else {

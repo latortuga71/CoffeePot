@@ -63,8 +63,11 @@ int debug_main_no_snapshot(int argc, char **argv) {
   load_code_segments_into_virtual_memory(emu,code_segment);
   init_stack_virtual_memory(emu,argc,argv,generic_record_crashes); 
   delete_code_segments(code_segment);
-  bool debug = true;
+  bool debug = false;
   for(;;){
+    if (emu->cpu.pc == 0x11eea){
+      debug = false;
+    }
     if (debug)
       getchar();
     uint32_t instruction = fetch(emu,generic_record_crashes);
