@@ -10,9 +10,10 @@
 * apt-get install qemu-user-static
 
 # GCC TOOLCHAIN INSTALL (for gdb)
-* export PATH=$PATH:/home/latortuga0x71/riscv_gcc/bin
 * mkdir ~/riscv_gcc/
-* ./configure --prefix=/home/latortuga0x71/riscv_gcc --with-arch=rv64gc
 * make linux
+* wget https://github.com/riscv-collab/riscv-gnu-toolchain/releases/download/2024.04.12/riscv64-elf-ubuntu-20.04-gcc-nightly-2024.04.12-nightly.tar.gz
+* tar -zxvf
+* gdb is in bin
 
 # TODO
