@@ -54,8 +54,8 @@ int debug_main_no_snapshot(int argc, char **argv) {
   // Corpus Config
   Corpus* corpus_data = new_corpus("./corpus");
   // SnapShot & Restore Config
-  uint64_t snapshot_addr = 0x10256;
-  uint64_t restore_addr = 0x1035a;
+  uint64_t snapshot_addr = 0x0;
+  uint64_t restore_addr = 0x0;
   // Create Emulator
   Emulator* emu = new_emulator(coverage_map_data,crash_map_data,stats_data,corpus_data,snapshot_addr,restore_addr);
   emu->current_fuzz_case = NULL;
@@ -74,6 +74,8 @@ int debug_main_no_snapshot(int argc, char **argv) {
 }
 
 int main(int argc, char **argv) {
+  debug_main_no_snapshot(argc,argv);
+  return 0;
   int seed = 0x1234;
   srand(seed);
   const char *binary_path = *++argv;

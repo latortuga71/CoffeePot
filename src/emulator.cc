@@ -127,6 +127,13 @@ void vm_print(MMU* mmu){
 }
 
 Segment* vm_get_segment(MMU* mmu, uint64_t address){
+    for (int i = 0; i < mmu->segment_count; i++){
+        if (address >= mmu->virtual_memory[i].range.start && address < mmu->virtual_memory[i].range.end){
+            return &mmu->virtual_memory[i];
+        }
+    }
+    return NULL;
+    /*
     if ( (address >= 0x10000 ) && (address <= 0x34c50)){
         return &mmu->virtual_memory[0];
     } else if ( (address >= 4000000000 ) && (address <= 0x400001f400 )){
@@ -138,7 +145,7 @@ Segment* vm_get_segment(MMU* mmu, uint64_t address){
         assert("ERROR MEMORY ACCESS" == 0);
         return NULL;
     }
-
+    */
     /*
     [0] DEBUG SEGMENT: 0x10000-0x34c50 size 0x24c50 perms 0x7
     [1] DEBUG SEGMENT: 0x4000000000-0x4001048510 size 0x1048510 perms 0x3
@@ -1260,7 +1267,7 @@ void emulate_syscall(Emulator* emu){
                 void* buffer = vm_copy_memory(&emu->mmu,(uint64_t)(iovec_ptr->iov_base),iovec_ptr->iov_len);
                 // Write it to corresponding file descriptor
                 if (file_descriptor == STDOUT_FILENO) {
-                    //write(file_descriptor,buffer,iovec_ptr->iov_len);
+                    write(file_descriptor,buffer,iovec_ptr->iov_len);
                 }
                 write_count += iovec_ptr->iov_len;
                 free(buffer);
