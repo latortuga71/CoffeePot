@@ -163,5 +163,5 @@ int main(int argc, char **argv) {
   // Implement Poisoned memory for each segment on write calls
   // use flag to determine if this should occur since we want it after we snapshot so only at that point we do the dirty mem
   // above can also be used to check memory permissions
-  // Snapshot and restore efficiency only restore poisoned memory
   // Implement Address Sanitizer 
+  // Add more complex binaries (aka complete instruction set,syscalls etc)
