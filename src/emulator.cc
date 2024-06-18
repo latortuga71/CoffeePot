@@ -462,8 +462,24 @@ uint64_t vm_read_byte(Emulator* emu, uint64_t address,crash_callback crashes_fun
     return (uint64_t)(s->data[index]);
 }
 
-uint32_t fetch(Emulator* emu,crash_callback crash_function) {
-    return (uint32_t)vm_read_word(emu,emu->cpu.pc,crash_function);
+
+uint32_t fetch(Emulator* emu, crash_callback crash_function) {
+    // TODO dont call get segment here, just hardcode the segment index
+    // This allows us to call vm_get_memory less but could cause us to miss some bugs
+    // TODO 1 giant array solution where segments are allocated right next to each other.
+    Segment* s = &emu->mmu.virtual_memory[0];
+    if (s == NULL){
+        crash_function(emu->crashes,emu->cpu.pc,emu->current_fuzz_case);
+        emu->crashed = true;
+        return 0;
+    }
+    uint64_t address = emu->cpu.pc;
+    uint64_t index = address - s->range.start;
+    uint64_t value = (uint64_t)(s->data[index])
+        | ((uint64_t)(s->data[index + 1]) << 8)
+        | ((uint64_t)(s->data[index + 2]) << 16)
+        | ((uint64_t)(s->data[index + 3]) << 24);
+    return (uint32_t)value;
 }
 
 void print_registers(Emulator* emu){
