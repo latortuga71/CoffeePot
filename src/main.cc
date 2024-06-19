@@ -79,9 +79,9 @@ int debug_main_no_snapshot(int argc, char **argv) {
 }
 
 int main(int argc, char **argv) {
-  debug_main_no_snapshot(argc,argv);
-  return 0;
-  int seed = 0x1234;
+  //debug_main_no_snapshot(argc,argv);
+  //return 0;
+  int seed = 0x123;
   srand(seed);
   const char *binary_path = *++argv;
   printf("Coffeepot Emulating %s\n", binary_path);
@@ -96,8 +96,8 @@ int main(int argc, char **argv) {
   // Corpus Config
   Corpus* corpus_data = new_corpus("./corpus");
   // SnapShot & Restore Config
-  uint64_t snapshot_addr = 0x10256;
-  uint64_t restore_addr = 0x1035a;
+  uint64_t snapshot_addr = 0x10268;
+  uint64_t restore_addr = 0x10348;
   // Create Emulator
   Emulator* emu = new_emulator(coverage_map_data,crash_map_data,stats_data,corpus_data,snapshot_addr,restore_addr);
   emu->current_fuzz_case = NULL;
@@ -128,7 +128,8 @@ int main(int argc, char **argv) {
     int corpus_index = rand() % ((emu->corpus->count) - 0);
     FuzzCase* fcase = &emu->corpus->cases[corpus_index];
     MutateBuffer(fcase,&fcase_mut);
-    vm_write_buffer(&emu->mmu, 0x113f0, fcase_mut.data, sizeof(uint8_t) * fcase_mut.size);
+    //vm_print(&emu->mmu);
+    vm_write_buffer(&emu->mmu,0x4000021848, fcase_mut.data, sizeof(uint8_t) * fcase_mut.size);
     emu->current_fuzz_case = &fcase_mut;
     // Execute Normally
     do {
@@ -151,6 +152,7 @@ int main(int argc, char **argv) {
     emu->stats = stats_data;
     emu->stats->cases++;
     emu->stats->unique_branches = emu->coverage->unique_branches_taken;
+    emu->crashed = false;
     if (((int)emu->stats->cases % 10000) == 0)
       display_stats(emu->stats,emu->corpus);
   }
@@ -160,8 +162,7 @@ int main(int argc, char **argv) {
 
   // TODO's
   // TODO implement faster way to get segments without hardcoding addresses probably need to use a map or 1 giant array
-  // Implement Poisoned memory for each segment on write calls
+  // Implement Poisoned memory for each segment on write calls if above is one giant array we probably need a corresponding memory array for permissions
   // use flag to determine if this should occur since we want it after we snapshot so only at that point we do the dirty mem
-  // above can also be used to check memory permissions
   // Implement Address Sanitizer 
   // Add more complex binaries (aka complete instruction set,syscalls etc)

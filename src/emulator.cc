@@ -21,9 +21,9 @@ void restore_vm(Emulator* emu,Emulator* og){
     // here we should only restore the stack
     // its mocking only restoring dirty memory segment
     // index 1 should be the stack segment
-    Segment* segment_og = &og->mmu.virtual_memory[0];
-    Segment* segment_new = &emu->mmu.virtual_memory[0];
-    memcpy(&segment_new->data[0],&segment_og->data[0],segment_og->data_size);
+    Segment* segment_og = &og->mmu.virtual_memory[3];
+    Segment* segment_new = &emu->mmu.virtual_memory[3];
+    memcpy(&segment_new->data[3],&segment_og->data[3],segment_og->data_size);
     /*
     for (int i = 0; i < og->mmu.segment_count; i++){
         Segment* segment_og = &og->mmu.virtual_memory[i];
@@ -40,6 +40,9 @@ void restore_vm(Emulator* emu,Emulator* og){
 
 bool generic_record_crashes(CrashMap* crashes,uint64_t pc, FuzzCase* fcase){
     crashes->crashes++;
+    if (crashes->crashes > 100){
+        return true;
+    }
     char file_name[250];
     memset(file_name,0,250);
     snprintf(file_name,250,"./crashes/_0x%llx_crash_id_%u",pc,crashes->crashes);
@@ -121,7 +124,8 @@ void free_emulator(Emulator* emu){
 
 void vm_print(MMU* mmu){
     for (int i = 0; i < mmu->segment_count; i++){
-        debug_print("[%d] DEBUG SEGMENT: 0x%llx-0x%llx size 0x%0x perms 0x%x\n",i,mmu->virtual_memory[i].range.start,mmu->virtual_memory[i].range.end,mmu->virtual_memory[i].data_size,mmu->virtual_memory[i].perms);
+        //debug_print("[%d] DEBUG SEGMENT: 0x%llx-0x%llx size 0x%0x perms 0x%x\n",i,mmu->virtual_memory[i].range.start,mmu->virtual_memory[i].range.end,mmu->virtual_memory[i].data_size,mmu->virtual_memory[i].perms);
+        printf("[%d] DEBUG SEGMENT: 0x%llx-0x%llx size 0x%0x perms 0x%x\n",i,mmu->virtual_memory[i].range.start,mmu->virtual_memory[i].range.end,mmu->virtual_memory[i].data_size,mmu->virtual_memory[i].perms);
     }
 }
 
@@ -368,14 +372,12 @@ void* vm_read_memory(MMU* mmu,uint64_t address) {
 
 
 void vm_write_buffer(MMU* mmu,uint64_t address, uint8_t* data, size_t size){
-    /*
     Segment* s = vm_get_segment(mmu, address);
     if (s == NULL){
         assert("TODO HANDLE SEGFAULT! WITH A CALLBACK" == 0);
     }
-    */
     // we know that its in the text section so we dont need to guess the segment
-    Segment* s = &mmu->virtual_memory[0];
+    //Segment* s = &mmu->virtual_memory[0];
     uint64_t index = address - s->range.start;
     memcpy(&s->data[index],data,size);
     return;
@@ -384,6 +386,7 @@ void vm_write_buffer(MMU* mmu,uint64_t address, uint8_t* data, size_t size){
 void* vm_copy_memory(MMU* mmu,uint64_t address,size_t count) {
     Segment* s = vm_get_segment(mmu, address);
     if (s == NULL){
+        printf("Address failed 0x%llx\n",address);
         assert("TODO HANDLE SEGFAULT! WITH A CALLBACK" == 0);
     }
     uint64_t index = address - s->range.start;
@@ -467,7 +470,8 @@ uint32_t fetch(Emulator* emu, crash_callback crash_function) {
     // TODO dont call get segment here, just hardcode the segment index
     // This allows us to call vm_get_memory less but could cause us to miss some bugs
     // TODO 1 giant array solution where segments are allocated right next to each other.
-    Segment* s = &emu->mmu.virtual_memory[0];
+    //Segment* s = &emu->mmu.virtual_memory[0];
+    Segment* s = vm_get_segment(&emu->mmu,emu->cpu.pc);
     if (s == NULL){
         crash_function(emu->crashes,emu->cpu.pc,emu->current_fuzz_case);
         emu->crashed = true;
@@ -1011,6 +1015,20 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
                     assert("INVALID FUNCT 7" == 0);
                     return;
                 }
+            case 0x1: {
+                switch (funct7) {
+                    case 0x0: {
+                        debug_print("sll%d","\n");
+                        uint64_t shamt = emu->cpu.x_reg[rs2] & 0x3f;
+                        emu->cpu.x_reg[rd] = emu->cpu.x_reg[rs1] << shamt;
+                        return;
+                    }
+                    default: {
+                        panic("sll unknwonf");
+                        return;
+                    }
+                }
+            }
             case 0x4: {
                 switch (funct7)
                 {
@@ -1149,7 +1167,13 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
                     case 0x20:{
                         uint32_t shamt = (uint32_t)(imm & 0x1f);
                         debug_print("sraiw x%d, x%d, 0x%x\n",rd,rs1,imm);
-                        emu->cpu.x_reg[rd] = (uint64_t)((int64_t)((int32_t)(emu->cpu.x_reg[rs1]) >> shamt));
+                        emu->cpu.x_reg[rd] =  (uint64_t)((int64_t)((uint32_t)(emu->cpu.x_reg[rs1]) >> shamt)); //(uint64_t)((int64_t)((int32_t)(emu->cpu.x_reg[rs1]) >> shamt));
+                        return;
+                    }
+                    case 0x0: {
+                        uint32_t shamt = (uint32_t)(imm & 0x1f);
+                        debug_print("srliw x%d, x%d, 0x%x\n",rd,rs1,imm);
+                        emu->cpu.x_reg[rd] = (uint64_t)((int64_t)((int32_t)(((uint32_t)(emu->cpu.x_reg[rs1]) >> shamt))));
                         return;
                     }
                     default:{
@@ -1375,7 +1399,7 @@ void emulate_syscall(Emulator* emu){
     uint64_t arg3 = emu->cpu.x_reg[13];
     uint64_t arg4 = emu->cpu.x_reg[14];
     uint64_t arg5 = emu->cpu.x_reg[15];
-    debug_print("ecall -> 0x%x\n",syscall);
+    //debug_print("ecall -> 0x%x\n",syscall);
     switch (syscall)
     {
         case 0x42:{
@@ -1392,6 +1416,11 @@ void emulate_syscall(Emulator* emu){
                 debug_print("fd %d iovec ptr 0x%llx, count %d\n",arg0,arg1,arg2);
                 debug_print("iovec data-> 0x%llx iovec data sz -> %d\n",iovec_ptr->iov_base,iovec_ptr->iov_len);
                 // TODO dont copy memory into another buffer
+                if (iovec_ptr->iov_base == 0){
+                    write_count += iovec_ptr->iov_len;
+                    iovec_ptr++;
+                    continue;
+                }
                 void* buffer = vm_copy_memory(&emu->mmu,(uint64_t)(iovec_ptr->iov_base),iovec_ptr->iov_len);
                 // Write it to corresponding file descriptor
                 if (file_descriptor == STDOUT_FILENO) {
@@ -1402,6 +1431,23 @@ void emulate_syscall(Emulator* emu){
                 iovec_ptr++;
             }
             emu->cpu.x_reg[10] = write_count;
+            return;
+        }
+        case 0xde: {
+            debug_print("syscall -> mmap %s","\n");
+            if (arg0 != 0){
+                panic("mmap requested specific address todo\n");
+            }
+            emu->cpu.x_reg[10] = vm_alloc(&emu->mmu,0x0,0x1024,READ|WRITE);
+            return;
+        }
+        case 0xd6: {
+            debug_print("syscall -> brk %s","\n");
+            if (arg0 == 0){
+                emu->cpu.x_reg[10] = -1;
+                return;
+            }
+            panic("not expecting brk with non zero value");
             return;
         }
         case 0x1d: {
@@ -1435,8 +1481,6 @@ void emulate_syscall(Emulator* emu){
             return;
         }
     }
-
-
 
 
 
