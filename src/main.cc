@@ -65,7 +65,8 @@ int debug_main_no_snapshot(int argc, char **argv) {
   delete_code_segments(code_segment);
   bool debug = false;
   for(;;){
-    if (emu->cpu.pc == 0x11eea){
+    if (emu->cpu.pc == 0x10830){
+      panic("ecall brk");
       debug = false;
     }
     if (debug)

@@ -1423,6 +1423,7 @@ void emulate_syscall(Emulator* emu){
     uint64_t arg4 = emu->cpu.x_reg[14];
     uint64_t arg5 = emu->cpu.x_reg[15];
     debug_print("ecall -> 0x%x\n",syscall);
+    getchar();
     switch (syscall)
     {
         case 0x42:{
@@ -1458,14 +1459,18 @@ void emulate_syscall(Emulator* emu){
         }
         case 0xde: {
             debug_print("syscall -> mmap %s","\n");
+            getchar();
             if (arg0 != 0){
                 panic("mmap requested specific address todo\n");
             }
             emu->cpu.x_reg[10] = vm_alloc(&emu->mmu,0x0,0x1024,READ|WRITE);
+            printf("mmap -> 0x%llx\n",emu->cpu.x_reg[10]);
+            getchar();
             return;
         }
         case 0xd6: {
             debug_print("syscall -> brk %s","\n");
+            getchar();
             if (arg0 == 0){
                 emu->cpu.x_reg[10] = -1;
                 return;
@@ -1554,13 +1559,23 @@ void emulate_syscall(Emulator* emu){
             char* ip = inet_ntoa(tmp->sin_addr);
             uint16_t port = htons(tmp->sin_port);
             printf("binding on %s:%d\n",ip,port);
-            getchar();
             int client_fd  = accept(arg0,(struct sockaddr*)tmp,tmp_len);
             if (client_fd == -1) {
                 panic("accept error client fd is -1");
             }
             debug_print("Got Client FD %d\n",client_fd);
+            getchar();
             emu->cpu.x_reg[10] = client_fd;
+            return;
+        }
+        case 0xcf: {
+            debug_print("recvfrom syscall%s","\n");
+            printf("buffer 0x%llx\n",arg1);
+            printf("fd %d buffer 0x%llx size %d flags %d src 0x%llx src len %d\n",arg0,arg1,arg2,arg3,arg4,arg5);
+            if (recv(arg0, (void*)arg1, arg2, arg3) == -1) {
+                panic("recv failed");
+            }
+            printf("Got some data!\n");
             return;
         }
         default: {
