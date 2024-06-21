@@ -2,7 +2,7 @@
 
 #define EMULATOR_HEADER 
 
-#define DEBUG 0
+#define DEBUG 1
 
 
 #define debug_print(fmt, ...) \
@@ -16,6 +16,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <assert.h>
 #include <unistd.h>
 #include <sys/uio.h>
@@ -36,6 +37,7 @@ typedef struct emulator_t {
     CoverageMap* coverage;
     CrashMap* crashes;
     Stats* stats;
+    int file_descriptors[100];
     uint64_t snapshot_address;
     uint64_t restore_address;
     bool crashed;

@@ -79,9 +79,10 @@ int debug_main_no_snapshot(int argc, char **argv) {
 }
 
 int main(int argc, char **argv) {
-  //debug_main_no_snapshot(argc,argv);
-  //return 0;
-  int seed = 0x123;
+  debug_main_no_snapshot(argc,argv);
+  return 0;
+  //int seed = 0x123;
+  int seed = 0x71717171;
   srand(seed);
   const char *binary_path = *++argv;
   printf("Coffeepot Emulating %s\n", binary_path);
@@ -137,6 +138,8 @@ int main(int argc, char **argv) {
       execute_instruction(emu,(uint64_t)instruction, generic_record_coverage,generic_record_crashes);
       if (emu->crashed){
         emu->stats->crashes++;
+        printf("Crash after %d iterations",emu->stats->cases);
+        exit(0);
         break;
       }
     } while( emu->cpu.pc != restore_addr);

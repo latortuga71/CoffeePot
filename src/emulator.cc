@@ -1,4 +1,7 @@
 #include "emulator.h"
+#include <sys/socket.h>
+#include <errno.h>
+#include <arpa/inet.h>
 
 Emulator* snapshot_vm(Emulator* emu){
     Emulator* snap = clone_emulator(emu);
@@ -368,6 +371,17 @@ void* vm_read_memory(MMU* mmu,uint64_t address) {
     }
     uint64_t index = address - s->range.start;
     return (void*)&s->data[index];
+}
+
+void* vm_read_memory_len(MMU* mmu,uint64_t address,size_t length) {
+    Segment* s = vm_get_segment(mmu, address);
+    if (s == NULL){
+        assert("TODO HANDLE SEGFAULT! WITH A CALLBACK" == 0);
+    }
+    uint64_t index = address - s->range.start;
+    void* copy = malloc(length);
+    memcpy(copy,&s->data[index],length);
+    return copy;
 }
 
 
@@ -1033,8 +1047,9 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
                 switch (funct7)
                 {
                     case 0x0: {
-                        todo("xor");
-                        break;
+                        debug_print("xor%d","\n");
+                        emu->cpu.x_reg[rd] = emu->cpu.x_reg[rs1] ^ emu->cpu.x_reg[rs2];
+                        return;
                     }
                     case 0x1: {
                         todo("div");
@@ -1057,7 +1072,9 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
                     return;
                 } 
                 if (funct7 == 0x1){
-                    todo("mulu");
+                    // might be a bug lol dont have uint128
+                    debug_print("mulhu%s","\n");
+                    emu->cpu.x_reg[rd] = emu->cpu.x_reg[rs1] * emu->cpu.x_reg[rs2];
                     return;
                 }
                 panic("unknown func7;");
@@ -1278,7 +1295,8 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
                 return;
             }
             case 0x1: {
-                todo("sh");
+                debug_print("sh x%d,0x%x,x%d\n",rs2,offset,rs1);
+                vm_write_half(emu,memory_address,emu->cpu.x_reg[rs2],crashes_function);
                 return;
             }
             case 0x2: {
@@ -1333,9 +1351,14 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
                     return;
                 }
             }
+            case 0x6: {
+                debug_print("debug: ori x%d,x%d, 0x%x\n",rd,rs1,imm);
+                emu->cpu.x_reg[rd] = emu->cpu.x_reg[rs1] | imm;
+                return;
+            }
             case 0x7: {
                 emu->cpu.x_reg[rd] = emu->cpu.x_reg[rs1] & imm;
-                debug_print("DEBUG: andi x%d,x%d, 0x%x\n",rd,rs1,imm);
+                debug_print("debug: andi x%d,x%d, 0x%x\n",rd,rs1,imm);
                 return;
             }
             default:
@@ -1399,7 +1422,7 @@ void emulate_syscall(Emulator* emu){
     uint64_t arg3 = emu->cpu.x_reg[13];
     uint64_t arg4 = emu->cpu.x_reg[14];
     uint64_t arg5 = emu->cpu.x_reg[15];
-    //debug_print("ecall -> 0x%x\n",syscall);
+    debug_print("ecall -> 0x%x\n",syscall);
     switch (syscall)
     {
         case 0x42:{
@@ -1474,6 +1497,70 @@ void emulate_syscall(Emulator* emu){
         case 0x5e: {
             debug_print("exit syscall%s","\n");
             exit(arg0);
+            return;
+        }
+        case 0xc8: {
+            debug_print("bind syscall%s","\n");
+            debug_print("fd %d\n",arg0);
+            debug_print("sockaddr address 0x%llx\n",arg1);
+            debug_print("sockaddr size %d\n",arg2);
+            struct sockaddr_in* tmp = (struct sockaddr_in*)vm_read_memory_len(&emu->mmu,arg1,arg2);
+            char* ip = inet_ntoa(tmp->sin_addr);
+            uint16_t port = htons(tmp->sin_port);
+            printf("binding on %s:%d\n",ip,port);
+            getchar();
+            int res = bind(arg0,(struct sockaddr*)tmp,arg2);
+            if (res != 0){
+                fprintf(stderr,"bind error %s\n",strerror(errno));
+                panic("failed to bind");
+            }
+            emu->cpu.x_reg[10] = 0;
+            return;
+        }
+        case 0xc9:{
+            debug_print("listen syscall %d %d %s",arg0,arg1,"\n");
+            int result = listen(arg0,arg1);
+            if (result != 0){
+                panic("failed to listen");
+            }
+            emu->cpu.x_reg[10] = 0;
+            return;
+        }
+        case 0xc6: {
+            debug_print("socket syscall%s","\n");
+            // DOMAIN AF_INET == 2
+            // TYPE SOCK_STREAM == 1
+            // PROTOCOL == 0
+            int fd = socket(arg0,arg1,arg2);
+            if (fd == -1) {
+                panic("failed to create socket\n");
+            }
+            emu->file_descriptors[0] = fd;
+            debug_print("socket syscall created fd %d %s",fd,"\n");
+            emu->cpu.x_reg[10] = fd;
+            return;
+        }
+        case 0xca:{
+            debug_print("accept syscall%s","\n");
+            debug_print("fd %d\n",arg0);
+            debug_print("sockaddr address 0x%llx\n",arg1);
+            debug_print("sockaddr size ptr 0x%llx\n",arg2);
+            arg1 = 0x400000f970; // were off by a couple bytes in the addresses 
+            arg2 = 0x400000f96c; 
+            debug_print("sockaddr address 0x%llx\n",arg1);
+            debug_print("sockaddr size ptr 0x%llx\n",arg2);
+            struct sockaddr_in* tmp = (struct sockaddr_in*)vm_read_memory(&emu->mmu,arg1);
+            socklen_t* tmp_len = (socklen_t*)vm_read_memory(&emu->mmu,arg2);
+            char* ip = inet_ntoa(tmp->sin_addr);
+            uint16_t port = htons(tmp->sin_port);
+            printf("binding on %s:%d\n",ip,port);
+            getchar();
+            int client_fd  = accept(arg0,(struct sockaddr*)tmp,tmp_len);
+            if (client_fd == -1) {
+                panic("accept error client fd is -1");
+            }
+            debug_print("Got Client FD %d\n",client_fd);
+            emu->cpu.x_reg[10] = client_fd;
             return;
         }
         default: {
