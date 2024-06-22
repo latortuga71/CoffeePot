@@ -12,7 +12,7 @@ static int get_file_count(const char* corpus_dir){
     }
     while ( (dir = readdir(d)) != NULL){
         if (dir->d_type == DT_REG){
-            printf("-> %s :::\n",dir->d_name);
+            //printf("-> %s :::\n",dir->d_name);
             files++;
         }
     }
@@ -21,11 +21,12 @@ static int get_file_count(const char* corpus_dir){
 }
 
 Corpus* new_corpus(const char* corpus_dir){
-    printf("corpus dir %s\n",corpus_dir);
+    //printf("corpus dir %s\n",corpus_dir);
     Corpus* corpus = (Corpus*)calloc(1,sizeof(Corpus));
     corpus->count = get_file_count(corpus_dir);
     corpus->capacity = 100; // keep corpus size at 100 for now since we cant realloc lol
     corpus->cases = (FuzzCase*)calloc(corpus->capacity,sizeof(FuzzCase));
+
     int i = 0;
     DIR* d;
     struct dirent *dir;
@@ -33,6 +34,7 @@ Corpus* new_corpus(const char* corpus_dir){
     if (d == NULL){
         assert("failed to open directory to read corpus" == 0);
     }
+
     while ( (dir = readdir(d)) != NULL){
         if (dir->d_type == DT_REG){
             int sz = snprintf(NULL,0,"%s/%s",corpus_dir,dir->d_name) + 1;
@@ -42,6 +44,7 @@ Corpus* new_corpus(const char* corpus_dir){
             if (f == NULL){
                 assert("failed to open corpus file" == 0);
             }
+
             fseek(f,0,SEEK_END);
             long file_sz = ftell(f);
             rewind(f);
@@ -53,11 +56,11 @@ Corpus* new_corpus(const char* corpus_dir){
             corpus->cases[i].data = (uint8_t*)file_buffer;
             corpus->cases[i].size = file_sz;
             i++;
-            printf("%s %d Added to corpus\n",path_buffer,file_sz);
+            //printf("%s %d Added to corpus\n",path_buffer,file_sz);
             free(path_buffer);
         }
     }
-    printf("%d Added to corpus\n",i);
+    //printf("%d Added to corpus\n",i);
     closedir(d);
     return corpus;
 }
