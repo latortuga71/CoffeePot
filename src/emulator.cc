@@ -1074,7 +1074,7 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
                 if (funct7 == 0x1){
                     // might be a bug lol dont have uint128
                     debug_print("mulhu%s","\n");
-                    emu->cpu.x_reg[rd] = emu->cpu.x_reg[rs1] * emu->cpu.x_reg[rs2];
+                    emu->cpu.x_reg[rd] = (uint64_t)(((__uint128_t)emu->cpu.x_reg[rs1] * (__uint128_t)emu->cpu.x_reg[rs2] >> 64));
                     return;
                 }
                 panic("unknown func7;");
@@ -1423,7 +1423,6 @@ void emulate_syscall(Emulator* emu){
     uint64_t arg4 = emu->cpu.x_reg[14];
     uint64_t arg5 = emu->cpu.x_reg[15];
     debug_print("ecall -> 0x%x\n",syscall);
-    getchar();
     switch (syscall)
     {
         case 0x42:{
@@ -1459,18 +1458,15 @@ void emulate_syscall(Emulator* emu){
         }
         case 0xde: {
             debug_print("syscall -> mmap %s","\n");
-            getchar();
             if (arg0 != 0){
                 panic("mmap requested specific address todo\n");
             }
             emu->cpu.x_reg[10] = vm_alloc(&emu->mmu,0x0,0x1024,READ|WRITE);
             printf("mmap -> 0x%llx\n",emu->cpu.x_reg[10]);
-            getchar();
             return;
         }
         case 0xd6: {
             debug_print("syscall -> brk %s","\n");
-            getchar();
             if (arg0 == 0){
                 emu->cpu.x_reg[10] = -1;
                 return;
@@ -1499,6 +1495,11 @@ void emulate_syscall(Emulator* emu){
             panic("shouldnt hit");
             return;
         }
+        case 0x39: {
+            debug_print("close syscall%s","\n");
+            emu->cpu.x_reg[10] = close(arg0);
+            return;
+        }
         case 0x5e: {
             debug_print("exit syscall%s","\n");
             exit(arg0);
@@ -1513,7 +1514,6 @@ void emulate_syscall(Emulator* emu){
             char* ip = inet_ntoa(tmp->sin_addr);
             uint16_t port = htons(tmp->sin_port);
             printf("binding on %s:%d\n",ip,port);
-            getchar();
             int res = bind(arg0,(struct sockaddr*)tmp,arg2);
             if (res != 0){
                 fprintf(stderr,"bind error %s\n",strerror(errno));
@@ -1564,7 +1564,6 @@ void emulate_syscall(Emulator* emu){
                 panic("accept error client fd is -1");
             }
             debug_print("Got Client FD %d\n",client_fd);
-            getchar();
             emu->cpu.x_reg[10] = client_fd;
             return;
         }
@@ -1572,10 +1571,11 @@ void emulate_syscall(Emulator* emu){
             debug_print("recvfrom syscall%s","\n");
             printf("buffer 0x%llx\n",arg1);
             printf("fd %d buffer 0x%llx size %d flags %d src 0x%llx src len %d\n",arg0,arg1,arg2,arg3,arg4,arg5);
-            if (recv(arg0, (void*)arg1, arg2, arg3) == -1) {
+            void* buffer = malloc(arg2);
+            if (recv(arg0, buffer, arg2, arg3) == -1) {
                 panic("recv failed");
             }
-            printf("Got some data!\n");
+            printf("Got some data! %s\n",buffer);
             return;
         }
         default: {

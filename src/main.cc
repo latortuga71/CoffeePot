@@ -65,12 +65,13 @@ int debug_main_no_snapshot(int argc, char **argv) {
   delete_code_segments(code_segment);
   bool debug = false;
   for(;;){
-    if (emu->cpu.pc == 0x10830){
-      panic("ecall brk");
-      debug = false;
+    if (emu->cpu.pc == 0x106a0){
+      debug = true;
     }
+    /*
     if (debug)
       getchar();
+    */
     uint32_t instruction = fetch(emu,generic_record_crashes);
     execute_instruction(emu,(uint64_t)instruction, generic_record_coverage,generic_record_crashes);
     print_registers(emu);
