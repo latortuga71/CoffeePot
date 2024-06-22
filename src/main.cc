@@ -167,8 +167,17 @@ int main(int argc, char **argv) {
 }
 
   // TODO's
-  // TODO implement faster way to get segments without hardcoding addresses probably need to use a map or 1 giant array
-  // Implement Poisoned memory for each segment on write calls if above is one giant array we probably need a corresponding memory array for permissions
+  // URGENT
+  // Add dirty flag to segments
+  // Add memory perm checks to segments so crash callback can handle it
+  // confirm coverage callback is triggered at all possible branch instructions
+  // confirm crash callback is triggered at all possible memory reads or writes
+  // add script that will run end to end testing using the test binaries and check for exit codes
+
+  // LESS URGENT
+  // TODO implement faster way to get segments without hardcoding addresses probably need to use a map or 1 giant array && Implement Poisoned memory for each segment on write calls if above is one giant array we probably need a corresponding memory array for permissions
   // use flag to determine if this should occur since we want it after we snapshot so only at that point we do the dirty mem
   // Implement Address Sanitizer 
+  // Handle threading???
   // Add more complex binaries (aka complete instruction set,syscalls etc)
+  // unit test each instruction
