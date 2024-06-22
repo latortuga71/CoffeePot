@@ -1173,7 +1173,7 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
                 return;
             }
             case 0x1: {
-                uint64_t shamt = (int64_t)((int32_t)((uint32_t)((instruction & 0x1f))));
+                uint32_t shamt = uint32_t(imm & 0x1f);
                 debug_print("slliw x%d, x%d, 0x%x\n",rd,rs1,imm);
                 emu->cpu.x_reg[rd] = (uint64_t)((int64_t)((int32_t)((emu->cpu.x_reg[rs1] << shamt))));
                 return;

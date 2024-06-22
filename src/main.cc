@@ -65,7 +65,7 @@ int debug_main_no_snapshot(int argc, char **argv) {
   delete_code_segments(code_segment);
   bool debug = false;
   for(;;){
-    if (emu->cpu.pc == 0x106a0){
+    if (emu->cpu.pc == 0x10370){
       debug = true;
     }
     /*
