@@ -81,8 +81,8 @@ int debug_main_no_snapshot(int argc, char **argv) {
 }
 
 int main(int argc, char **argv) {
-  debug_main_no_snapshot(argc,argv);
-  return 0;
+  //debug_main_no_snapshot(argc,argv);
+  //return 0;
   //int seed = 0x123;
   int seed = 0x71717171;
   srand(seed);
@@ -99,8 +99,8 @@ int main(int argc, char **argv) {
   // Corpus Config
   Corpus* corpus_data = new_corpus("./corpus");
   // SnapShot & Restore Config
-  uint64_t snapshot_addr = 0x10268;
-  uint64_t restore_addr = 0x10348;
+  uint64_t snapshot_addr = 0x1044e; // right before jump to crash function
+  uint64_t restore_addr = 0x10452; // after return to crash function
   // Create Emulator
   Emulator* emu = new_emulator(coverage_map_data,crash_map_data,stats_data,corpus_data,snapshot_addr,restore_addr);
   emu->current_fuzz_case = NULL;
@@ -119,11 +119,13 @@ int main(int argc, char **argv) {
     emu->coverage->previous_unique_branches_taken = emu->coverage->unique_branches_taken;
   }
   snapshot_immut = snapshot_vm(emu);
-  printf("Snapshot taken!\n");
-  printf("Fuzz Loop Begins Here\n");
+  printf("Process Memory Layout\n");
+  vm_print(&emu->mmu);
+  printf("Emulator Snapshot taken!\n");
+  printf("Entering Fuzz Loop!\n");
   // Setup fuzzcase that gets mutated so we dont alloc a bunch of times
   FuzzCase fcase_mut = {0};
-  fcase_mut.size = strlen("Hello From CoffeePot!\n");
+  fcase_mut.size = 512; // strlen("Hello From CoffeePot!\n");
   fcase_mut.data = (uint8_t*)calloc(fcase_mut.size,sizeof(uint8_t));
   emu->stats->start_time = std::time(0);
   for (;;){
@@ -131,8 +133,7 @@ int main(int argc, char **argv) {
     int corpus_index = rand() % ((emu->corpus->count) - 0);
     FuzzCase* fcase = &emu->corpus->cases[corpus_index];
     MutateBuffer(fcase,&fcase_mut);
-    //vm_print(&emu->mmu);
-    vm_write_buffer(&emu->mmu,0x4000021848, fcase_mut.data, sizeof(uint8_t) * fcase_mut.size);
+    vm_write_buffer(&emu->mmu, 0x4000021848, fcase_mut.data, sizeof(uint8_t) * fcase_mut.size);
     emu->current_fuzz_case = &fcase_mut;
     // Execute Normally
     do {

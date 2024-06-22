@@ -21,20 +21,23 @@ void restore_vm(Emulator* emu,Emulator* og){
     for (int i = 0; i < 32; i++){
         emu->cpu.x_reg[i] = og->cpu.x_reg[i];
     }
-    // here we should only restore the stack
-    // its mocking only restoring dirty memory segment
-    // index 1 should be the stack segment
-    Segment* segment_og = &og->mmu.virtual_memory[3];
-    Segment* segment_new = &emu->mmu.virtual_memory[3];
-    memcpy(&segment_new->data[3],&segment_og->data[3],segment_og->data_size);
+    // dont touch memory in this case
+    // here we should only restore dirty memory usually since we want to keep our snapshot and restore code distance tight, we can just assume the latest segment is whats being changed.
+    // here we just restore the latest heap section
     /*
-    for (int i = 0; i < og->mmu.segment_count; i++){
+    Segment* segment_og = &og->mmu.virtual_memory[og->mmu.segment_count - 1];
+    Segment* segment_new = &emu->mmu.virtual_memory[og->mmu.segment_count - 1];
+    memcpy(&segment_new->data[0],&segment_og->data[0],segment_og->data_size);
+    *?
+    // in the future when attacking more complicated binaries you need dirty bits set and just restore all of those.
+    //here we restore all the memory segments this is slow because not much gets changed between our snapshot and resets
+    // we skip the first segment which is the read only text section
+    // so this restores the stack which is the next segment
+    // and the rest of the dynamic heap allocations
+    /*
+    for (int i = 1; i < og->mmu.segment_count; i++){
         Segment* segment_og = &og->mmu.virtual_memory[i];
         Segment* segment_new = &emu->mmu.virtual_memory[i];
-        segment_new->data_size = segment_og->data_size;
-        segment_new->perms = segment_og->perms;
-        segment_new->range = segment_og->range;
-        segment_new->data = (uint8_t*)calloc(1,segment_new->data_size);
         memcpy(&segment_new->data[0],&segment_og->data[0],segment_og->data_size);
     }
     */
@@ -139,6 +142,8 @@ Segment* vm_get_segment(MMU* mmu, uint64_t address){
         }
     }
     return NULL;
+    // Example of hardcoding memory layout for faster memory access while snapshot and resetting.
+    // Useful for speeding up snapshot reset
     /*
     if ( (address >= 0x10000 ) && (address <= 0x34c50)){
         return &mmu->virtual_memory[0];
@@ -156,21 +161,6 @@ Segment* vm_get_segment(MMU* mmu, uint64_t address){
     [0] DEBUG SEGMENT: 0x10000-0x34c50 size 0x24c50 perms 0x7
     [1] DEBUG SEGMENT: 0x4000000000-0x4001048510 size 0x1048510 perms 0x3
     [2] DEBUG SEGMENT: 0x4001049534-0x4001049934 size 0x400 perms 0x3
-
-    1] DEBUG SEGMENT: 0x4000000000-0x4000001024 size 0x1024 perms 0x3
-    [2] DEBUG SEGMENT: 0x4000002048-0x4000002448 size 0x400 perms 0x3
-0x4000020424-0x4000020824
-
-    */
-   /*
-    debug_print("DEBUG: GETTING SEGMENT 0x%llx\n",address);
-    for (int i = 0; i < mmu->segment_count; i++){
-        if (address >= mmu->virtual_memory[i].range.start && address < mmu->virtual_memory[i].range.end){
-            return &mmu->virtual_memory[i];
-        }
-    }
-    //vm_print(mmu);
-    return NULL;
     */
 }
 
@@ -1513,10 +1503,8 @@ void emulate_syscall(Emulator* emu){
             struct sockaddr_in* tmp = (struct sockaddr_in*)vm_read_memory_len(&emu->mmu,arg1,arg2);
             char* ip = inet_ntoa(tmp->sin_addr);
             uint16_t port = htons(tmp->sin_port);
-            printf("binding on %s:%d\n",ip,port);
             int res = bind(arg0,(struct sockaddr*)tmp,arg2);
             if (res != 0){
-                fprintf(stderr,"bind error %s\n",strerror(errno));
                 panic("failed to bind");
             }
             emu->cpu.x_reg[10] = 0;
@@ -1558,7 +1546,6 @@ void emulate_syscall(Emulator* emu){
             socklen_t* tmp_len = (socklen_t*)vm_read_memory(&emu->mmu,arg2);
             char* ip = inet_ntoa(tmp->sin_addr);
             uint16_t port = htons(tmp->sin_port);
-            printf("binding on %s:%d\n",ip,port);
             int client_fd  = accept(arg0,(struct sockaddr*)tmp,tmp_len);
             if (client_fd == -1) {
                 panic("accept error client fd is -1");
@@ -1569,13 +1556,10 @@ void emulate_syscall(Emulator* emu){
         }
         case 0xcf: {
             debug_print("recvfrom syscall%s","\n");
-            printf("buffer 0x%llx\n",arg1);
-            printf("fd %d buffer 0x%llx size %d flags %d src 0x%llx src len %d\n",arg0,arg1,arg2,arg3,arg4,arg5);
             void* buffer = malloc(arg2);
             if (recv(arg0, buffer, arg2, arg3) == -1) {
                 panic("recv failed");
             }
-            printf("Got some data! %s\n",buffer);
             return;
         }
         default: {
