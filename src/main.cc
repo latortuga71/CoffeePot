@@ -81,8 +81,8 @@ int debug_main_no_snapshot(int argc, char **argv) {
 }
 
 int main(int argc, char **argv) {
-  //debug_main_no_snapshot(argc,argv);
-  //return 0;
+  debug_main_no_snapshot(argc,argv);
+  return 0;
   //int seed = 0x123;
   int seed = 0x71717171;
   srand(seed);
@@ -105,6 +105,12 @@ int main(int argc, char **argv) {
   Emulator* emu = new_emulator(coverage_map_data,crash_map_data,stats_data,corpus_data,snapshot_addr,restore_addr);
   emu->current_fuzz_case = NULL;
   emu->cpu.pc = code_segment->entry_point;
+  // Setup fuzzcase that gets mutated so we dont alloc a bunch of times
+  FuzzCase fcase_mut = {0};
+  fcase_mut.size = 512; // strlen("Hello From CoffeePot!\n");
+  fcase_mut.data = (uint8_t*)calloc(fcase_mut.size,sizeof(uint8_t));
+  emu->current_fuzz_case = &fcase_mut;
+
   load_code_segments_into_virtual_memory(emu,code_segment);
   init_stack_virtual_memory(emu,argc,argv,generic_record_crashes); 
   delete_code_segments(code_segment);
@@ -114,6 +120,10 @@ int main(int argc, char **argv) {
   do {
     uint32_t instruction = fetch(emu,generic_record_crashes);
     execute_instruction(emu,(uint64_t)instruction, generic_record_coverage,generic_record_crashes);
+    if (emu->crashed){
+        printf("ERROR: Crash before snapshot was taken, check everything\n");
+        exit(0);
+    }
   } while(emu->cpu.pc != emu->snapshot_address);
   if (emu->coverage->unique_branches_taken > emu->coverage->previous_unique_branches_taken){
     emu->coverage->previous_unique_branches_taken = emu->coverage->unique_branches_taken;
@@ -123,17 +133,15 @@ int main(int argc, char **argv) {
   vm_print(&emu->mmu);
   printf("Emulator Snapshot taken!\n");
   printf("Entering Fuzz Loop!\n");
-  // Setup fuzzcase that gets mutated so we dont alloc a bunch of times
-  FuzzCase fcase_mut = {0};
-  fcase_mut.size = 512; // strlen("Hello From CoffeePot!\n");
-  fcase_mut.data = (uint8_t*)calloc(fcase_mut.size,sizeof(uint8_t));
+  // Start Montioring For Dirty Segments So Restoring Is Faster.
+  emu->monitor_dirty_segments = true;
   emu->stats->start_time = std::time(0);
   for (;;){
     // Here We Mutate The Buffer
     int corpus_index = rand() % ((emu->corpus->count) - 0);
     FuzzCase* fcase = &emu->corpus->cases[corpus_index];
     MutateBuffer(fcase,&fcase_mut);
-    vm_write_buffer(&emu->mmu, 0x4000021848, fcase_mut.data, sizeof(uint8_t) * fcase_mut.size);
+    vm_write_buffer(emu, 0x4000021848, fcase_mut.data, sizeof(uint8_t) * fcase_mut.size);
     emu->current_fuzz_case = &fcase_mut;
     // Execute Normally
     do {
@@ -168,16 +176,11 @@ int main(int argc, char **argv) {
 
   // TODO's
   // URGENT
-  // Add dirty flag to segments
-  // Add memory perm checks to segments so crash callback can handle it
-  // confirm coverage callback is triggered at all possible branch instructions
-  // confirm crash callback is triggered at all possible memory reads or writes
   // add script that will run end to end testing using the test binaries and check for exit codes
 
   // LESS URGENT
-  // TODO implement faster way to get segments without hardcoding addresses probably need to use a map or 1 giant array && Implement Poisoned memory for each segment on write calls if above is one giant array we probably need a corresponding memory array for permissions
-  // use flag to determine if this should occur since we want it after we snapshot so only at that point we do the dirty mem
   // Implement Address Sanitizer 
-  // Handle threading???
+  // Handle threading??? --> https://nullprogram.com/blog/2015/05/15/
   // Add more complex binaries (aka complete instruction set,syscalls etc)
   // unit test each instruction
+  // confirm crash callback is triggered at all possible memory reads or writes (missing certain calls in syscall emulation etc)

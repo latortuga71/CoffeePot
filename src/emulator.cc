@@ -28,17 +28,22 @@ void restore_vm(Emulator* emu,Emulator* og){
     Segment* segment_og = &og->mmu.virtual_memory[og->mmu.segment_count - 1];
     Segment* segment_new = &emu->mmu.virtual_memory[og->mmu.segment_count - 1];
     memcpy(&segment_new->data[0],&segment_og->data[0],segment_og->data_size);
-    *?
+    **/
     // in the future when attacking more complicated binaries you need dirty bits set and just restore all of those.
     //here we restore all the memory segments this is slow because not much gets changed between our snapshot and resets
     // we skip the first segment which is the read only text section
     // so this restores the stack which is the next segment
     // and the rest of the dynamic heap allocations
     /*
+    // always skip text section
+    // below we only check for dirty segments and restore those
     for (int i = 1; i < og->mmu.segment_count; i++){
-        Segment* segment_og = &og->mmu.virtual_memory[i];
         Segment* segment_new = &emu->mmu.virtual_memory[i];
-        memcpy(&segment_new->data[0],&segment_og->data[0],segment_og->data_size);
+        if (segment_new->perms & DIRTY){
+            printf("Dirty Segment %d\n",i);
+            Segment* segment_og = &og->mmu.virtual_memory[i];
+            memcpy(&segment_new->data[0],&segment_og->data[0],segment_og->data_size);
+        }
     }
     */
 }
@@ -72,6 +77,7 @@ bool generic_record_coverage(CoverageMap* coverage,uint64_t src, uint64_t dst){
 
 Emulator* new_emulator(CoverageMap* coverage,CrashMap* crashes,Stats* stats,Corpus* corpus,uint64_t snapshot_address,uint64_t restore_address){
     Emulator* emu = (Emulator*)calloc(1,sizeof(Emulator));
+    emu->monitor_dirty_segments = false;
     emu->crashed = false;
     emu->corpus = corpus;
     emu->crashes = crashes;
@@ -242,7 +248,7 @@ void vm_copy(MMU* mmu,char* src, size_t src_size, uint64_t dst) {
 }
 
 void load_code_segments_into_virtual_memory(Emulator* emu ,CodeSegments* code){
-  uint64_t base_addr = vm_alloc(&emu->mmu,code->base_address,code->total_size, READ|WRITE|EXEC );
+  uint64_t base_addr = vm_alloc(&emu->mmu,code->base_address,code->total_size, READ|WRITE|EXEC);
   for (int i = 0; i < code->count; i++){
     vm_copy(&emu->mmu, code->segs[i]->raw_data, code->segs[i]->size, code->segs[i]->virtual_address);
   }
@@ -287,8 +293,17 @@ void vm_write_byte(Emulator* emu, uint64_t address, uint64_t value,crash_callbac
         emu->crashed = true;
         return;
     }
+    if (s->perms & WRITE == 0){
+        debug_print("NO WRITE PERM CRASH%s","\n");
+        crashes_function(emu->crashes,emu->cpu.pc,emu->current_fuzz_case);
+        emu->crashed = true;
+        return;
+    }
     uint64_t index = address - s->range.start;
     debug_print("WRITE BYTE Writing 0x%llx to 0x%llx\n",value,address);
+    if (emu->monitor_dirty_segments){
+        s->perms |= DIRTY;
+    }
     s->data[index] = (uint8_t)(value);
 }
 
@@ -299,8 +314,17 @@ void vm_write_half(Emulator* emu, uint64_t address, uint64_t value,crash_callbac
         emu->crashed = true;
         return;
     }
+    if (s->perms & WRITE == 0){
+        debug_print("NO WRITE PERM CRASH%s","\n");
+        crashes_function(emu->crashes,emu->cpu.pc,emu->current_fuzz_case);
+        emu->crashed = true;
+        return;
+    }
     uint64_t index = address - s->range.start;
     debug_print("Writing WORD 0x%llx to 0x%llx\n",value,address);
+    if (emu->monitor_dirty_segments){
+        s->perms |= DIRTY;
+    }
     s->data[index] = (value & 0xff);
     s->data[index + 1] = ((value >> 8 ) & 0xff);
 }
@@ -312,8 +336,17 @@ void vm_write_word(Emulator* emu, uint64_t address, uint64_t value,crash_callbac
         emu->crashed = true;
         return;
     }
+    if (s->perms & WRITE == 0){
+        debug_print("NO WRITE PERM CRASH%s","\n");
+        crashes_function(emu->crashes,emu->cpu.pc,emu->current_fuzz_case);
+        emu->crashed = true;
+        return;
+    }
     uint64_t index = address - s->range.start;
     debug_print("Writing WORD 0x%llx to 0x%llx\n",value,address);
+    if (emu->monitor_dirty_segments){
+        s->perms |= DIRTY;
+    }
     s->data[index] = (value & 0xff);
     s->data[index + 1] = ((value >> 8 ) & 0xff);
     s->data[index + 2] = ((value >> 16 ) & 0xff);
@@ -328,8 +361,17 @@ void vm_write_double_word(Emulator* emu, uint64_t address, uint64_t value,crash_
         emu->crashed = true;
         return;
     }
+    if (s->perms & WRITE == 0){
+        debug_print("NO WRITE PERM CRASH%s","\n");
+        crashes_function(emu->crashes,emu->cpu.pc,emu->current_fuzz_case);
+        emu->crashed = true;
+        return;
+    }
     uint64_t index = address - s->range.start;
     debug_print("Writing DOUBLE 0x%llx to 0x%llx\n",value,address);
+    if (emu->monitor_dirty_segments){
+        s->perms |= DIRTY;
+    }
     s->data[index] = (value & 0xff);
     s->data[index + 1] = ((value >> 8 ) & 0xff);
     s->data[index + 2] = ((value >> 16 ) & 0xff);
@@ -375,8 +417,8 @@ void* vm_read_memory_len(MMU* mmu,uint64_t address,size_t length) {
 }
 
 
-void vm_write_buffer(MMU* mmu,uint64_t address, uint8_t* data, size_t size){
-    Segment* s = vm_get_segment(mmu, address);
+void vm_write_buffer(Emulator* emu,uint64_t address, uint8_t* data, size_t size){
+    Segment* s = vm_get_segment(&emu->mmu, address);
     if (s == NULL){
         assert("TODO HANDLE SEGFAULT! WITH A CALLBACK" == 0);
     }
@@ -384,6 +426,11 @@ void vm_write_buffer(MMU* mmu,uint64_t address, uint8_t* data, size_t size){
     //Segment* s = &mmu->virtual_memory[0];
     uint64_t index = address - s->range.start;
     memcpy(&s->data[index],data,size);
+    /*
+    if (emu->monitor_dirty_segments){
+        s->perms |= DIRTY;
+    }
+    */
     return;
 }
 
@@ -416,6 +463,12 @@ uint64_t vm_read_double_word(Emulator* emu, uint64_t address,crash_callback cras
         emu->crashed = true;
         return 0;
     }
+    if (s->perms & READ == 0){
+        debug_print("NO READ PERM CRASH%s","\n");
+        crashes_function(emu->crashes,emu->cpu.pc,emu->current_fuzz_case);
+        emu->crashed = true;
+        return 0;
+    }
     uint64_t index = address - s->range.start;
     debug_print("READING DOUBLE 0x%llx\n",address);
     return (uint64_t)(s->data[index])
@@ -435,6 +488,12 @@ uint64_t vm_read_word(Emulator* emu, uint64_t address,crash_callback crashes_fun
         emu->crashed = true;
         return 0;
     }
+    if (s->perms & READ == 0){
+        debug_print("NO READ PERM CRASH%s","\n");
+        crashes_function(emu->crashes,emu->cpu.pc,emu->current_fuzz_case);
+        emu->crashed = true;
+        return 0;
+    }
     uint64_t index = address - s->range.start;
     debug_print("READING WORD 0x%llx\n",address);
     return (uint64_t)(s->data[index])
@@ -450,6 +509,12 @@ uint64_t vm_read_half(Emulator* emu, uint64_t address,crash_callback crashes_fun
         emu->crashed = true;
         return 0;
     }
+    if (s->perms & READ == 0){
+        debug_print("NO READ PERM CRASH%s","\n");
+        crashes_function(emu->crashes,emu->cpu.pc,emu->current_fuzz_case);
+        emu->crashed = true;
+        return 0;
+    }
     uint64_t index = address - s->range.start;
     //fprintf(stderr,"DEBUG: Address 0x%x memory base 0x%x segment offset 0x%x\n",address, s->range.start,index);
     debug_print("READING HALF 0x%llx\n",address);
@@ -459,6 +524,12 @@ uint64_t vm_read_half(Emulator* emu, uint64_t address,crash_callback crashes_fun
 uint64_t vm_read_byte(Emulator* emu, uint64_t address,crash_callback crashes_function){
     Segment* s = vm_get_segment(&emu->mmu, address);
     if (s == NULL){
+        crashes_function(emu->crashes,emu->cpu.pc,emu->current_fuzz_case);
+        emu->crashed = true;
+        return 0;
+    }
+    if (s->perms & READ == 0){
+        debug_print("NO READ PERM CRASH%s","\n");
         crashes_function(emu->crashes,emu->cpu.pc,emu->current_fuzz_case);
         emu->crashed = true;
         return 0;
@@ -477,6 +548,12 @@ uint32_t fetch(Emulator* emu, crash_callback crash_function) {
     //Segment* s = &emu->mmu.virtual_memory[0];
     Segment* s = vm_get_segment(&emu->mmu,emu->cpu.pc);
     if (s == NULL){
+        crash_function(emu->crashes,emu->cpu.pc,emu->current_fuzz_case);
+        emu->crashed = true;
+        return 0;
+    }
+    if (s->perms & READ == 0){
+        debug_print("NO READ PERM CRASH%s","\n");
         crash_function(emu->crashes,emu->cpu.pc,emu->current_fuzz_case);
         emu->crashed = true;
         return 0;
@@ -896,7 +973,6 @@ static void execute_compressed(Emulator* emu, uint64_t instruction, coverage_cal
 
 
 static void execute(Emulator* emu, uint64_t instruction,coverage_callback coverage_function,crash_callback crashes_function){
-    // decode get what we need
     uint64_t opcode = instruction & 0x0000007f;
     uint64_t rd  = (instruction & 0x00000f80) >> 7;
     uint64_t rs1 = (instruction & 0x000f8000) >> 15;
@@ -1380,7 +1456,7 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
             switch (funct7)
             {
                 case 0x0:{
-                    emulate_syscall(emu);
+                    emulate_syscall(emu,crashes_function);
                     break;
                 }
                 case 0x1:{
@@ -1403,7 +1479,7 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
 }
 
 
-void emulate_syscall(Emulator* emu){
+void emulate_syscall(Emulator* emu,crash_callback crash_function){
     // TODO ALLOW CALLBACKS?
     uint64_t syscall = emu->cpu.x_reg[17];
     uint64_t arg0 = emu->cpu.x_reg[10];
@@ -1447,12 +1523,17 @@ void emulate_syscall(Emulator* emu){
             return;
         }
         case 0xde: {
-            debug_print("syscall -> mmap %s","\n");
             if (arg0 != 0){
                 panic("mmap requested specific address todo\n");
             }
-            emu->cpu.x_reg[10] = vm_alloc(&emu->mmu,0x0,0x1024,READ|WRITE);
-            printf("mmap -> 0x%llx\n",emu->cpu.x_reg[10]);
+            // should be divisible by 2
+            // currently we dont fix the length like we should and we dont handle them giving us a length they give us zero and say give me a page
+            // 0x400 = 1024 bytes
+            size_t length = arg1;
+            int prot = arg2;
+            debug_print("syscall -> mmap %d length %d prot %s",length,prot,"\n");
+            emu->cpu.x_reg[10] = vm_alloc(&emu->mmu,0x0,0x400,prot);
+            debug_print("mmap -> 0x%llx\n",emu->cpu.x_reg[10]);
             return;
         }
         case 0xd6: {

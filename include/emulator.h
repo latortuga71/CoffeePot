@@ -41,6 +41,7 @@ typedef struct emulator_t {
     uint64_t snapshot_address;
     uint64_t restore_address;
     bool crashed;
+    bool monitor_dirty_segments;
 } Emulator;
 
 
@@ -86,7 +87,7 @@ uint64_t vm_read_byte(Emulator* emu, uint64_t address,crash_callback crashes_fun
 // Stuff that i use for other reasons not really used in instruction set
 char* vm_read_string(MMU* mmu,uint64_t address);
 void vm_write_string(MMU* mmu,uint64_t address, char* string);
-void vm_write_buffer(MMU* mmu,uint64_t address, uint8_t* data, size_t size);
+void vm_write_buffer(Emulator* emu,uint64_t address, uint8_t* data, size_t size);
 
 // Emulator //
 void print_registers(Emulator*);
@@ -100,7 +101,7 @@ void execute_instruction(Emulator* emu, uint64_t instruction,coverage_callback c
 static void execute(Emulator* emu, uint64_t instruction,coverage_callback coverage_function,crash_callback crash_function);
 static void execute_compressed(Emulator* emu, uint64_t instruction,coverage_callback coverage_function, crash_callback crash_function);
 
-void emulate_syscall(Emulator* emu);
+void emulate_syscall(Emulator* emu,crash_callback crash_function);
 
 // CPU INSTRUCTIONS
 

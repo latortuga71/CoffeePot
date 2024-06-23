@@ -11,7 +11,7 @@
 const uint32_t READ = 1;
 const uint32_t WRITE = 2;
 const uint32_t EXEC = 4;
-//#define EXEC 8
+const uint32_t DIRTY = 8;
 
 typedef struct segment_range_t {
     uint64_t start;
