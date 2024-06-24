@@ -149,7 +149,7 @@ int main(int argc, char **argv) {
       execute_instruction(emu,(uint64_t)instruction, generic_record_coverage,generic_record_crashes);
       if (emu->crashed){
         emu->stats->crashes++;
-        printf("Crash after %d iterations",emu->stats->cases);
+        printf("Crash after %d iterations\n",emu->stats->cases);
         exit(0);
         break;
       }
