@@ -19,4 +19,15 @@
 # DEBUG
 * qemu-riscv64-static -g 1234 /home/latortuga0x71/CoffeePot/tests/test_binaries/simple_snapshot_test
 * ./riscv64-unknown-elf-gdb /home/latortuga0x71/CoffeePot/tests/test_binaries/simple_snapshot_test
+
 # TODO
+
+
+
+
+
+# Example
+* make
+* ./bin/coffeepot ./tests/test_binaries/simple_server_example
+* nc 0.0.0.0 4444
+* Will snapshot user data sent and fuzz until crash
