@@ -81,8 +81,8 @@ int debug_main_no_snapshot(int argc, char **argv) {
 }
 
 int main(int argc, char **argv) {
-  debug_main_no_snapshot(argc,argv);
-  return 0;
+  //debug_main_no_snapshot(argc,argv);
+  //return 0;
   //int seed = 0x123;
   int seed = 0x71717171;
   srand(seed);
