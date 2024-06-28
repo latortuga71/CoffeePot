@@ -43,6 +43,8 @@ int debug_main_no_snapshot(int argc, char **argv) {
   srand(seed);
   const char *binary_path = *++argv;
   printf("Coffeepot Emulating %s\n", binary_path);
+  argc -= 1;
+  // remove first arg since its not what we want to pass
   // Read Elf Segments Into Memory
   CodeSegments* code_segment =  parse_elf(binary_path);
   //
@@ -65,13 +67,8 @@ int debug_main_no_snapshot(int argc, char **argv) {
   delete_code_segments(code_segment);
   bool debug = false;
   for(;;){
-    if (emu->cpu.pc == 0x10370){
-      debug = true;
-    }
-    /*
     if (debug)
       getchar();
-    */
     uint32_t instruction = fetch(emu,generic_record_crashes);
     execute_instruction(emu,(uint64_t)instruction, generic_record_coverage,generic_record_crashes);
     print_registers(emu);
@@ -81,8 +78,8 @@ int debug_main_no_snapshot(int argc, char **argv) {
 }
 
 int main(int argc, char **argv) {
-  //debug_main_no_snapshot(argc,argv);
-  //return 0;
+  debug_main_no_snapshot(argc,argv);
+  return 0;
   //int seed = 0x123;
   int seed = 0x71717171;
   srand(seed);

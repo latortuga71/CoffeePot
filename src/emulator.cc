@@ -780,7 +780,8 @@ static void execute_compressed(Emulator* emu, uint64_t instruction, coverage_cal
                         emu->cpu.x_reg[rd] = emu->cpu.x_reg[rd] & emu->cpu.x_reg[rs2];
                         return;
                     } else if (left == 0x1 && right == 0x0) {
-                        todo("c.subw");
+                        debug_print("c.subw x%d, x%d, 0x%x\n",rd,rd,rs2);
+                        emu->cpu.x_reg[rd] = (uint64_t)((int64_t)((int32_t)((emu->cpu.x_reg[rd] - emu->cpu.x_reg[rs2]))));
                         return;
                     } else if (left == 0x1 && right == 0x1) {
                         debug_print("c.addw x%d, x%d, 0x%x\n",rd,rd,rs2);
