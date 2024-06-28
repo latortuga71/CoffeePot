@@ -2,6 +2,7 @@
 #include <sys/socket.h>
 #include <errno.h>
 #include <arpa/inet.h>
+#include <fcntl.h>
 
 Emulator* snapshot_vm(Emulator* emu){
     Emulator* snap = clone_emulator(emu);
@@ -1563,8 +1564,29 @@ void emulate_syscall(Emulator* emu,crash_callback crash_function){
             return;
         }
         case 0x38: {
+            // https://man7.org/linux/man-pages/man2/openat.2.html
             debug_print("openat%s","\n");
-            panic("shouldnt hit");
+            printf("0x%llx 0x%llx 0x%llx 0x%llx\n",arg0,arg1,arg2,arg3,arg4);
+            /*
+            if (arg0 == AT_FDCWD){
+                todo("handle at_fdcwd");
+            }
+            */
+            void* path = vm_read_memory(&emu->mmu,arg1);
+            printf("Path %s\n",path);
+            char buffer_test[512];
+            snprintf(buffer_test,512,"./%s",(char*)path);
+            printf("%s\n",buffer_test);
+            FILE* fptr = fopen(buffer_test,"r");
+            if (fptr == NULL){
+                panic("fopen failed");
+            }
+            int fd = fileno(fptr);
+            if (fd == -1){
+                printf("ERROR OPEN %d",errno);
+            }
+            printf("FD -> %d\n",fd);
+            emu->cpu.x_reg[10] = fd;
             return;
         }
         case 0x39: {
