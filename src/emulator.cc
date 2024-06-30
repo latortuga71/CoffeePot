@@ -631,7 +631,6 @@ static void execute_compressed(Emulator* emu, uint64_t instruction, coverage_cal
                 uint64_t memory_address = emu->cpu.x_reg[rs1] + offset;
                 uint64_t result = vm_read_double_word(emu,memory_address,crashes_function);
                 debug_print("DEBUG c_ld x%d, %d (x%d)\n",rd,offset,rs1);
-                debug_print("LOADED 0x%x\n",result);
                 emu->cpu.x_reg[rd] = result;
                 return;
             }
@@ -643,6 +642,7 @@ static void execute_compressed(Emulator* emu, uint64_t instruction, coverage_cal
                 | ((instruction >> 4) & 0x4);
                 uint64_t memory_address = emu->cpu.x_reg[rs1] + offset;
                 vm_write_word(emu,memory_address,emu->cpu.x_reg[rs2],crashes_function);
+                printf("c.sw rs2 %d rs2 %d\n",rs2,rs1);
                 debug_print("c.sw x%d,%d(x%d)\n",rs2,offset,rs1);
                 return;
             }
@@ -770,7 +770,8 @@ static void execute_compressed(Emulator* emu, uint64_t instruction, coverage_cal
                         emu->cpu.x_reg[rd] = (emu->cpu.x_reg[rd] - emu->cpu.x_reg[rs2]);
                         return;
                     } else if (left == 0x0 && right == 0x1) {
-                        todo("c.xor");
+                        debug_print("c.xor%s","\n");
+                        emu->cpu.x_reg[rd] = emu->cpu.x_reg[rd] ^ emu->cpu.x_reg[rs2];
                         return;
                     } else if (left == 0x0 && right == 0x2) {
                         debug_print("c.or%s","\n");
@@ -904,8 +905,8 @@ static void execute_compressed(Emulator* emu, uint64_t instruction, coverage_cal
                 uint64_t offset = ((instruction << 1 ) & 0x40) 
                 | ((instruction >> 7) & 0x38)
                 | ((instruction >> 4) & 0x4);
-                uint64_t memory_address = emu->cpu.x_reg[rs1] + offset;
-                debug_print("c.sw x%d, 0x%x(x%d)\n",rs2,offset,rs1);
+                uint64_t memory_address = emu->cpu.x_reg[2] + offset;
+                debug_print("c.swsp x%d, 0x%x(x%d)\n",rs2,offset,rs1);
                 vm_write_word(emu,memory_address,emu->cpu.x_reg[rs2],crashes_function);
                 return;
             }
@@ -1071,8 +1072,36 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
                 debug_print("DEBUG: subw%s","\n");
                 emu->cpu.x_reg[rd] = (uint64_t)((int32_t)(emu->cpu.x_reg[rs1] - emu->cpu.x_reg[rs2]));
                 return;
+            } else if ((funct3 == 0x1) && (funct7 == 0x00)){
+                todo("sllw");
+                return;
+            }  else if ((funct3 == 0x0) && (funct7 == 0x01)){
+                debug_print("mulw%s","\n");
+                int32_t n1 = emu->cpu.x_reg[rs1];
+                int32_t n2 = emu->cpu.x_reg[rs2];
+                int64_t result = (int32_t)(n1 * n2);
+                emu->cpu.x_reg[rd] = (uint64_t)result;
+                return;
+            }  else if ((funct3 == 0x4) && (funct7 == 0x01)){
+                todo("divw");
+                return;
+            }  else if ((funct3 == 0x5) && (funct7 == 0x00)){
+                todo("srlw");
+                return;
+            }  else if ((funct3 == 0x5) && (funct7 == 0x01)){
+                todo("divuw");
+                return;
+            } else if ((funct3 == 0x5) && (funct7 == 0x20)){
+                todo("sraw");
+                return;
+            } else if ((funct3 == 0x6) && (funct7 == 0x01)){
+                todo("remw");
+                return;
+            } else if ((funct3 == 0x7) && (funct7 == 0x01)){
+                todo("remuw");
+                return;
             } else {
-                todo("subw, mulw, etc etc");
+                panic(" unknown subw, mulw, etc etc");
                 return;
             }
             return;
@@ -1232,12 +1261,13 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
             return;
         }
         case 0b0011011:{
-            uint64_t imm = (int64_t)((int32_t)(instruction >> 20));
+            uint64_t imm = (int64_t)((int32_t)(instruction)) >> 20;
             switch (funct3)
             {
             case 0x0:{
                 debug_print("addiw x%d, x%d, 0x%x\n",rd,rs1,imm);
-                emu->cpu.x_reg[rd] = (uint64_t)((int64_t)((emu->cpu.x_reg[rs1] + imm)));
+                //emu->cpu.x_reg[rd] = (uint64_t)((int64_t)((emu->cpu.x_reg[rs1] + imm)));
+                emu->cpu.x_reg[rd] = (uint64_t)((int64_t)((int32_t)(emu->cpu.x_reg[rs1] + imm)));
                 return;
             }
             case 0x1: {
@@ -1393,7 +1423,7 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
                 return;
             }
             case 0x1: {
-                uint64_t shamt = (instruction >> 7) & 0x3f;
+                uint64_t shamt = (instruction >> 20) & 0x3f;
                 emu->cpu.x_reg[rd] = emu->cpu.x_reg[rs1] << shamt;
                 debug_print("slli x%d,x%d, 0x%x\n",rd,rs1,imm);
                 return;
@@ -1405,7 +1435,7 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
             }
             case 0x5: {
                 if (funct6 == 0x0) {
-                    uint64_t shamt = (instruction >> 20) & 0x3f;
+                    uint64_t shamt = ((instruction >> 20) & 0x3f);
                     emu->cpu.x_reg[rd] = emu->cpu.x_reg[rs1] >> shamt;
                     debug_print("srli x%d, x%d, 0x%x\n",rd,rs1,shamt);
                     return;
@@ -1490,7 +1520,8 @@ void emulate_syscall(Emulator* emu,crash_callback crash_function){
     uint64_t arg3 = emu->cpu.x_reg[13];
     uint64_t arg4 = emu->cpu.x_reg[14];
     uint64_t arg5 = emu->cpu.x_reg[15];
-    debug_print("ecall -> 0x%x\n",syscall);
+    //debug_print("ecall -> 0x%x\n",syscall);
+    printf("ecall -> 0x%x\n",syscall);
     switch (syscall)
     {
         case 0x42:{
@@ -1533,9 +1564,12 @@ void emulate_syscall(Emulator* emu,crash_callback crash_function){
             // 0x400 = 1024 bytes
             size_t length = arg1;
             int prot = arg2;
-            debug_print("syscall -> mmap %d length %d prot %s",length,prot,"\n");
-            emu->cpu.x_reg[10] = vm_alloc(&emu->mmu,0x0,0x400,prot);
-            debug_print("mmap -> 0x%llx\n",emu->cpu.x_reg[10]);
+            //debug_print("syscall -> mmap %d length %d prot %s",length,prot,"\n");
+            printf("syscall -> mmap addr 0x%llx mmmap length %d mmap prot %lld mmap flag %lld mmap fd %lld \n",arg0,arg1,arg2,arg3,arg4);
+            emu->cpu.x_reg[10] = vm_alloc(&emu->mmu,0x0,arg1,prot);
+            //debug_print("mmap -> 0x%llx\n",emu->cpu.x_reg[10]);
+            printf("mmap allocation -> 0x%llx\n",emu->cpu.x_reg[10]);
+            getchar();
             return;
         }
         case 0xd6: {
@@ -1544,7 +1578,13 @@ void emulate_syscall(Emulator* emu,crash_callback crash_function){
                 emu->cpu.x_reg[10] = -1;
                 return;
             }
-            panic("not expecting brk with non zero value");
+            //panic("not expecting brk with non zero value");
+            debug_print("brk -> 0x%llx\n",arg0);
+            printf("brk -> 0x%llx\n",arg0);
+            //vm_alloc(&emu->mmu,arg0,0x1024*0x1024,READ|WRITE);
+            vm_print(&emu->mmu);
+            //getchar();
+            emu->cpu.x_reg[10] = 0;
             return;
         }
         case 0x1d: {
@@ -1586,6 +1626,7 @@ void emulate_syscall(Emulator* emu,crash_callback crash_function){
                 printf("ERROR OPEN %d",errno);
             }
             printf("FD -> %d\n",fd);
+            //free(path);
             emu->cpu.x_reg[10] = fd;
             return;
         }
