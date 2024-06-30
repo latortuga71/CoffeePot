@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
+#include <sys/mman.h>2:w
 
 Emulator* snapshot_vm(Emulator* emu){
     Emulator* snap = clone_emulator(emu);
@@ -1070,10 +1071,12 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
                 return;
             } else if ((funct3 == 0x0) && (funct7 == 0x20)) {
                 debug_print("DEBUG: subw%s","\n");
-                emu->cpu.x_reg[rd] = (uint64_t)((int32_t)(emu->cpu.x_reg[rs1] - emu->cpu.x_reg[rs2]));
+                emu->cpu.x_reg[rd] = (uint64_t)((int32_t)(emu->cpu.x_reg[rs1] - emu->cpu.x_reg[rs2])); //(uint64_t)((int32_t)(emu->cpu.x_reg[rs1] - emu->cpu.x_reg[rs2]));
                 return;
             } else if ((funct3 == 0x1) && (funct7 == 0x00)){
-                todo("sllw");
+                debug_print("sllw%s","\n");
+                uint64_t shamt = emu->cpu.x_reg[rs2] & 0x1f;
+                emu->cpu.x_reg[rd] = (uint64_t)((int64_t)((int32_t)(emu->cpu.x_reg[rs1] << shamt)));
                 return;
             }  else if ((funct3 == 0x0) && (funct7 == 0x01)){
                 debug_print("mulw%s","\n");
@@ -1158,6 +1161,27 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
                     }
                 }
             }
+            case 0x5:{
+                switch(funct7){
+                    case 0x0: {
+                        todo("srl");
+                        return;
+                    }
+                    case 0x1:{
+                        debug_print("divu%s","\n");
+                        if (emu->cpu.x_reg[rs2] == 0){
+                            panic("set divide by zero flag, or record crash");
+                            return;
+                        }
+                        emu->cpu.x_reg[rd] = emu->cpu.x_reg[rs1] / emu->cpu.x_reg[rs2];
+                        return;
+                    }
+                    default: {
+                        todo("srl,divu etc");
+                        return;
+                    }
+                }
+            }
             case 0x3: {
                 debug_print("sltu%s","\n");
                 if (funct7 == 0x0){
@@ -1191,7 +1215,14 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
                     return;
                 }
                 if (funct7 == 0x1){
-                    todo("remu");
+                    debug_print("remu%s","\n");
+                    uint64_t dividend = emu->cpu.x_reg[rs1];
+                    uint64_t divisor = emu->cpu.x_reg[rs2];
+                    if (divisor == 0){
+                        emu->cpu.x_reg[rd] = dividend;
+                        return;
+                    }
+                    emu->cpu.x_reg[rd] = dividend % divisor;
                     return;
                 }
             }
@@ -1428,6 +1459,19 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
                 debug_print("slli x%d,x%d, 0x%x\n",rd,rs1,imm);
                 return;
             }
+            case 0x2:{
+                todo("slti");
+                return;
+            }
+            case 0x3:{
+                debug_print("sltiu%s","\n");
+                if (emu->cpu.x_reg[rs1] < imm){
+                    emu->cpu.x_reg[rd] = 1;
+                    return;
+                }
+                emu->cpu.x_reg[rd] = 0;
+                return;
+            }
             case 0x4:{
                 debug_print("xori%s","\n");
                 emu->cpu.x_reg[rd] = emu->cpu.x_reg[rs1] ^ imm;
@@ -1566,9 +1610,17 @@ void emulate_syscall(Emulator* emu,crash_callback crash_function){
             int prot = arg2;
             //debug_print("syscall -> mmap %d length %d prot %s",length,prot,"\n");
             printf("syscall -> mmap addr 0x%llx mmmap length %d mmap prot %lld mmap flag %lld mmap fd %lld \n",arg0,arg1,arg2,arg3,arg4);
-            emu->cpu.x_reg[10] = vm_alloc(&emu->mmu,0x0,arg1,prot);
+            if (arg1 == 0){
+                // length is empty return -1;
+                emu->cpu.x_reg[10] = -1; //vm_alloc(&emu->mmu,0x0,4096,prot);
+            } else {
+                // allocate the size they want, todo align the address
+                //emu->cpu.x_reg[10] = vm_alloc(&emu->mmu,0x0,arg1,prot);
+                emu->cpu.x_reg[10] = vm_alloc(&emu->mmu,0x0,arg1,prot);
+                printf("mmap allocation -> 0x%llx\n",emu->cpu.x_reg[10]);
+            }
             //debug_print("mmap -> 0x%llx\n",emu->cpu.x_reg[10]);
-            printf("mmap allocation -> 0x%llx\n",emu->cpu.x_reg[10]);
+            printf("pc -> 0x%llx\n",emu->cpu.pc);
             getchar();
             return;
         }
@@ -1705,6 +1757,14 @@ void emulate_syscall(Emulator* emu,crash_callback crash_function){
             if (recv(arg0, buffer, arg2, arg3) == -1) {
                 panic("recv failed");
             }
+            return;
+        }
+        case 0x87: {
+            debug_print("sigprocmask%s","\n");
+            // ignore this for now
+            printf("pc -> 0x%llx\n",emu->cpu.pc);
+            getchar();
+            emu->cpu.x_reg[10] = 0;
             return;
         }
         default: {
