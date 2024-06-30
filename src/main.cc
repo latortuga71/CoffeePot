@@ -66,10 +66,10 @@ int debug_main_no_snapshot(int argc, char **argv) {
   init_stack_virtual_memory(emu,argc,argv,generic_record_crashes); 
   delete_code_segments(code_segment);
   bool debug = false;
-  uint64_t break_at = 0x26db2; //0x10296; // 0x10286 = flush 0x10296 = fopen 0x102ba = assert 0x102c4 == yaml parse init
+  uint64_t break_at = 0x26c00; //0x10296; // 0x10286 = flush 0x10296 = fopen 0x102ba = assert 0x102c4 == yaml parse init
   for(;;){
     if (emu->cpu.pc == break_at){
-      debug = false;
+      debug = true;
       vm_print(&emu->mmu);
     }
     if (debug)

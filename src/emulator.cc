@@ -1601,7 +1601,12 @@ void emulate_syscall(Emulator* emu,crash_callback crash_function){
         }
         case 0xde: {
             if (arg0 != 0){
-                panic("mmap requested specific address todo\n");
+                vm_print(&emu->mmu);
+                debug_print("mmap requested 0x%llx address with size %d\n",arg0,arg1);
+                emu->cpu.x_reg[10] = vm_alloc(&emu->mmu,0x0,arg1,READ|WRITE);
+                printf("mmap allocation -> 0x%llx\n",emu->cpu.x_reg[10]);
+                getchar();
+                return;
             }
             // should be divisible by 2
             // currently we dont fix the length like we should and we dont handle them giving us a length they give us zero and say give me a page
@@ -1609,34 +1614,44 @@ void emulate_syscall(Emulator* emu,crash_callback crash_function){
             size_t length = arg1;
             int prot = arg2;
             //debug_print("syscall -> mmap %d length %d prot %s",length,prot,"\n");
-            printf("syscall -> mmap addr 0x%llx mmmap length %d mmap prot %lld mmap flag %lld mmap fd %lld \n",arg0,arg1,arg2,arg3,arg4);
+            printf("syscall -> mmap addr 0x%llx mmmap length 0x%llx mmap prot %llx mmap flag %llx mmap fd %llx \n",arg0,arg1,arg2,arg3,arg4);
             if (arg1 == 0){
                 // length is empty return -1;
                 emu->cpu.x_reg[10] = -1; //vm_alloc(&emu->mmu,0x0,4096,prot);
+                printf("empty mmap return -1\n");
+                getchar();
             } else {
                 // allocate the size they want, todo align the address
                 //emu->cpu.x_reg[10] = vm_alloc(&emu->mmu,0x0,arg1,prot);
                 emu->cpu.x_reg[10] = vm_alloc(&emu->mmu,0x0,arg1,prot);
                 printf("mmap allocation -> 0x%llx\n",emu->cpu.x_reg[10]);
+                getchar();
             }
-            //debug_print("mmap -> 0x%llx\n",emu->cpu.x_reg[10]);
-            printf("pc -> 0x%llx\n",emu->cpu.pc);
-            getchar();
             return;
         }
         case 0xd6: {
-            debug_print("syscall -> brk %s","\n");
+            debug_print("syscall -> sbrk %s","\n");
+            // find program break
             if (arg0 == 0){
-                emu->cpu.x_reg[10] = 0x33000;
+                printf("no increment\n");
+                //emu->cpu.x_reg[10] = emu->mmu.next_allocation_base;
+                emu->cpu.x_reg[10] = -1;
+                getchar();
+                return;
+            } else {
+                emu->cpu.x_reg[10] = -1;
+                getchar();
                 return;
             }
             //panic("not expecting brk with non zero value");
-            debug_print("brk -> 0x%llx\n",arg0);
-            printf("brk -> 0x%llx\n",arg0);
-            //vm_alloc(&emu->mmu,arg0,0x1024*0x1024,READ|WRITE);
+            debug_print("sbrk -> 0x%llx\n",arg0);
+            printf("sbrk -> 0x%llx\n",arg0);
+            // increment program break by X bytes
+            // we do this with an allocation who cares
+            vm_alloc(&emu->mmu,0x0,arg0,READ|WRITE);
             vm_print(&emu->mmu);
-            //getchar();
-            emu->cpu.x_reg[10] = 0;
+            getchar();
+            emu->cpu.x_reg[10] = arg0;
             return;
         }
         case 0x1d: {
