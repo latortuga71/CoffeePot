@@ -1627,7 +1627,7 @@ void emulate_syscall(Emulator* emu,crash_callback crash_function){
         case 0xd6: {
             debug_print("syscall -> brk %s","\n");
             if (arg0 == 0){
-                emu->cpu.x_reg[10] = -1;
+                emu->cpu.x_reg[10] = 0x33000;
                 return;
             }
             //panic("not expecting brk with non zero value");
