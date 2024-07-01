@@ -70,6 +70,7 @@ uint64_t vm_alloc(MMU* mmu, uint64_t base_address, size_t size,uint32_t perms);
 void vm_copy(MMU* mmu,char* src, size_t src_size, uint64_t dst);
 Segment* vm_get_segment(MMU* mmu, uint64_t address);
 static void copy_mmu_segments(Emulator* original,Emulator* snapshot);
+void vm_print_memory(Emulator* emu,uint64_t address,size_t size);
 
 // MMU WRITE TO MEMORY //
 void vm_write_double_word(Emulator* emu, uint64_t address, uint64_t value,crash_callback crashes_function);
