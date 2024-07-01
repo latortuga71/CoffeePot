@@ -612,6 +612,10 @@ static void execute_compressed(Emulator* emu, uint64_t instruction, coverage_cal
                 emu->cpu.x_reg[rd] = emu->cpu.x_reg[2] + nzuimm;
                 return;
             }
+            case 0x1: {
+                todo("c.fld");
+                return;
+            }
             case 0x2: {
                 uint64_t rd = ((instruction >> 2) & 0x7) + 8;
                 uint64_t rs1 = ((instruction >> 7) & 0x7) + 8;
@@ -633,6 +637,14 @@ static void execute_compressed(Emulator* emu, uint64_t instruction, coverage_cal
                 uint64_t result = vm_read_double_word(emu,memory_address,crashes_function);
                 debug_print("DEBUG c_ld x%d, %d (x%d)\n",rd,offset,rs1);
                 emu->cpu.x_reg[rd] = result;
+                return;
+            }
+            case 0x4: {
+                panic("reserved");
+                return;
+            }
+            case 0x5:{
+                todo("c.fsd");
                 return;
             }
             case 0x6:{
