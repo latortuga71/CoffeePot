@@ -1,9 +1,55 @@
-# Instructions Double Checked
+# Instructions List
+
+## RV64I Instructions
+
+* lb [x]
+* lh [x]
+* lw [x]
+* ld [x]
+* lbu [x]
+* lhu [x]
+* lwu [x]
 
 
-### C Extension Quadrant 1 100%
+## C Extension
+
+### C Extension Quadrant 0 100%
 * c.addi4spn [x]
 * c.lw [x]
 * c.ld [x]
 * c.sw [x]
 * c.sd [x]
+
+### C Extension Quadrant 1
+* c.addi [x]
+* c.addiw [x]
+* c.li [x]
+* c.addi16sp [x]
+* c.lui [x]
+* c.srli [x]
+* c.srai [x]
+* c.andi [x]
+* c.sub [x]
+* c.xor [x]
+* c.or [x]
+* c.and [x]
+* c.subw [x]
+* c.addw [x]
+* c.j [x]
+* c.beqz [x]
+* c.bnez [x]
+
+### C Extension Quadrant 2
+* c.slli [x]
+* c.lwsp [x]
+* c.ldsp [x]
+* c.jr [x]
+* c.mv [x]
+* c.ebreak [x]
+* c.jalr [x]
+* c.add [x]
+* c.swsp [x]
+* c.sdsp [x]
+
+
+

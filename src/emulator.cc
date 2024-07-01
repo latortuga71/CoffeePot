@@ -707,7 +707,7 @@ static void execute_compressed(Emulator* emu, uint64_t instruction, coverage_cal
                 uint64_t imm_ = ((instruction >> 7) & 0x20) | ((instruction >> 2) & 0x1f);
                 debug_print("DEBUG c_li x%d,%x\n",rd, imm_);
                 if ((imm_ & 0x20) != 0){
-                    imm_ = (int64_t)((int8_t)((0xc0 | imm_)));
+                    imm_ = (uint64_t)((int64_t)((int8_t)((0xc0 | imm_))));
                 }
                 if (rd != 0){
                     emu->cpu.x_reg[rd] = imm_;
@@ -861,7 +861,6 @@ static void execute_compressed(Emulator* emu, uint64_t instruction, coverage_cal
                 if (emu->cpu.x_reg[rs1] != 0) {
                     coverage_function(emu->coverage,emu->cpu.pc,(emu->cpu.pc + offset) - 0x2);
                     emu->cpu.pc = (emu->cpu.pc + offset) - 0x2;
-                    //printf("Branch to 0x%llx taken\n",emu->cpu.pc);
                 } else {
                     coverage_function(emu->coverage,emu->cpu.pc,(emu->cpu.pc + 0x2));
                 }
@@ -912,12 +911,14 @@ static void execute_compressed(Emulator* emu, uint64_t instruction, coverage_cal
                 emu->cpu.x_reg[rd] = result;
                 return;
             }
+            case 0x5:{
+                todo("fsdsp");
+                return;
+            }
             case 0x6: {
-                uint64_t rs2 = ((instruction >> 2) & 0x7) + 8;
-                uint64_t rs1 = ((instruction >> 7) & 0x7) + 8;
-                uint64_t offset = ((instruction << 1 ) & 0x40) 
-                | ((instruction >> 7) & 0x38)
-                | ((instruction >> 4) & 0x4);
+                uint64_t rs2 = ((instruction >> 2) & 0x1f);
+                uint64_t offset = ((instruction >> 1 ) & 0xc0) 
+                | ((instruction >> 7) & 0x3c);
                 uint64_t memory_address = emu->cpu.x_reg[2] + offset;
                 debug_print("c.swsp x%d, 0x%x(x%d)\n",rs2,offset,rs1);
                 vm_write_word(emu,memory_address,emu->cpu.x_reg[rs2],crashes_function);
@@ -929,7 +930,6 @@ static void execute_compressed(Emulator* emu, uint64_t instruction, coverage_cal
                 uint64_t memory_address = emu->cpu.x_reg[2] + offset;
                 debug_print("c.sdsp x%x,0x%x(sp)\n",rs2,offset);
                 vm_write_double_word(emu, memory_address, emu->cpu.x_reg[rs2],crashes_function);
-                uint64_t after = vm_read_double_word(emu, memory_address,crashes_function);
                 return;
             }
             case 0x4: {
@@ -1249,19 +1249,21 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
             switch (funct3)
             {
             case 0x0: {
-                todo("load byte");
+                debug_print("lb%s","\n");
+                uint64_t value = vm_read_byte(emu,memory_address,crashes_function);
+                emu->cpu.x_reg[rd] = (uint64_t)((int64_t)((int16_t)((int8_t)(value))));
                 return;
             }
             case 0x1:{
                 debug_print("lh%s","\n");
                 uint64_t value = vm_read_half(emu,memory_address,crashes_function);
-                emu->cpu.x_reg[rd] = (int64_t)((int16_t)(value));
+                emu->cpu.x_reg[rd] = (uint64_t)((int64_t)((int16_t)(value)));
                 return;
             }
             case 0x2: {
                 debug_print("lw%s","\n");
                 uint64_t value = vm_read_word(emu,memory_address,crashes_function);
-                emu->cpu.x_reg[rd] = value;
+                emu->cpu.x_reg[rd] = (uint64_t)((int64_t)((int32_t)(value)));
                 return;
             }
             case 0x3: {
@@ -1283,7 +1285,9 @@ static void execute(Emulator* emu, uint64_t instruction,coverage_callback covera
                 return;
             }
             case 0x6: {
-                todo("lwu");
+                debug_print("lwu%s","\n");
+                uint64_t value = vm_read_word(emu,memory_address,crashes_function);
+                emu->cpu.x_reg[rd] = value;
                 return;
             }
             default:
