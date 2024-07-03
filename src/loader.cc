@@ -31,8 +31,8 @@ CodeSegments* parse_elf_segments(char *elf_data,size_t file_size) {
     // allocate a segment for each segment
     CodeSegment* segment = (CodeSegment*)calloc(1,sizeof(CodeSegment));
     segment->virtual_address = program_header_entry->p_vaddr;
-    segment->size = program_header_entry->p_memsz;
-    segment->raw_data = (char*)calloc(1,sizeof(char) * program_header_entry->p_memsz);
+    segment->size = program_header_entry->p_filesz;
+    segment->raw_data = (char*)calloc(1,sizeof(char) * program_header_entry->p_filesz);
     code_segment_info->total_size += (program_header_entry->p_memsz + program_header_entry->p_vaddr);
     int start = program_header_entry->p_offset;
     int end = start + program_header_entry->p_filesz;

@@ -3,7 +3,7 @@
 #include <errno.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
-#include <sys/mman.h>2:w
+#include <sys/mman.h>
 
 Emulator* snapshot_vm(Emulator* emu){
     Emulator* snap = clone_emulator(emu);
@@ -186,7 +186,7 @@ uint64_t vm_alloc(MMU* mmu, uint64_t base_address, size_t size, uint32_t perms) 
     if (base_address == 0){
         // makre sure base is 8 byte aligned
         debug_print("TODO! Make Sure Allocations Are Properly Aligned%s","\n");
-        uint64_t base = mmu->next_allocation_base + 0x1024;
+        uint64_t base = mmu->next_allocation_base; //+ 0x1024;
         // force upper alignment
         /*
         base = (base & ~(page_size - 1)) + page_size;
@@ -213,7 +213,7 @@ uint64_t vm_alloc(MMU* mmu, uint64_t base_address, size_t size, uint32_t perms) 
 
     if (vm_range_exists(mmu, base_address)){
         error_print("ERROR FAILED TO ALLOCATE MEMORY RANGE TAKEN 0x%x\n",base_address);
-        return -1;
+        //return -1;
     }
     if (mmu->segment_count + 1 > mmu->segment_capacity){
         // realloc
@@ -1652,6 +1652,7 @@ void emulate_syscall(Emulator* emu,crash_callback crash_function){
     uint64_t arg5 = emu->cpu.x_reg[15];
     //debug_print("ecall -> 0x%x\n",syscall);
     printf("ecall -> 0x%x\n",syscall);
+    getchar();
     switch (syscall)
     {
         case 0x42:{
@@ -1706,7 +1707,7 @@ void emulate_syscall(Emulator* emu,crash_callback crash_function){
         case 0xd6: {
             debug_print("syscall -> sbrk %s","\n");
             printf("lets just not support this lol\n");
-            emu->cpu.x_reg[10] = -1;
+            emu->cpu.x_reg[10] = 0;
             return;
         }
         case 0x1d: {
@@ -1723,6 +1724,12 @@ void emulate_syscall(Emulator* emu,crash_callback crash_function){
             debug_print("syscall -> ppoll%s","\n");
             emu->cpu.x_reg[10] = 0;
             panic("shouldnt hit");
+            return;
+        }
+        case 0xe2: {
+            debug_print("syscall -> mprotect%s","\n");
+            debug_print("todo actually update memory perms in the mmu %s","\n");
+            emu->cpu.x_reg[10] = 0;
             return;
         }
         case 0x38: {

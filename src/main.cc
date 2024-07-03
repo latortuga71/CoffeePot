@@ -66,7 +66,16 @@ int debug_main_no_snapshot(int argc, char **argv) {
   init_stack_virtual_memory(emu,argc,argv,generic_record_crashes); 
   delete_code_segments(code_segment);
   bool debug = false;
-  uint64_t break_at = 0x10656; //0x10296; // 0x10286 = flush 0x10296 = fopen 0x102ba = assert 0x102c4 == yaml parse init
+  // there seems to be a problem where im not loading the value 0x1000 from this address using the ld instruction for some reason 0x140e8
+  uint64_t break_at = 0x10de4;
+  // set mmu at this address
+  emu->mmu.next_allocation_base = 0x4000802000;
+  // 0x10e16 -> first attempt to brk
+  // 0x10dc3 -> second attempt to brk
+  // 0x11b18 -> first mmap 
+  // -> 0x10d98 we dont take a branch we should
+  // we never get from above to below call
+  // 0x11b9c -> mprotect
   printf("0x171f0\n");
   //vm_print_memory(emu,0x10660,64);
   //return 0;
