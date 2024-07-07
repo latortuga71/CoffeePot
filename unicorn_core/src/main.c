@@ -1,0 +1,288 @@
+#include <unicorn/unicorn.h>
+#include <assert.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <sys/uio.h>
+#include "loader.h"
+
+// code to be emulated
+#define RISCV_CODE64 "\x93\x08\xd0\x05" \
+"\x13\x05\x40\x00" \
+"\x73\x00\x00\x00"
+//#define RISCV_CODE64 "\x13\x05\x10\x00\x93\x85\x05\x02"
+// memory address where emulation starts
+#define ADDRESS 0x1000000
+
+
+
+// Hook Basic Blocks To Track Coverage
+static void hook_block(uc_engine *uc, uint64_t address, uint32_t size,
+                       void *user_data)
+{
+    printf(">>> Tracing basic block at 0x%" PRIx64 ", block size = 0x%x\n",
+           address, size);
+}
+
+/*
+static void hook_code(uc_engine *uc, uint64_t address, uint32_t size,
+                      void *user_data)
+{
+    printf(">>> Tracing instruction at 0x%" PRIx64
+           ", instruction size = 0x%x\n",
+           address, size);
+    uint64_t pc = 0x0;
+    uc_reg_read(uc,UC_RISCV_REG_PC,&pc);
+    printf("0x%llx\n",pc);
+}
+*/
+
+
+// Hook Interrupts to handle syscalls
+static void hook_syscall(uc_engine *uc, uint64_t address, uint32_t size,
+                      void *user_data)
+{
+    uc_err err;
+    //printf("System Interrupt!\n");
+    uint64_t x17 = 0x0;
+    uint64_t x10 = 0x0;
+    uint64_t x11 = 0x0;
+    uint64_t x12 = 0x0;
+    uc_reg_read(uc,UC_RISCV_REG_A7,&x17);
+    uc_reg_read(uc,UC_RISCV_REG_A0,&x10);
+    uc_reg_read(uc,UC_RISCV_REG_A1,&x11);
+    uc_reg_read(uc,UC_RISCV_REG_A2,&x12);
+    switch (x17) {
+      case 0x5e: {
+        //printf("Exit Syscall Code 0x%llx!\n",x10);
+        exit(x10);
+        return;
+      }
+      case 0x60: {
+        //printf("syscall -> set_tid_address\n");
+        uint64_t pid = (uint64_t)getpid();
+        uc_reg_write(uc,UC_RISCV_REG_A0,&pid);
+        return;
+      }
+      case 0x1d: {
+        //printf("syscall -> ioctl\n");
+        uc_reg_write(uc,UC_RISCV_REG_A0,&x10);
+        return;
+      }
+      case 0x42:{
+        //printf("syscall -> writev%s","\n");
+        uint64_t file_descriptor = x10;
+        struct iovec* iovec_ptr = (struct iovec*)malloc(sizeof(struct iovec) * x12);
+        err = uc_mem_read(uc,x11,(void*)iovec_ptr,sizeof(struct iovec) * x12);
+        if (err){
+          fprintf(stderr,"ERROR: Failed to uc_mem_read 0x%llx ::: %s \n",x11 ,uc_strerror(err));
+          exit(-1);
+        }
+        int iovcnt = (int)x12;
+        //printf("buffer address 0x%llx buffer length %d file_descriptor %d\n",iovec_ptr->iov_base,iovec_ptr->iov_len,file_descriptor);
+        // Read Memory Buffer
+        uint64_t write_count = 0;
+        for (int i = 0; i < iovcnt; i++){
+          //printf("iovec ptr -> 0x%llx\n",iovec_ptr);
+          //printf("fd %d iovec ptr 0x%llx, count %d\n",x10,x11,x12);
+          //printf("iovec data-> 0x%llx iovec data sz -> %d\n",iovec_ptr->iov_base,iovec_ptr->iov_len);
+          // TODO dont copy memory into another buffer
+          if (iovec_ptr->iov_base == 0){
+              write_count += iovec_ptr->iov_len;
+              iovec_ptr++;
+              continue;
+          }
+          //void* buffer = vm_copy_memory(&emu->mmu,(uint64_t)(iovec_ptr->iov_base),iovec_ptr->iov_len);
+          void* buffer = malloc(iovec_ptr->iov_len);
+          err = uc_mem_read(uc, iovec_ptr->iov_base,buffer,iovec_ptr->iov_len);
+          if (err){
+            fprintf(stderr,"ERROR: Failed to uc_mem_read 0x%llx ::: %s \n",x11 ,uc_strerror(err));
+            exit(-1);
+          }
+          // Write it to corresponding file descriptor
+          if (file_descriptor == STDOUT_FILENO) {
+              write(file_descriptor,buffer,iovec_ptr->iov_len);
+          }
+          write_count += iovec_ptr->iov_len;
+          free(buffer);
+          iovec_ptr++;
+        }
+        uc_reg_write(uc,UC_RISCV_REG_A0,&write_count);
+        return;
+      } 
+      default:
+        fprintf(stderr, "ERROR: Unknown Syscall 0x%llx\n",x17);
+        assert("EXIT" == 0);
+        return;
+    }
+}
+
+uint64_t align_address_up(uint64_t address){
+  return (address & ~(4 * 1024)) + (4 * 1024);
+}
+
+/// HANDLE LOAD ELF
+void load_code_segments_into_virtual_memory(uc_engine* uc ,CodeSegments* code){
+  uc_err err;
+  printf("0x%llx 0x%llx\n",code->base_address,code->total_size);
+  uint64_t page = 4 * 1024;
+  uint64_t aligned_address  = (code->total_size & ~(page-1)) + page;
+  printf("0x%llx\n",(code->total_size & ~(page-1)) + page);
+  err = uc_mem_map(uc,code->base_address,aligned_address,UC_PROT_ALL);
+  if (err){
+    fprintf(stderr,"ERROR: Failed to uc_mem_map ::: %s\n",uc_strerror(err));
+    exit(-1);
+  }
+  fprintf(stderr,"DEBUG: MMAP memory at 0x%llx sz 0x%llx\n",code->base_address,aligned_address);
+  for (int i = 0; i < code->count; i++){
+    err = uc_mem_write(uc,code->segs[i]->virtual_address,code->segs[i]->raw_data,code->segs[i]->size);
+    if (err) {
+      fprintf(stderr,"ERROR: Failed to uc_mem_write ::: %s\n",uc_strerror(err));
+      exit(-1);
+    }
+    fprintf(stderr,"DEBUG: wrote 0x%llx bytes to 0x%llx\n",code->segs[i]->size,code->segs[i]->virtual_address);
+  }
+  fprintf(stderr,"DEBUG: load_segments_into_virtual_memory complete\n");
+}
+
+uint64_t load_elf_into_mem(const char* path, uc_engine* uc){
+  CodeSegments* segments = parse_elf(path);
+  uint64_t pc = segments->entry_point;
+  load_code_segments_into_virtual_memory(uc,segments);
+  delete_code_segments(segments);
+  return pc;
+}
+
+
+uint64_t init_stack_virtual_memory(uc_engine* uc, int argc, char** argv){
+  uint64_t stack_base = 0x4000000000;
+  uint64_t stack_end = stack_base + (0x1F400);
+  uint64_t heap_base =  0x30000000;
+  uint64_t stack_pointer = stack_end - (0xFA00);
+  uc_err err;
+  err = uc_mem_map(uc,heap_base,4*1024,UC_PROT_ALL);
+  if (err){
+    fprintf(stderr,"ERROR: Failed to uc_mem_map heap ::: %s\n",uc_strerror(err));
+    exit(-1);
+  }
+  err = uc_mem_map(uc,stack_base,(4*1024) * 0x7d,UC_PROT_ALL);
+  if (err){
+    fprintf(stderr,"ERROR: Failed to uc_mem_map stack ::: %s\n",uc_strerror(err));
+    exit(-1);
+  }
+  stack_pointer -= 8;
+  err = uc_mem_write(uc,stack_pointer,(const uint8_t*)"\x00\x00\x00\x00\x00\x00\x00\x00",8);
+
+  stack_pointer -= 8;
+  err = uc_mem_write(uc,stack_pointer,(const uint8_t*)"\x00\x00\x00\x00\x00\x00\x00\x00",8);
+
+  stack_pointer -= 8;
+  err = uc_mem_write(uc,stack_pointer,(const uint8_t*)"\x00\x00\x00\x00\x00\x00\x00\x00",8);
+
+  // write string to heap base
+  err = uc_mem_write(uc,heap_base,(const uint8_t*)"\x41\x41\x41\x41\x41\x41\x41\x41",8);
+  // write heap pointer to satck
+  stack_pointer -= 8;
+  err = uc_mem_write(uc,stack_pointer,(const uint8_t*)"\x00\x00\x00\x30",4);
+  if (err) {
+    fprintf(stderr,"ERROR: Failed to uc_mem_write ::: %s\n",uc_strerror(err));
+    exit(-1);
+  }
+  // write argc to the stack
+  stack_pointer -= 8;
+  err = uc_mem_write(uc,stack_pointer,(const uint8_t*)"\x01",1);
+  if (err) {
+    fprintf(stderr,"ERROR: Failed to uc_mem_write ::: %s\n",uc_strerror(err));
+    exit(-1);
+  }
+  fprintf(stderr,"DEBUG: Stack Initialized\n");
+  fprintf(stderr,"DEBUG: Heap Initialized\n");
+  return stack_pointer;
+}
+
+
+int main(int argc, char **argv, char **envp)
+{
+  uc_engine *uc;
+  uc_err err;
+  uc_hook trace1, trace2,syshook;
+  printf("Emulate risc-v64 code\n");
+  // Initialize emulator in RISCV64 mode
+  err = uc_open(UC_ARCH_RISCV, UC_MODE_RISCV64, &uc);
+  if (err != UC_ERR_OK) {
+    printf("Failed on uc_open() with error returned: %u\n", err);
+    return -1;
+  }
+  uint64_t pc = load_elf_into_mem("./hello_world_test",uc);
+  uint64_t sp = init_stack_virtual_memory(uc,argc,argv);
+  // initialize machine registers
+  /*
+  uc_reg_write(uc, UC_RISCV_REG_A0, &x10);
+  uc_reg_write(uc, UC_RISCV_REG_A7, &x17);
+  // tracing all basic blocks with customized callback
+  uc_hook_add(uc, &trace1, UC_HOOK_BLOCK, hook_block, NULL, 1, 0);
+  // tracing all instruction
+  //uc_hook_add(uc, &trace2, UC_HOOK_CODE, hook_code, NULL, 1, 0);
+  */
+  // emulate code in infinite time & unlimited instructions
+  //err = uc_mem_write(uc,pc,RISCV_CODE64,sizeof(RISCV_CODE64));
+  err = uc_reg_write(uc,UC_RISCV_REG_PC,&pc);
+  if (err){
+    fprintf(stderr,"DEBUG: Failed to set PC ::: %s\n",uc_strerror(err));
+    return -1;
+  }
+  err = uc_reg_write(uc,UC_RISCV_REG_SP,&sp);
+  if (err){
+    fprintf(stderr,"DEBUG: Failed to set SP ::: %s\n",uc_strerror(err));
+    return -1;
+  }
+  err = uc_reg_write(uc,UC_RISCV_REG_X2,&sp);
+  if (err){
+    fprintf(stderr,"DEBUG: Failed to set SP(x2) ::: %s\n",uc_strerror(err));
+    return -1;
+  }
+  // hook syscalls
+  err = uc_hook_add(uc, &syshook, UC_HOOK_INTR, hook_syscall, NULL, 1,0);
+  if (err){
+    fprintf(stderr,"DEBUG: Failed to set interrupt hook ::: %s\n",uc_strerror(err));
+    return -1;
+  }
+  printf("Emulator Start 0x%llx\n",pc);
+  /*
+  char buffer[4];
+  err = uc_mem_read(uc,pc,buffer,4);
+  if (err) {
+    printf("Failed on uc_emu_read() with error returned %u: %s\n",
+      err, uc_strerror(err));
+  }
+  printf("-> 0x%llx\n",buffer[0]);
+  */
+  uint64_t gp;
+  uint64_t s1;
+  uint64_t steps = 0;
+  // single step through the code
+  for (;;){
+    uc_reg_read(uc,UC_RISCV_REG_PC,&pc);
+    err = uc_emu_start(uc, pc, pc + 12, 0, 1);
+    if (err) {
+      printf("Failed on uc_emu_start() with error returned %u: %s\n",
+        err, uc_strerror(err));
+        return -1;
+    }
+    uc_reg_read(uc,UC_RISCV_REG_SP,&sp);
+    uc_reg_read(uc,UC_RISCV_REG_GP,&gp);
+    uc_reg_read(uc,UC_RISCV_REG_S1,&s1);
+    //printf("PC -> 0x%llx\n",pc);
+    //printf("SP -> 0x%llx\n",sp);
+    //printf("GP -> 0x%llx\n",gp);
+    //printf("S1 -> 0x%llx\n",s1);
+    /*
+    steps++;
+    if (steps > 5)
+      break;
+      */
+  }
+  uc_close(uc);
+
+  return 0;
+}
+
