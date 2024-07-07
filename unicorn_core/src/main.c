@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/uio.h>
+#include <sys/mman.h>
 #include "loader.h"
 
 // code to be emulated
@@ -52,6 +53,35 @@ static void hook_syscall(uc_engine *uc, uint64_t address, uint32_t size,
     uc_reg_read(uc,UC_RISCV_REG_A1,&x11);
     uc_reg_read(uc,UC_RISCV_REG_A2,&x12);
     switch (x17) {
+      case 0xde: {
+        printf("syscall mmap 0x%llx 0x%llx 0x%llx\n",x10,x11,x12);
+        if (x11 == 0){
+          fprintf(stderr ,"ERROR: mmap with no length called\n");
+          // TODO HANDLE MEMORY PERMISSIONS
+          uint64_t mmap_base =  0x20000000;
+          err = uc_mem_map(uc,mmap_base,(4*1024),UC_PROT_ALL);
+          if (err){
+            fprintf(stderr ,"ERROR: uc_mem_map failed %s\n",uc_strerror(err));
+            exit(-1);
+          }
+          uc_reg_write(uc,UC_RISCV_REG_A0,&mmap_base);
+          return;
+        }
+        // TODO HANDLE MEMORY PERMISSIONS
+        err = uc_mem_map(uc,x10,x11,UC_PROT_ALL);
+        if (err){
+          fprintf(stderr ,"ERROR: uc_mem_map failed %s\n",uc_strerror(err));
+          exit(-1);
+        }
+        uc_reg_write(uc,UC_RISCV_REG_A0,&x10);
+        return;
+      }
+      case 0xd6: {
+        printf("syscall brk(0x%llx)\n",x10);
+        uint64_t break_addr = -1;
+        uc_reg_write(uc,UC_RISCV_REG_A0,&break_addr);
+        return;
+      }
       case 0x5e: {
         //printf("Exit Syscall Code 0x%llx!\n",x10);
         exit(x10);
@@ -106,6 +136,7 @@ static void hook_syscall(uc_engine *uc, uint64_t address, uint32_t size,
           free(buffer);
           iovec_ptr++;
         }
+        free(iovec_ptr);
         uc_reg_write(uc,UC_RISCV_REG_A0,&write_count);
         return;
       } 
@@ -212,7 +243,8 @@ int main(int argc, char **argv, char **envp)
     printf("Failed on uc_open() with error returned: %u\n", err);
     return -1;
   }
-  uint64_t pc = load_elf_into_mem("./hello_world_test",uc);
+  //uint64_t pc = load_elf_into_mem("./hello_world_test",uc);
+  uint64_t pc = load_elf_into_mem("./simple_snapshot_test_heap",uc);
   uint64_t sp = init_stack_virtual_memory(uc,argc,argv);
   // initialize machine registers
   /*
