@@ -15,6 +15,17 @@
 #define ADDRESS 0x1000000
 
 
+typedef struct Allocations {
+  uint64_t next_allocation_base;
+};
+
+struct Allocations global_allocs;
+
+
+uint64_t align_address_up(uint64_t address){
+  return (address & ~(4 * 1024)) + (4 * 1024);
+}
+
 
 // Hook Basic Blocks To Track Coverage
 static void hook_block(uc_engine *uc, uint64_t address, uint32_t size,
@@ -38,6 +49,11 @@ static void hook_code(uc_engine *uc, uint64_t address, uint32_t size,
 */
 
 
+uint64_t align_size_up(uint64_t sz){
+  uint64_t multiple = sz / 0x1000;
+  return ((4*1024) * multiple) + 0x1000;
+}
+
 // Hook Interrupts to handle syscalls
 static void hook_syscall(uc_engine *uc, uint64_t address, uint32_t size,
                       void *user_data)
@@ -56,29 +72,35 @@ static void hook_syscall(uc_engine *uc, uint64_t address, uint32_t size,
       case 0xde: {
         printf("syscall mmap 0x%llx 0x%llx 0x%llx\n",x10,x11,x12);
         if (x11 == 0){
-          fprintf(stderr ,"ERROR: mmap with no length called\n");
-          // TODO HANDLE MEMORY PERMISSIONS
-          uint64_t mmap_base =  0x20000000;
-          err = uc_mem_map(uc,mmap_base,(4*1024),UC_PROT_ALL);
-          if (err){
-            fprintf(stderr ,"ERROR: uc_mem_map failed %s\n",uc_strerror(err));
-            exit(-1);
-          }
-          uc_reg_write(uc,UC_RISCV_REG_A0,&mmap_base);
+          x10 = -1;
+          uc_reg_write(uc,UC_RISCV_REG_A0,&x10);
           return;
         }
         // TODO HANDLE MEMORY PERMISSIONS
-        err = uc_mem_map(uc,x10,x11,UC_PROT_ALL);
-        if (err){
-          fprintf(stderr ,"ERROR: uc_mem_map failed %s\n",uc_strerror(err));
-          exit(-1);
+        //uint64_t aligned_address = align_address_up(x10);
+        if (x10 == 0) {
+          printf("attempting to alloc here 0x%llx\n",align_address_up(global_allocs.next_allocation_base));
+          printf("size aligned 0x%llx 0x%llx\n",x11,align_size_up(x11));
+          err = uc_mem_map(uc,global_allocs.next_allocation_base,align_size_up(x11),UC_PROT_ALL);
+          if (err){
+            fprintf(stderr ,"ERROR: uc_mem_map mmap emulation failed %s\n",uc_strerror(err));
+            exit(-1);
+          }
+          uint64_t base = global_allocs.next_allocation_base;
+          global_allocs.next_allocation_base +=  x11;
+          printf("mmap -> start 0x%llx -> end 0x%llx sz 0%llx\n",base,global_allocs.next_allocation_base,x11);
+          getchar();
+          uc_reg_write(uc,UC_RISCV_REG_A0,&base);
+          return;
         }
-        uc_reg_write(uc,UC_RISCV_REG_A0,&x10);
-        return;
+        printf("todo handle no address mmap\n");
+        exit(-1);
       }
       case 0xd6: {
-        printf("syscall brk(0x%llx)\n",x10);
-        uint64_t break_addr = -1;
+        printf("syscall sbrk(0x%llx)\n",x10);
+        //void* result = sbrk((intptr_t)x10);
+        //printf("sbrk result = 0x%llx\n",(uint64_t)result);
+        uint64_t break_addr = (uint64_t)-1;
         uc_reg_write(uc,UC_RISCV_REG_A0,&break_addr);
         return;
       }
@@ -95,6 +117,12 @@ static void hook_syscall(uc_engine *uc, uint64_t address, uint32_t size,
       }
       case 0x1d: {
         //printf("syscall -> ioctl\n");
+        uc_reg_write(uc,UC_RISCV_REG_A0,&x10);
+        return;
+      }
+      case 0xe2: {
+        //printf("syscall -> mprotect%s","\n");
+        x10 = 0;
         uc_reg_write(uc,UC_RISCV_REG_A0,&x10);
         return;
       }
@@ -147,9 +175,6 @@ static void hook_syscall(uc_engine *uc, uint64_t address, uint32_t size,
     }
 }
 
-uint64_t align_address_up(uint64_t address){
-  return (address & ~(4 * 1024)) + (4 * 1024);
-}
 
 /// HANDLE LOAD ELF
 void load_code_segments_into_virtual_memory(uc_engine* uc ,CodeSegments* code){
@@ -163,6 +188,8 @@ void load_code_segments_into_virtual_memory(uc_engine* uc ,CodeSegments* code){
     fprintf(stderr,"ERROR: Failed to uc_mem_map ::: %s\n",uc_strerror(err));
     exit(-1);
   }
+  global_allocs.next_allocation_base = code->base_address + aligned_address;
+  fprintf(stderr,"DEBUG: Next Allocation Base -> 0x%llx\n",global_allocs.next_allocation_base);
   fprintf(stderr,"DEBUG: MMAP memory at 0x%llx sz 0x%llx\n",code->base_address,aligned_address);
   for (int i = 0; i < code->count; i++){
     err = uc_mem_write(uc,code->segs[i]->virtual_address,code->segs[i]->raw_data,code->segs[i]->size);
@@ -186,29 +213,46 @@ uint64_t load_elf_into_mem(const char* path, uc_engine* uc){
 
 uint64_t init_stack_virtual_memory(uc_engine* uc, int argc, char** argv){
   uint64_t stack_base = 0x4000000000;
-  uint64_t stack_end = stack_base + (0x1F400);
   uint64_t heap_base =  0x30000000;
-  uint64_t stack_pointer = stack_end - (0xFA00);
+  uint64_t stack_size = (4 * 1024) * 0x7d;
+  uint64_t stack_end = stack_base + stack_size;
+  uint64_t stack_pointer = stack_end - (0x1024);
+  global_allocs.next_allocation_base = stack_end + (4 * 1024);
   uc_err err;
-  err = uc_mem_map(uc,heap_base,4*1024,UC_PROT_ALL);
-  if (err){
-    fprintf(stderr,"ERROR: Failed to uc_mem_map heap ::: %s\n",uc_strerror(err));
-    exit(-1);
-  }
-  err = uc_mem_map(uc,stack_base,(4*1024) * 0x7d,UC_PROT_ALL);
+  fprintf(stderr,"DEBUG: Next Allocation Base -> 0x%llx\n",global_allocs.next_allocation_base);
+
+  err = uc_mem_map(uc,stack_base,stack_size,UC_PROT_ALL);
   if (err){
     fprintf(stderr,"ERROR: Failed to uc_mem_map stack ::: %s\n",uc_strerror(err));
     exit(-1);
   }
   stack_pointer -= 8;
   err = uc_mem_write(uc,stack_pointer,(const uint8_t*)"\x00\x00\x00\x00\x00\x00\x00\x00",8);
+  if (err){
+    fprintf(stderr,"ERROR: Failed to init stack ::: %s\n",uc_strerror(err));
+    exit(-1);
+  }
 
   stack_pointer -= 8;
   err = uc_mem_write(uc,stack_pointer,(const uint8_t*)"\x00\x00\x00\x00\x00\x00\x00\x00",8);
+  if (err){
+    fprintf(stderr,"ERROR: Failed to init stack ::: %s\n",uc_strerror(err));
+    exit(-1);
+  }
 
   stack_pointer -= 8;
   err = uc_mem_write(uc,stack_pointer,(const uint8_t*)"\x00\x00\x00\x00\x00\x00\x00\x00",8);
-
+  if (err){
+    fprintf(stderr,"ERROR: Failed to init stack ::: %s\n",uc_strerror(err));
+    exit(-1);
+  }
+  // heap alloc after stack
+  err = uc_mem_map(uc,heap_base,4*1024,UC_PROT_ALL);
+  if (err){
+    fprintf(stderr,"ERROR: Failed to uc_mem_map heap ::: %s\n",uc_strerror(err));
+    exit(-1);
+  }
+  fprintf(stderr,"DEBUG: HEAP ALLOCATED Next Allocation Base -> 0x%llx\n",global_allocs.next_allocation_base);
   // write string to heap base
   err = uc_mem_write(uc,heap_base,(const uint8_t*)"\x41\x41\x41\x41\x41\x41\x41\x41",8);
   // write heap pointer to satck
@@ -244,7 +288,7 @@ int main(int argc, char **argv, char **envp)
     return -1;
   }
   //uint64_t pc = load_elf_into_mem("./hello_world_test",uc);
-  uint64_t pc = load_elf_into_mem("./simple_snapshot_test_heap",uc);
+  uint64_t pc = load_elf_into_mem("./heap_test",uc);
   uint64_t sp = init_stack_virtual_memory(uc,argc,argv);
   // initialize machine registers
   /*
